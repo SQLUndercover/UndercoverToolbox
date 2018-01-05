@@ -13,6 +13,8 @@ Author: Adrian Buckman
 Revision date: 08/12/2017
 Version: V1
 
+URL: https://sqlundercover.com/2017/12/08/undercover-toolbox-sp_agreconfigure-manage-always-on-sync-failover-settings-from-a-single-stored-procedure/
+
 © www.sqlundercover.com 
 
 
