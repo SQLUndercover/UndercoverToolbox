@@ -40,8 +40,8 @@ IF @FromDate IS NULL BEGIN SET @FromDate = DATEADD(Minute,-720,GETDATE()) END
 IF @ToDate  IS NULL BEGIN SET @ToDate = GETDATE() END  
   
 SELECT   
-Jobs.name,  
-JobHistory.step_id,  
+Jobs.Name,  
+JobHistory.Step_id,  
 JobHistory.FailedRunDate,  
 CAST(JobHistory.LastError AS VARCHAR(250)) AS LastError  
 FROM msdb.dbo.sysjobs Jobs
