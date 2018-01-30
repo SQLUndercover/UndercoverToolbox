@@ -6,4 +6,4 @@ The SQL Undercover Toolbox comprises of a collection of scripts, stored procedur
 Full documentation can be found on [sqlundercover.com](https://sqlundercover.com).  URLs for each script can be found in the script's header.
 
 ## License
-All SQL Undercover Toolbox scripts are released under the [MIT license](https://github.com/SQLUndercover/UndercoverToolbox/blob/master/LICENSE)
+All SQL Undercover Toolbox scripts are released under the [MIT license](https://github.com/SQLUndercover/UndercoverToolbox/blob/master/LICENSE.md)
