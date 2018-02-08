@@ -5,6 +5,7 @@ GO
 IF OBJECT_ID('dbo.sp_AGreconfigure') IS NOT NULL
 DROP PROCEDURE sp_AGreconfigure;
 
+GO
 
 /**********************************************
 Procedure Name: sp_AGreconfigure
