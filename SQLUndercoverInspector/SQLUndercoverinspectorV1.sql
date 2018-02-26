@@ -196,7 +196,7 @@ DECLARE @BackupsPath VARCHAR(255) = 'F:\Backups'	  -- Backup Drive and path
 DECLARE @DriveSpaceHistoryRetentionInDays TINYINT = 90
 DECLARE @DaysUntilDriveFullThreshold	  TINYINT = 56 -- Estimated days until drive is full - Specify the threshold for when you will start to receive alerts (Red highlight and Alert header entry)
 DECLARE @FreeSpaceRemainingPercent		  TINYINT = 10 -- Specify the percentage of drive space remaining where you want to start seeing a yellow highlight against the drive
-DECLARE @DriveLetterExcludes			  VARCHAR(10) -- Exclude Drive letters from showing Yellow Advisory warnings when @FreeSpaceRemainingPercent has been reached/exceeded e.g C,D (Comma Delimited)
+DECLARE @DriveLetterExcludes			  VARCHAR(10) = NULL -- Exclude Drive letters from showing Yellow Advisory warnings when @FreeSpaceRemainingPercent has been reached/exceeded e.g C,D (Comma Delimited)
 
 DECLARE @DatabaseGrowthsAllowedPerDay	  TINYINT = 1  -- Total Database Growths acceptable for a 24hour period If exceeded a Yellow Advisory condition will be shown
 DECLARE @MAXDatabaseGrowthsAllowedPerDay  TINYINT = 10 -- MAX Database Growths for a 24 hour period If equal or exceeded a Red Warning condition will be shown
@@ -660,7 +660,7 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'','''+@StackNameForEmailSubject+''
 INSERT INTO [Inspector].[Settings] ([Description],[Value])
 VALUES	(''DriveSpaceRetentionPeriodInDays'','+CAST(@DriveSpaceHistoryRetentionInDays AS VARCHAR(6))+'),
 		'+CASE 
-			WHEN @EmailRecipientList IS NULL 
+			WHEN @DriveLetterExcludes IS NULL 
 			THEN 
 			'(''DriveSpaceDriveLetterExcludes'',NULL),
 			'
