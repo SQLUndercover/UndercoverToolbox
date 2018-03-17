@@ -39,7 +39,7 @@
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 31/01/2018
+Revision date: 14/03/2018
 Version: 1
 Description: SQLUndercover Inspector setup script
 
@@ -75,8 +75,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 --OBJECT LIST:
 ---------------------------------------------
--- 1 x FUNCTION  - fn_Splitstring is required if SPLIT_STRING is not compatible with your system
---				   fn_Splitstring can be found here https://sqlundercover.com/2017/06/01/undercover-toolbox-fn_splitstring-its-like-string_split-but-for-luddites-or-those-who-havent-moved-to-sql-2016-yet/
+-- 1 x FUNCTION  - fn_SplitString is required if SPLIT_STRING is not compatible with your system
+--				   fn_SplitString can be found here https://sqlundercover.com/2017/06/01/undercover-toolbox-fn_splitstring-its-like-string_split-but-for-luddites-or-those-who-havent-moved-to-sql-2016-yet/
 ---------------------------------------------
 -- 1 x SCHEMA: [Inspector] 
 ---------------------------------------------
@@ -147,7 +147,7 @@ GO
 -- 1) Ensure you have created your Logging Database
 
 -- 2) Scroll down to 'STEP 1' Ensure the @Databasename Variable Value matches your Logging Database name, If you are using Linked servers
---    to point at one central logging database then you will need to SET @LinkedServerName with the linked server name, otherwise SET this to NULL. Run against the Target of the linked server First!!
+--    to point at one central logging database then you will need to SET @LinkedServername with the linked server name, otherwise SET this to NULL. Run against the Target of the linked server First!!
 --    SET the Remaining values for the variables in this step accordingly, If this is the initial setup then leave @InitialSetup set to 1 
 
 -- 3) Scroll down to 'STEP 2' SET the variables accordingly in this step for initial setup, otherwise if preserving Data or Settings (@InitialSetup = 0) then you can skip this step.
@@ -164,10 +164,10 @@ GO
 --======================================================================================
 
 
-DECLARE @LinkedServerName NVARCHAR(128) = NULL  --Name of the Linked Server , SET to NULL if you are not using Linked Servers for this solution
+DECLARE @LinkedServername NVARCHAR(128) = NULL  --Name of the Linked Server , SET to NULL if you are not using Linked Servers for this solution
 									   --Run against the Target of the linked server First!! then the remaining servers you want to monitor.
 
-DECLARE @Databasename NVARCHAR(128) = 'SQLUndercoverDB'	--Name of the Logging Database
+DECLARE @Databasename NVARCHAR(128) = 'SQLUndercoverCS'	--Name of the Logging Database
 
 DECLARE @DataDrive VARCHAR(7) = 'S,U'	--List Data Drives here (Maximum of 4 - comma delimited e.g 'P,Q,R,S')
 DECLARE @LogDrive VARCHAR(7) = 'T,V'	--List Log Drives here (Maximum of 4 - comma delimited e.g 'T,U,V,W')
@@ -226,7 +226,7 @@ WHERE name = DB_NAME()
 
 
 
-IF @Compatibility = 1 OR (@Compatibility = 0 AND OBJECT_ID('Master.dbo.Fn_SplitString') IS NOT NULL) 
+IF @Compatibility = 1 OR (@Compatibility = 0 AND OBJECT_ID('master.dbo.fn_SplitString') IS NOT NULL) 
 BEGIN
 
 IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL) 
@@ -238,7 +238,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 	BEGIN
 		IF DB_NAME() = @Databasename
 		BEGIN
-			IF @LinkedServerName IS NULL OR EXISTS (SELECT NAME FROM SYS.SERVERS WHERE NAME = @LinkedServerName)
+			IF @LinkedServername IS NULL OR EXISTS (SELECT name FROM sys.servers WHERE name = @LinkedServername)
 			BEGIN
 
 			DECLARE @SQLStatement VARCHAR(MAX) 
@@ -248,8 +248,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			
 			IF RIGHT(@BackupsPath,1) != '\' BEGIN SET @BackupsPath = @BackupsPath +'\' END
 			
-			IF @LinkedServerName IS NOT NULL BEGIN SET @LinkedServerName = QUOTENAME(@LinkedServerName)+'.' END
-			IF @LinkedServerName IS NULL BEGIN SET @LinkedServerName = '' END
+			IF @LinkedServername IS NOT NULL BEGIN SET @LinkedServername = QUOTENAME(@LinkedServername)+'.' END
+			IF @LinkedServername IS NULL BEGIN SET @LinkedServername = '' END
 
 
 			SET NOCOUNT ON;
@@ -698,17 +698,17 @@ VALUES (''Default'',''SQLUndercover Inspector check ''),(''PeriodicBackupCheck''
 
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
-INSERT INTO '+CAST(@LinkedServerName AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] (Servername,Isactive,ModuleConfig_Desc)
-SELECT DISTINCT Replica_server_name,1,NULL
+INSERT INTO '+CAST(@LinkedServername AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] (Servername,Isactive,ModuleConfig_Desc)
+SELECT DISTINCT replica_server_name,1,NULL
 FROM sys.dm_hadr_availability_replica_cluster_nodes AGServers
-WHERE NOT EXISTS (SELECT Servername FROM '+CAST(@LinkedServerName AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] WHERE Servername = AGServers.Replica_server_name)
+WHERE NOT EXISTS (SELECT Servername FROM '+CAST(@LinkedServername AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] WHERE Servername COLLATE DATABASE_DEFAULT = AGServers.replica_server_name)
 END 
 ELSE 
 BEGIN 
 
-INSERT INTO '+CAST(@LinkedServerName AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] (Servername,Isactive,ModuleConfig_Desc)
+INSERT INTO '+CAST(@LinkedServername AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] (Servername,Isactive,ModuleConfig_Desc)
 SELECT @@SERVERNAME,1,NULL
-WHERE NOT EXISTS (SELECT Servername FROM '+CAST(@LinkedServerName AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] WHERE Servername = @@Servername)
+WHERE NOT EXISTS (SELECT Servername FROM '+CAST(@LinkedServername AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] WHERE Servername = @@Servername)
 END
 '
 +
@@ -726,7 +726,7 @@ VALUES (''DBA'','''+@EmailRecipientList+''')
 '
 END
 
-EXEC (@SQLStatement)
+EXEC (@SQLStatement);
 
 END
 
@@ -738,7 +738,7 @@ END
 			CREATE TABLE [Inspector].[ADHocDatabaseCreations]
 			(
 			[Servername] NVARCHAR(128) NOT NULL,
-			[Log_date] DATETIME NULL,
+			[Log_Date] DATETIME NULL,
 			[Databasename] NVARCHAR(128) NOT NULL,
 			[Create_Date] DATETIME NULL
 			);
@@ -761,11 +761,11 @@ END
 			
 			CREATE TABLE [Inspector].[AGCheck]
 			(
-				[ServerName] NVARCHAR(128) NOT NULL,
+				[Servername] NVARCHAR(128) NOT NULL,
 				[Log_Date] DATETIME NOT NULL,
 				[AGname] NVARCHAR(128) NULL,
 				[State] VARCHAR(50) NULL,
-				[ReplicaServerName] NVARCHAR(256) NULL,
+				[ReplicaServername] NVARCHAR(256) NULL,
 				[Suspended] BIT NULL,
 				[SuspendReason] VARCHAR(50) NULL
 			); 
@@ -777,7 +777,7 @@ END
 			
 			CREATE TABLE [Inspector].[DatabaseFiles]
 			(
-			[ServerName] NVARCHAR(128)  NOT NULL,
+			[Servername] NVARCHAR(128)  NOT NULL,
 			[Log_Date] DATETIME  NOT NULL,
 			[Databasename] NVARCHAR(128), 
 			[FileType] VARCHAR(8),
@@ -791,7 +791,7 @@ END
 			
 			CREATE TABLE [Inspector].[DatabaseStates]
 			(
-			[ServerName] NVARCHAR(128)  NOT NULL,
+			[Servername] NVARCHAR(128)  NOT NULL,
 			[Log_Date] DATETIME  NOT NULL,
 			[DatabaseState] VARCHAR(40)  NULL,
 			[Total] INT,
@@ -819,7 +819,7 @@ END
 			
 			CREATE TABLE [Inspector].[FailedAgentJobs]
 			(
-			[ServerName] NVARCHAR(128)  NOT NULL,
+			[Servername] NVARCHAR(128)  NOT NULL,
 			[Log_Date] DATETIME  NOT NULL,
 			[JobName] VARCHAR(128)  NULL,
 			[LastStepFailed] TINYINT NULL,
@@ -833,7 +833,7 @@ END
 			
 			CREATE TABLE [Inspector].[LoginAttempts]
 			(
-			[ServerName] NVARCHAR(128)  NOT NULL,
+			[Servername] NVARCHAR(128)  NOT NULL,
 			[Log_Date] DATETIME  NOT NULL,
 			[Username] VARCHAR(50)  NULL,
 			[Attempts] INT NULL,
@@ -848,7 +848,7 @@ END
 			
 			CREATE TABLE [Inspector].[JobOwner]
 			(
-			[ServerName] NVARCHAR(128)  NOT NULL,
+			[Servername] NVARCHAR(128)  NOT NULL,
 			[Log_Date] DATETIME  NOT NULL,
 			[Job_ID]  UNIQUEIDENTIFIER  NULL,
 			[JobName] VARCHAR(100) NOT NULL
@@ -861,7 +861,7 @@ END
 			
 			CREATE TABLE [Inspector].[TopFiveDatabases]
 			(
-			[ServerName] NVARCHAR(128)  NOT NULL,
+			[Servername] NVARCHAR(128)  NOT NULL,
 			[Log_Date] DATETIME  NOT NULL,
 			[Databasename] NVARCHAR(128)  NULL,
 			[TotalSize_MB] BIGINT
@@ -873,7 +873,7 @@ END
 			DROP TABLE [Inspector].[BackupsCheck];
 			
 			CREATE TABLE [Inspector].[BackupsCheck](
-				[ServerName] NVARCHAR (128) NOT NULL,
+				[Servername] NVARCHAR (128) NOT NULL,
 				[Log_Date] [datetime] NOT NULL,
 				[Databasename] [nvarchar](128) NULL,
 				[AGname] Nvarchar (128) NULL,
@@ -891,7 +891,7 @@ END
 			DROP TABLE [Inspector].[DatabaseFileSizes];
 			
 			CREATE TABLE [Inspector].[DatabaseFileSizes](
-				[ServerName] NVARCHAR(128)  NOT NULL,
+				[Servername] NVARCHAR(128)  NOT NULL,
 				[Database_id] INT NOT NULL,
 				[Database_name] [nvarchar](128) NULL,
 				[OriginalDateLogged] [datetime] NOT NULL,
@@ -912,7 +912,7 @@ END
 			CREATE TABLE [Inspector].DatabaseFileSizeHistory
 			(
 			[GrowthID] BIGINT IDENTITY(1,1),
-			[ServerName] NVARCHAR(128)  NOT NULL,
+			[Servername] NVARCHAR(128)  NOT NULL,
 			[Database_id] INT NOT NULL,
 			[Database_name] NVARCHAR(128) NOT NULL,
 			[Log_Date] DATETIME NOT NULL,
@@ -931,12 +931,12 @@ END
 			
 			CREATE TABLE [Inspector].[DatabaseOwnership]
 			    (
-				[ServerName] [nvarchar](128) NOT NULL,
+				[Servername] [nvarchar](128) NOT NULL,
 				[Log_Date] DATETIME NULL,
 				[AGName] [nvarchar](128) NULL,
 				[Database_name] [nvarchar](128) NOT NULL,
 				[Owner] [nvarchar](100) NULL
-				) ;
+				);
 			
 			
 			IF OBJECT_ID('Inspector.BackupSizesByDay') IS NOT NULL
@@ -944,7 +944,7 @@ END
 			
 			CREATE TABLE [Inspector].[BackupSizesByDay]
 				(
-				[ServerName] [nvarchar](128) NOT NULL,
+				[Servername] [nvarchar](128) NOT NULL,
 				[Log_Date] DATETIME NULL,
 				[DayOfWeek] [VARCHAR](10) NULL,
 				[CastedDate] [DATE] NULL,
@@ -1016,18 +1016,18 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
-DECLARE @ServerName NVARCHAR(128) = @@SERVERNAME;
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 
 DELETE 
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[ADHocDatabaseCreations]
-WHERE Servername = @ServerName;
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[ADHocDatabaseCreations]
+WHERE Servername = @Servername;
 
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[ADHocDatabaseCreations] (Servername,Log_date,Databasename,Create_Date)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[ADHocDatabaseCreations] (Servername,Log_date,Databasename,Create_Date)
 SELECT
-@ServerName,
+@Servername,
 GETDATE(),
 name,
 Create_date
@@ -1040,30 +1040,30 @@ AND [state] = 0
 AND [create_date] > DATEADD(DAY,-7,CAST(GETDATE() AS DATE))
 AND [source_database_id] IS NULL 
 AND name COLLATE DATABASE_DEFAULT NOT IN (SELECT Databasename 
-			  FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[ADHocDatabaseSupression] 
-			  WHERE Servername = @ServerName AND Suppress = 1)
+			  FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[ADHocDatabaseSupression] 
+			  WHERE Servername = @Servername AND Suppress = 1)
 ORDER BY create_date ASC;
 
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[ADHocDatabaseSupression] (Servername, Log_Date, Databasename, Suppress)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[ADHocDatabaseSupression] (Servername, Log_Date, Databasename, Suppress)
 SELECT
-@ServerName,
+@Servername,
 GETDATE(),
 Databasename,
 0
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[ADHocDatabaseCreations] Creations
-WHERE Servername = @ServerName
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[ADHocDatabaseCreations] Creations
+WHERE Servername = @Servername
 AND NOT EXISTS (SELECT Databasename 
-			 FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[ADHocDatabaseSupression] SuppressList
-			 WHERE SuppressList.Servername = @ServerName AND SuppressList.Databasename = Creations.Databasename);
+			 FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[ADHocDatabaseSupression] SuppressList
+			 WHERE SuppressList.Servername = @Servername AND SuppressList.Databasename = Creations.Databasename);
 
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[ADHocDatabaseCreations] 
-			WHERE Servername = @ServerName)
+			FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[ADHocDatabaseCreations] 
+			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[ADHocDatabaseCreations] (Servername,Log_date,Databasename,Create_Date)
-			VALUES(@ServerName,GETDATE(),''No Ad hoc database creations present'',NULL)
+			INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[ADHocDatabaseCreations] (Servername,Log_date,Databasename,Create_Date)
+			VALUES(@Servername,GETDATE(),''No Ad hoc database creations present'',NULL)
 			END
 
 END;'
@@ -1075,26 +1075,26 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
 SET NOCOUNT ON;
 
-DECLARE @ServerName NVARCHAR(128) = @@SERVERNAME
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
 DELETE 
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[AGCheck]
-WHERE Servername = @ServerName;
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheck]
+WHERE Servername = @Servername;
 
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[AGCheck] ([ServerName], [Log_Date], [AGname], [State], [ReplicaServerName], [Suspended], [SuspendReason])
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheck] ([Servername], [Log_Date], [AGname], [State], [ReplicaServername], [Suspended], [SuspendReason])
 SELECT DISTINCT
-@ServerName,
-Getdate(),
-Groups.NAME AS AGNAME,
+@Servername,
+GETDATE(),
+Groups.name AS AGNAME,
 States.synchronization_health_desc,
-Replicas.replica_server_name +'' ('' + CAST(States.role_desc AS NCHAR(1)) +'')'',
+Replicas.replica_server_name COLLATE DATABASE_DEFAULT +'' ('' + CAST(States.role_desc AS NCHAR(1)) +'')'',
 ReplicaStates.is_suspended,
 ISNULL(ReplicaStates.suspend_reason_desc,''N/A'') AS suspend_reason_desc
 FROM sys.availability_groups Groups
@@ -1106,17 +1106,17 @@ END
 ELSE 
 BEGIN
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[AGCheck] ([ServerName], [Log_Date], [AGname], [State])
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheck] ([Servername], [Log_Date], [AGname], [State])
 SELECT
-@ServerName,
-Getdate(),
+@Servername,
+GETDATE(),
 ''HADR IS NOT ENABLED ON THIS SERVER OR YOU HAVE NO AVAILABILITY GROUPS'',
 ''N/A''
 
 END
 END;'
 
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 
 
@@ -1130,20 +1130,20 @@ DECLARE @RemainingDataWhereClause VARCHAR(MAX)
   BEGIN 
 	IF @Compatibility = 0 
 		BEGIN
-			SET @RemainingDataWhereClause = (SELECT ' OR physical_name LIKE '''+[StringElement]+'%''' FROM Master.dbo.fn_SplitString(RIGHT(@DataDrive,LEN(@DataDrive)-2),',') RemainingWhereClause FOR XML PATH(''))
+			SET @RemainingDataWhereClause = (SELECT ' OR physical_name LIKE '''+[StringElement]+'%''' FROM master.dbo.fn_SplitString(RIGHT(@DataDrive,LEN(@DataDrive)-2),',') RemainingWhereClause FOR XML PATH(''))
 		END
 			IF @Compatibility = 1
 			BEGIN
-				SET @RemainingDataWhereClause= (SELECT ' OR physical_name LIKE '''+[Value]+'%''' FROM STRING_SPLIT(RIGHT(@DataDrive,LEN(@DataDrive)-2),',') RemainingWhereClause FOR XML PATH(''))
+				SET @RemainingDataWhereClause= (SELECT ' OR physical_name LIKE '''+[value]+'%''' FROM STRING_SPLIT(RIGHT(@DataDrive,LEN(@DataDrive)-2),',') RemainingWhereClause FOR XML PATH(''))
 			END
 
   SET @DataDriveWhereClause =  ''+REPLICATE('(',@DataDriveLength) --Total clauses required
-  +'Physical_name LIKE '''+SUBSTRING(@DataDrive,1,1)+'%''' 
+  +'physical_name LIKE '''+SUBSTRING(@DataDrive,1,1)+'%''' 
   + @RemainingDataWhereClause +REPLICATE(')',@DataDriveLength-1) + ' AND physical_name LIKE ''%.ldf'') OR '
   END
   ELSE
   BEGIN
-  SET @DataDriveWhereClause = '(Physical_name LIKE '''+@DataDrive+'%'' AND physical_name LIKE ''%.ldf'') OR '
+  SET @DataDriveWhereClause = '(physical_name LIKE '''+@DataDrive+'%'' AND physical_name LIKE ''%.ldf'') OR '
   END
 
 DECLARE @LogDriveLength INT = LEN(REPLACE(@LogDrive,',',''))
@@ -1153,20 +1153,20 @@ DECLARE @RemainingLogWhereClause VARCHAR(MAX)
   BEGIN 
   	IF @Compatibility = 0 
 		BEGIN
-			SET @RemainingLogWhereClause = (SELECT ' OR physical_name LIKE '''+[StringElement]+'%''' FROM Master.dbo.fn_SplitString(RIGHT(@LogDrive,LEN(@DataDrive)-2),',') RemainingWhereClause FOR XML PATH(''))
+			SET @RemainingLogWhereClause = (SELECT ' OR physical_name LIKE '''+[StringElement]+'%''' FROM master.dbo.fn_SplitString(RIGHT(@LogDrive,LEN(@DataDrive)-2),',') RemainingWhereClause FOR XML PATH(''))
 		END
 			IF @Compatibility = 1
 			BEGIN
-				SET @RemainingLogWhereClause= (SELECT ' OR physical_name LIKE '''+[Value]+'%''' FROM STRING_SPLIT(RIGHT(@LogDrive,LEN(@LogDrive)-2),',') RemainingWhereClause FOR XML PATH(''))
+				SET @RemainingLogWhereClause= (SELECT ' OR physical_name LIKE '''+[value]+'%''' FROM STRING_SPLIT(RIGHT(@LogDrive,LEN(@LogDrive)-2),',') RemainingWhereClause FOR XML PATH(''))
 			END
 							    
   SET @LogDriveWhereClause = ''+REPLICATE('(',@LogDriveLength) --Total clauses required
-  +'Physical_name LIKE '''+SUBSTRING(@LogDrive,1,1)+'%''' 
+  +'physical_name LIKE '''+SUBSTRING(@LogDrive,1,1)+'%''' 
   + @RemainingLogWhereClause +REPLICATE(')',@LogDriveLength-1) + ' AND physical_name LIKE ''%.mdf'')'
   END
   ELSE
   BEGIN
-  SET @LogDriveWhereClause = '(Physical_name LIKE '''+@LogDrive+'%'' AND physical_name LIKE ''%.mdf'')'
+  SET @LogDriveWhereClause = '(physical_name LIKE '''+@LogDrive+'%'' AND physical_name LIKE ''%.mdf'')'
   END
 
 
@@ -1177,23 +1177,23 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
 SET NOCOUNT ON;
 
-DECLARE @ServerName NVARCHAR(128) = @@SERVERNAME
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
 DELETE 
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFiles]
-WHERE Servername = @ServerName;
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFiles]
+WHERE Servername = @Servername;
 
-INSERT INTO  '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFiles] (ServerName,Log_Date,Databasename,FileType,FilePath)
+INSERT INTO  '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFiles] (Servername,Log_Date,Databasename,FileType,FilePath)
 SELECT
-@ServerName,
-GetDate(),
-DB_NAME(Database_ID),
-Type_Desc,
-Physical_Name 
+@Servername,
+GETDATE(),
+DB_NAME(database_id),
+type_desc,
+physical_name 
 FROM sys.master_files
 WHERE 
 '+ @DataDriveWhereClause + '
@@ -1203,17 +1203,17 @@ WHERE
 ORDER BY DB_NAME(Database_ID) ASC
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFiles]
-			WHERE Servername = @ServerName)
+			FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFiles]
+			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFiles] (ServerName,Log_Date,Databasename,FileType,FilePath)
-			VALUES(@ServerName,GETDATE(),''No Database File issues present'',NULL,NULL)
+			INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFiles] (Servername,Log_Date,Databasename,FileType,FilePath)
+			VALUES(@Servername,GETDATE(),''No Database File issues present'',NULL,NULL)
 			END
 			
 END;'
 
 
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 
 
@@ -1222,46 +1222,56 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
 SET NOCOUNT ON;
 
-DECLARE @ServerName NVARCHAR(128) = @@SERVERNAME
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
 DELETE 
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseStates]
-WHERE Servername = @ServerName;
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseStates]
+WHERE Servername = @Servername;
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseStates] (ServerName,Log_Date,DatabaseState,Total,DatabaseNames)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseStates] (Servername,Log_Date,DatabaseState,Total,DatabaseNames)
 SELECT 
-@ServerName,
-GetDate(),
-State_desc,
-COUNT(State_desc),
-CASE WHEN State_desc IN (''ONLINE'',''SNAPSHOT (less than 10 days old)'') THEN ''-'' ELSE DBName END
-FROM (Select CASE WHEN source_database_id IS NOT NULL AND create_date < DATEADD(DAY,-10,GetDate()) THEN ''SNAPSHOT (more than 10 days old)''
-WHEN source_database_id IS NOT NULL AND create_date > DATEADD(DAY,-10,GetDate()) THEN ''SNAPSHOT (less than 10 days old)'' 
-ELSE State_Desc END AS State_desc,
-STUFF(COALESCE(NonOnlineDBs.DatabaseName,OldSnapshotDBs.DatabaseName,''''),1,2,'''') As DBName
-From sys.databases Databases
-CROSS APPLY (SELECT '' , '' + QUOTENAME(NAME) 
-			 FROM SYS.DATABASES NonOnlineDBs
-			 WHERE Databases.State_desc = NonOnlineDBs.State_desc
-			 AND (NonOnlineDBs.State_desc != ''Online'' AND source_database_id IS NULL)
-			 FOR XML PATH('''')) NonOnlineDBs (Databasename)
-CROSS APPLY (SELECT '' , '' + QUOTENAME(NAME) 
-			 FROM SYS.DATABASES OldSnapshotDBs
-			 WHERE Databases.State_desc = OldSnapshotDBs.State_desc
-			 AND source_database_id IS NOT NULL 
-			 AND create_date < DATEADD(DAY,-10,GetDate())
-			 FOR XML PATH('''')) OldSnapshotDBs (Databasename)
-) DatabaseStates
-GROUP BY State_desc,DBName
-ORDER BY COUNT(State_desc) DESC
+@Servername,
+GETDATE(),
+state_desc,
+COUNT(state_desc),
+CASE WHEN state_desc IN (''ONLINE'',''SNAPSHOT (less than 10 days old)'') THEN ''-'' ELSE DBName END
+FROM 
+(
+    SELECT CASE WHEN source_database_id IS NOT NULL AND create_date < DATEADD(DAY,-10,GETDATE()) THEN ''SNAPSHOT (more than 10 days old)''
+    WHEN source_database_id IS NOT NULL AND create_date > DATEADD(DAY,-10,GETDATE()) THEN ''SNAPSHOT (less than 10 days old)'' 
+    WHEN EXISTS (SELECT 1 FROM msdb.dbo.log_shipping_secondary_databases Logshipped WHERE Logshipped.secondary_database = Databases.name) AND Databases.state = 1 THEN ''LOG SHIPPED RESTORING''
+    WHEN EXISTS (SELECT 1 FROM msdb.dbo.log_shipping_secondary_databases Logshipped WHERE Logshipped.secondary_database = Databases.name) AND Databases.is_in_standby = 1 THEN ''LOG SHIPPED STANDBY''
+    ELSE state_desc END AS state_desc,
+    STUFF(COALESCE(LogShipped.Databasename,NonOnlineDBs.Databasename,OldSnapshotDBs.Databasename,''''),1,2,'''') As DBName
+    FROM sys.databases Databases
+    CROSS APPLY (SELECT '' , '' + QUOTENAME(name) 
+    			 FROM sys.databases NonOnlineDBs
+    			 WHERE Databases.state_desc = NonOnlineDBs.state_desc
+    			 AND (NonOnlineDBs.state_desc != ''Online'' AND source_database_id IS NULL)
+    			 AND NOT EXISTS (SELECT 1 FROM msdb.dbo.log_shipping_secondary_databases Logshipped WHERE Logshipped.secondary_database = NonOnlineDBs.name)
+    			 FOR XML PATH('''')) NonOnlineDBs (Databasename)
+    CROSS APPLY (SELECT '' , '' + QUOTENAME(name) 
+    			 FROM sys.databases OldSnapshotDBs
+    			 WHERE Databases.state_desc = OldSnapshotDBs.state_desc
+    			 AND source_database_id IS NOT NULL 
+    			 AND create_date < DATEADD(DAY,-10,GETDATE())
+    			 FOR XML PATH('''')) OldSnapshotDBs (Databasename)
+    CROSS APPLY (SELECT '' , '' + QUOTENAME(secondary_database)
+    			 FROM msdb.dbo.log_shipping_secondary_databases Logshipped 
+			 INNER JOIN sys.databases DatabasesLS ON Logshipped.secondary_database = DatabasesLS.name
+			 WHERE Databases.state_desc = DatabasesLS.state_desc
+    			 FOR XML PATH('''')) LogShipped (Databasename)
+    ) DatabaseStates
+GROUP BY state_desc,DBName
+ORDER BY COUNT(state_desc) DESC
 
 END;'
 
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 
 SET @SQLStatement = 
@@ -1269,19 +1279,19 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
-DECLARE @Retention INT = (SELECT Value From '+@LinkedServerName+'['+@Databasename+'].[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'')
+DECLARE @Retention INT = (SELECT Value From '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'')
 
-DELETE FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DriveSpace] 
+DELETE FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[DriveSpace] 
 WHERE Log_Date < DATEADD(DAY,-@Retention,DATEADD(DAY,1,CAST(GETDATE() AS DATE)))
 AND Servername = @@SERVERNAME;
 
 
-IF NOT EXISTS (SELECT Log_Date FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DriveSpace] WHERE Servername = @@SERVERNAME AND CAST(Log_Date AS DATE) = CAST(GETDATE() AS DATE))
+IF NOT EXISTS (SELECT Log_Date FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[DriveSpace] WHERE Servername = @@SERVERNAME AND CAST(Log_Date AS DATE) = CAST(GETDATE() AS DATE))
 	BEGIN
 		--RECORD THE DRIVE SPACE CAPACITY AND AVAILABLE SPACE PER DAY
-		INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DriveSpace] (Servername, Log_Date, Drive, Capacity_GB, AvailableSpace_GB)
+		INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DriveSpace] (Servername, Log_Date, Drive, Capacity_GB, AvailableSpace_GB)
 		SELECT DISTINCT
 		@@SERVERNAME,
 		GETDATE(),
@@ -1303,24 +1313,24 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
 SET NOCOUNT ON;
 
-DECLARE @ServerName NVARCHAR(128) = @@SERVERNAME
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
 DELETE 
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[FailedAgentJobs]
-WHERE Servername = @ServerName;
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[FailedAgentJobs]
+WHERE Servername = @Servername;
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[FailedAgentJobs] (ServerName,Log_Date,JobName,LastStepFailed,LastFailedDate,LastError)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[FailedAgentJobs] (Servername,Log_Date,JobName,LastStepFailed,LastFailedDate,LastError)
 SELECT 
-@ServerName,
+@Servername,
 GETDATE(),
 Jobs.name,
 JobHistory.step_id,
-JobHistory.FailedRunDate,
-CAST(JobHistory.LastError AS VARCHAR(250))
+JobHistory.failedrundate,
+CAST(JobHistory.lasterror AS VARCHAR(250))
 FROM msdb.dbo.sysjobs Jobs
 --Get the most recent Failure Datetime for each failed job within @FromDate and @ToDate
 CROSS APPLY (SELECT TOP 1 JobHistory.step_id,JobHistory.run_date,
@@ -1328,32 +1338,32 @@ CROSS APPLY (SELECT TOP 1 JobHistory.step_id,JobHistory.run_date,
 					CONVERT(DATETIME, 
 								STUFF(STUFF(CAST(JobHistory.run_date AS NCHAR(8)), 7, 0, ''-''), 5, 0, ''-'') + N'' '' + 
 								STUFF(STUFF(SUBSTRING(CAST(1000000 + JobHistory.run_time AS NCHAR(7)), 2, 6), 5, 0, '':''), 3, 0, '':''), 
-								120) END AS [FailedRunDate] ,
-								[Message] AS LastError
+								120) END AS [failedrundate] ,
+								[message] AS lasterror
 					FROM msdb.dbo.sysjobhistory JobHistory
-					WHERE 	Run_status = 0 
+					WHERE 	run_status = 0 
 					AND  Jobs.job_id = JobHistory.job_id
 					ORDER BY 
-					[FailedRunDate] DESC,
-					step_id DESC) JobHistory
+					[failedrundate] DESC,
+					[step_id] DESC) JobHistory
 								
 WHERE Jobs.enabled = 1
-AND JobHistory.FailedRunDate > CAST(DATEADD(DAY,-1,CAST(GETDATE() AS DATE)) AS DATETIME)
+AND JobHistory.failedrundate > CAST(DATEADD(DAY,-1,CAST(GETDATE() AS DATE)) AS DATETIME)
 --Check that each job has not succeeded since the last failure
-AND NOT EXISTS (SELECT [LastSuccessfulrunDate] 
+AND NOT EXISTS (SELECT [LastSuccessfulRunDate] 
 				FROM(
 				SELECT CASE JobHistory.run_date WHEN 0 THEN NULL ELSE
 				CONVERT(DATETIME, 
 				STUFF(STUFF(CAST(JobHistory.run_date AS NCHAR(8)), 7, 0, ''-''), 5, 0, ''-'') + N'' '' + 
 				STUFF(STUFF(SUBSTRING(CAST(1000000 + JobHistory.run_time AS NCHAR(7)), 2, 6), 5, 0, '':''), 3, 0, '':''), 
-					120) END AS [LastSuccessfulrunDate] 
+					120) END AS [LastSuccessfulRunDate] 
 				FROM msdb.dbo.sysjobhistory JobHistory
-				WHERE 	Run_status = 1
+				WHERE 	run_status = 1
 				AND  Jobs.job_id = JobHistory.job_id
 						) LastSuccessfulJobrun
-WHERE LastSuccessfulJobrun.[LastSuccessfulrunDate] > JobHistory.[FailedRunDate])
+WHERE LastSuccessfulJobrun.[LastSuccessfulRunDate] > JobHistory.[failedrundate])
 --Ensure that the job is not currently running
-AND NOT EXISTS (SELECT NAME
+AND NOT EXISTS (SELECT name
 				FROM msdb.dbo.sysjobactivity JobActivity
 				WHERE Jobs.job_id = JobActivity.job_id 
 				AND start_execution_date > DATEADD(MINUTE,-30,GETDATE())
@@ -1361,25 +1371,25 @@ AND NOT EXISTS (SELECT NAME
 					) 
 --Only show failed jobs where the Failed step is NOT configured to quit reporting success on error
 AND NOT EXISTS (SELECT 1
-				FROM msdb..sysjobsteps ReportingSuccessSteps
+				FROM msdb.dbo.sysjobsteps ReportingSuccessSteps
 				WHERE Jobs.job_id = ReportingSuccessSteps.job_id
 				AND JobHistory.step_id = ReportingSuccessSteps.step_id
 				AND on_fail_action = 1 -- quit job reporting success
 				)
 				
-ORDER BY NAME ASC
+ORDER BY name ASC
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[FailedAgentJobs]
-			WHERE Servername = @ServerName)
+			FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[FailedAgentJobs]
+			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[FailedAgentJobs] (ServerName,Log_Date,JobName,LastStepFailed,LastFailedDate,LastError)
-			VALUES(@ServerName,GETDATE(),''No Failed Jobs present'',NULL,NULL,NULL)
+			INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[FailedAgentJobs] (Servername,Log_Date,JobName,LastStepFailed,LastFailedDate,LastError)
+			VALUES(@Servername,GETDATE(),''No Failed Jobs present'',NULL,NULL,NULL)
 			END
 
 END;'
 
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
@@ -1387,24 +1397,24 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
 SET NOCOUNT ON;
 
-DECLARE @ServerName NVARCHAR(128) = @@SERVERNAME
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
 DELETE 
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[LoginAttempts]
-WHERE Servername = @ServerName;
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[LoginAttempts]
+WHERE Servername = @Servername;
  
-IF OBJECT_ID(''Tempdb..#Errors'') IS NOT NULL
+IF OBJECT_ID(''tempdb.dbo.#Errors'') IS NOT NULL
 DROP TABLE #Errors; 
 
 CREATE TABLE #Errors  
 (
-Logdate Datetime,
-Processinfo Varchar(30),
-Text Varchar (255)
+Logdate DATETIME,
+Processinfo VARCHAR(30),
+Text VARCHAR(255)
 );
 
 DECLARE @StartTime DATETIME = DATEADD(DAY,-1,GETDATE())
@@ -1412,38 +1422,38 @@ DECLARE @StartTime DATETIME = DATEADD(DAY,-1,GETDATE())
 INSERT INTO #Errors ([Logdate],[Processinfo],[Text])
 EXEC xp_ReadErrorLog 0, 1, N''FAILED'',N''login'',@StartTime,NULL;
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[LoginAttempts] (ServerName,Log_Date,Username,Attempts,LastErrorDate,LastError)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[LoginAttempts] (Servername,Log_Date,Username,Attempts,LastErrorDate,LastError)
 SELECT 
-@ServerName,
-GetDate(), 
+@Servername,
+GETDATE(), 
 REPLACE(LoginErrors.Username,'''''''',''''),
 CAST(LoginErrors.Attempts AS NVARCHAR(6)),
 LatestDate.Logdate,
 Latestdate.LastError
 FROM (
-SELECT SUBSTRING(text,PATINDEX(''%''''%''''%'',Text),CHARINDEX(''.'',Text)-(PATINDEX(''%''''%''''%'',Text))) as Username,Count(*) Attempts
+SELECT SUBSTRING(Text,PATINDEX(''%''''%''''%'',Text),CHARINDEX(''.'',Text)-(PATINDEX(''%''''%''''%'',Text))) as Username,Count(*) Attempts
 FROM #Errors Errors
-GROUP BY SUBSTRING(text,PATINDEX(''%''''%''''%'',Text),CHARINDEX(''.'',Text)-(PATINDEX(''%''''%''''%'',Text)))
+GROUP BY SUBSTRING(Text,PATINDEX(''%''''%''''%'',Text),CHARINDEX(''.'',Text)-(PATINDEX(''%''''%''''%'',Text)))
 ) LoginErrors
-CROSS APPLY (SELECT TOP 1 Logdate,text as LastError
+CROSS APPLY (SELECT TOP 1 Logdate,Text as LastError
 		  FROM #Errors LatestDate
-		  WHERE  LoginErrors.Username = SUBSTRING(text,Patindex(''%''''%''''%'',Text),charindex(''.'',Text)-(Patindex(''%''''%''''%'',Text)))
+		  WHERE  LoginErrors.Username = SUBSTRING(Text,Patindex(''%''''%''''%'',Text),charindex(''.'',Text)-(Patindex(''%''''%''''%'',Text)))
 		  ORDER by Logdate DESC) LatestDate
 
 ORDER BY Attempts DESC
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[LoginAttempts]
-			WHERE Servername = @ServerName)
+			FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[LoginAttempts]
+			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[LoginAttempts] (ServerName,Log_Date,Username,Attempts,LastErrorDate,LastError)
-			VALUES(@ServerName,GETDATE(),''No Failed Logins present'',NULL,NULL,NULL)
+			INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[LoginAttempts] (Servername,Log_Date,Username,Attempts,LastErrorDate,LastError)
+			VALUES(@Servername,GETDATE(),''No Failed Logins present'',NULL,NULL,NULL)
 			END
 
 END;'
 
 
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 
 SET @SQLStatement = 
@@ -1451,46 +1461,46 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
 SET NOCOUNT ON;
 
-DECLARE @ServerName NVARCHAR(128) = @@SERVERNAME
-DECLARE @AgentjobOwnerExclusions VARCHAR(255) = (SELECT REPLACE([Value],'' '','''') FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[Settings] WHERE [Description] = ''AgentJobOwnerExclusions'')
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
+DECLARE @AgentjobOwnerExclusions VARCHAR(255) = (SELECT REPLACE([Value],'' '','''') FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] WHERE [Description] = ''AgentJobOwnerExclusions'')
 
 DELETE 
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[JobOwner]
-WHERE Servername = @ServerName;
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[JobOwner]
+WHERE Servername = @Servername;
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[JobOwner] (ServerName,Log_Date,Job_ID,JobName)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[JobOwner] (Servername,Log_Date,Job_ID,JobName)
 SELECT 
-@ServerName,
-GetDate(),
-jobs.Job_ID,
+@Servername,
+GETDATE(),
+jobs.job_id,
 jobs.[name] 
 FROM msdb.dbo.sysjobs jobs
 INNER join master.sys.syslogins logins ON jobs.owner_sid = logins.sid
 WHERE logins.name NOT IN ('+CASE WHEN @Compatibility = 0 
 					   THEN 'SELECT [StringElement]  
-						   FROM Master.dbo.fn_SplitString(@AgentjobOwnerExclusions,'','')'
-					   ELSE 'SELECT [Value]  
+						   FROM master.dbo.fn_SplitString(@AgentjobOwnerExclusions,'','')'
+					   ELSE 'SELECT [value]  
 						   FROM STRING_SPLIT(@AgentjobOwnerExclusions,'','')'
 					   END +
 						  ')
 AND jobs.enabled = 1
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[JobOwner]
-			WHERE Servername = @ServerName)
+			FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[JobOwner]
+			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[JobOwner] (ServerName,Log_Date,Job_ID,JobName)
-			VALUES(@ServerName,GETDATE(),NULL,''No Job Owner issues present'')
+			INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[JobOwner] (Servername,Log_Date,Job_ID,JobName)
+			VALUES(@Servername,GETDATE(),NULL,''No Job Owner issues present'')
 			END
 
 END;'
 
 
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 
 SET @SQLStatement = 
@@ -1498,26 +1508,26 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
 SET NOCOUNT ON;
 
-DECLARE @ServerName NVARCHAR(128) = @@SERVERNAME
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
 DELETE 
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[TopFiveDatabases]
-WHERE Servername = @ServerName;
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[TopFiveDatabases]
+WHERE Servername = @Servername;
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[TopFiveDatabases] (ServerName,Log_Date,Databasename,TotalSize_MB)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[TopFiveDatabases] (Servername,Log_Date,Databasename,TotalSize_MB)
 SELECT TOP 5 
-@ServerName,
-GetDate(),
+@Servername,
+GETDATE(),
 Databasename,
 [TotalSize(MB)]
 FROM 
 (
     SELECT DBs.name AS Databasename,
-    SUM((CAST(DBFiles.size AS BIGINT)*8)/1024 ) [TotalSize(MB)] 
+    SUM((CAST(DBFiles.size AS BIGINT)*8)/1024 ) AS [TotalSize(MB)] 
     FROM [sys].[master_files] DBFiles
     INNER JOIN sys.databases DBs ON DBFiles.database_id = DBs.database_id
     GROUP BY DBs.name
@@ -1526,7 +1536,7 @@ ORDER BY [TotalSize(MB)] DESC
 
 END ;'
 
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 
 SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
@@ -1534,26 +1544,26 @@ SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
-DECLARE @ServerName NVARCHAR(128) = @@SERVERNAME;
-DECLARE @FullBackupThreshold INT = (Select [Value] FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[Settings] WHERE Description = ''FullBackupThreshold'')
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
+DECLARE @FullBackupThreshold INT = (Select [Value] FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] WHERE Description = ''FullBackupThreshold'')
 
 DELETE 
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[BackupsCheck]
-WHERE Servername = @ServerName;
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[BackupsCheck]
+WHERE Servername = @Servername;
 
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
 
 
-IF OBJECT_ID(''Tempdb..#DatabaseList'') IS NOT NULL
+IF OBJECT_ID(''tempdb.dbo.#DatabaseList'') IS NOT NULL
 DROP TABLE #DatabaseList;
 
 CREATE TABLE #DatabaseList
 (
 Database_id INT,
-ServerName NVARCHAR(128),
+Servername NVARCHAR(128),
 Log_Date DATETIME,
 Databasename NVARCHAR(128),
 AGName NVARCHAR(128),
@@ -1563,7 +1573,7 @@ IsFullRecovery BIT,
 IsSystemDB BIT
 );
 
-IF OBJECT_ID(''Tempdb..#BackupAggregation'') IS NOT NULL
+IF OBJECT_ID(''tempdb.dbo.#BackupAggregation'') IS NOT NULL
 DROP TABLE #BackupAggregation;
 
 
@@ -1576,59 +1586,58 @@ Databasename NVARCHAR(128),
 [Log] DATETIME
 );
 
-INSERT INTO #DatabaseList ([Database_id],[ServerName],[Log_Date],[Databasename],[AGName],[State],[Source_database_id],[IsFullRecovery],[IsSystemDB])
+INSERT INTO #DatabaseList ([Database_id],[Servername],[Log_Date],[Databasename],[AGName],[State],[Source_database_id],[IsFullRecovery],[IsSystemDB])
 SELECT DISTINCT
-Database_id,
-@ServerName AS Servername,
-Getdate() AS Log_Date,
-sys.databases.NAME AS Databasename,
-AG.NAME AS AGName,
-[State],
-Source_database_id,
+database_id,
+@Servername,
+GETDATE(),
+sys.databases.name,
+AG.name,
+[state],
+source_database_id,
 CASE WHEN recovery_model_desc = ''FULL'' THEN 1 WHEN recovery_model_desc IS NULL THEN 1 ELSE 0 END AS IsFullRecovery,
 CASE WHEN database_id <= 4 THEN 1 ELSE 0 END AS IsSystemDB
 FROM sys.databases 
 INNER JOIN sys.availability_replicas ar ON sys.databases.replica_id = ar.replica_id
 INNER JOIN sys.availability_groups ag ON ar.group_id = AG.group_id 
 WHERE database_id != 2
-AND [State] = 0 
+AND [state] = 0 
 AND source_database_id IS NULL
 
 UNION ALL 
 
 SELECT
-Database_id,
-@ServerName AS Servername,
-Getdate() AS Log_Date,
-sys.databases.NAME AS Databasename,
-NULL AS AGName,
-[State],
-Source_database_id,
+database_id,
+@Servername,
+GETDATE(),
+sys.databases.name,
+NULL,
+[state],
+source_database_id,
 CASE WHEN recovery_model_desc = ''FULL'' THEN 1 WHEN recovery_model_desc IS NULL THEN 1 ELSE 0 END AS IsFullRecovery,
 CASE WHEN database_id <= 4 THEN 1 ELSE 0 END AS IsSystemDB
 FROM sys.databases 
 WHERE database_id != 2
-AND [State] = 0 
+AND [state] = 0 
 AND source_database_id IS NULL
 and replica_id is NULL
-ORDER BY Database_id
+ORDER BY database_id
 
 
 INSERT INTO #BackupAggregation ([Database_id],[Databasename],[Full],[Diff],[Log])
-SELECT Database_id,database_name AS Dbname, [D], [I], [L]    
+SELECT Database_id,database_name, [D], [I], [L]    
 FROM 
-(SELECT Database_ID,backuplog.database_name,backuplog.Type,MAX(backuplog.Backup_finish_date) AS Backup_Finish_Date                                   
-FROM msdb..backupset backuplog
+(SELECT database_id,backuplog.database_name,backuplog.type,MAX(backuplog.backup_finish_date) AS backup_finish_date                                   
+FROM msdb.dbo.backupset backuplog
 INNER JOIN #DatabaseList ON #DatabaseList.Databasename = backuplog.database_name  
-WHERE 
-backup_finish_date > DATEADD(DAY,-@FullBackupThreshold,CAST(GetDate() AS DATE))
-GROUP BY Database_ID,backuplog.database_name,backuplog.Type ) p
-PIVOT( MAX(Backup_finish_date) FOR Type IN ([D],[I],[L])) d
-ORDER BY Database_id ASC
+WHERE backup_finish_date > DATEADD(DAY,-@FullBackupThreshold,CAST(GETDATE() AS DATE))
+GROUP BY database_id,backuplog.database_name,backuplog.type ) p
+PIVOT( MAX(backup_finish_date) FOR type IN ([D],[I],[L])) d
+ORDER BY database_id ASC
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[BackupsCheck] ([ServerName],[Log_Date],[Databasename],[AGname],[FULL],[DIFF],[LOG],[IsFullRecovery],[IsSystemDB])
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[BackupsCheck] ([Servername],[Log_Date],[Databasename],[AGname],[FULL],[DIFF],[LOG],[IsFullRecovery],[IsSystemDB])
 SELECT 
-[ServerName],
+[Servername],
 [Log_Date],
 #DatabaseList.[Databasename],
 COALESCE(#DatabaseList.AGName,''Not in an AG'') AS AGname,
@@ -1645,32 +1654,32 @@ END
 ELSE 
 BEGIN 
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[BackupsCheck] ([ServerName],[Log_Date],[Databasename],[AGname],[FULL],[DIFF],[LOG],[IsFullRecovery],[IsSystemDB])  
-SELECT DISTINCT @ServerName,Getdate(),dbs.name,@ServerName +''(Non AG)'' AS AGname,ISNULL([D],''19000101''),ISNULL([I],''19000101''),ISNULL([L],''19000101''),
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[BackupsCheck] ([Servername],[Log_Date],[Databasename],[AGname],[FULL],[DIFF],[LOG],[IsFullRecovery],[IsSystemDB])  
+SELECT DISTINCT @Servername,GETDATE(),dbs.name,@Servername +''(Non AG)'' AS AGname,ISNULL([D],''19000101''),ISNULL([I],''19000101''),ISNULL([L],''19000101''),
 CASE WHEN dbs.recovery_model_desc = ''FULL'' THEN 1 ELSE 0 END,
 CASE WHEN dbs.database_id <= 4 THEN 1 ELSE 0 END AS IsSystemDB
-FROM (SELECT backuplog.database_name,backuplog.Type,MAX(backuplog.Backup_finish_date) AS Backup_Finish_Date                                     
-       FROM msdb..backupset backuplog                         
-WHERE 
-backup_finish_date > DATEADD(DAY,-@FullBackupThreshold,CAST(GetDate() AS DATE))
-GROUP BY backuplog.database_name,backuplog.Type ) p
-PIVOT( MAX(Backup_finish_date) FOR Type IN ([D],[I],[L])) d
+FROM 
+(SELECT backuplog.database_name,backuplog.type,MAX(backuplog.backup_finish_date) AS backup_finish_date                                     
+FROM msdb.dbo.backupset backuplog                         
+WHERE backup_finish_date > DATEADD(DAY,-@FullBackupThreshold,CAST(GETDATE() AS DATE))
+GROUP BY backuplog.database_name,backuplog.type ) p
+PIVOT( MAX(backup_finish_date) FOR type IN ([D],[I],[L])) d
 RIGHT JOIN sys.databases dbs ON d.database_name = dbs.name
 WHERE database_id != 2
-AND [State] = 0 
+AND [state] = 0 
 AND source_database_id IS NULL
 END
 
 			
 END;'
 
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[DatabaseGrowthsInsert]
 AS
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
      SET NOCOUNT ON;
 
@@ -1681,7 +1690,7 @@ AS
 --Insert any databases that are present on the serverbut not present in [Inspector].[DatabaseFileSizes]
          IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
              BEGIN
-                 INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFileSizes]
+                 INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes]
                  ([Servername],
                   [Database_id],
                   [Database_name],
@@ -1697,51 +1706,51 @@ AS
                  )
 
                  SELECT    @Servername,
-                           [MasterFiles].[Database_id],
-                           DB_NAME([Masterfiles].[Database_id]) AS [Database_name],
+                           [MasterFiles].[database_id],
+                           DB_NAME([Masterfiles].[database_id]) AS [Database_name],
                            GETDATE() AS [OriginalDateLogged],
-                           CAST([Masterfiles].[Size] AS BIGINT) * 8 / 1024 AS [OriginalSize_MB],
+                           CAST([Masterfiles].[size] AS BIGINT) * 8 / 1024 AS [OriginalSize_MB],
                            [Masterfiles].[type_desc],
-                           [MasterFiles].[File_id],
-                           RIGHT([Masterfiles].[Physical_name],CHARINDEX(''\'',REVERSE([Masterfiles].[Physical_name]))-1) AS [Filename], --Get the Filename
-                           CAST([Masterfiles].[Size] AS BIGINT) * 8 / 1024 AS [PostGrowthSize_MB],
-                           CASE [Masterfiles].[is_percent_Growth]
-                               WHEN 0
-                               THEN([Masterfiles].[Growth] * 8) / 1024
-                               WHEN 1
-                               THEN(((CAST([Size] AS BIGINT) * 8) / 1024) * [Growth]) / 100
-                           END AS [GrowthRate_MB],			
-                           [Masterfiles].[Is_percent_growth],
+                           [MasterFiles].[file_id],
+                           RIGHT([Masterfiles].[physical_name],CHARINDEX(''\'',REVERSE([Masterfiles].[physical_name]))-1) AS [Filename], --Get the Filename
+                           CAST([Masterfiles].[size] AS BIGINT) * 8 / 1024 AS [PostGrowthSize_MB],
                            CASE [Masterfiles].[is_percent_growth]
                                WHEN 0
-                               THEN((CAST([Size] AS BIGINT) * 8) / 1024) + ([Growth] * 8) / 1024
+                               THEN([Masterfiles].[growth] * 8) / 1024
                                WHEN 1
-                               THEN((CAST([Size] AS BIGINT) * 8) / 1024) + (((CAST([Size] AS BIGINT) * 8) / 1024) * [Growth]) / 100
+                               THEN(((CAST([size] AS BIGINT) * 8) / 1024) * [growth]) / 100
+                           END AS [GrowthRate_MB],			
+                           [Masterfiles].[is_percent_growth],
+                           CASE [Masterfiles].[is_percent_growth]
+                               WHEN 0
+                               THEN((CAST([size] AS BIGINT) * 8) / 1024) + ([growth] * 8) / 1024
+                               WHEN 1
+                               THEN((CAST([size] AS BIGINT) * 8) / 1024) + (((CAST([size] AS BIGINT) * 8) / 1024) * [growth]) / 100
                            END [NextGrowth]													
                  FROM      [sys].[master_files] [Masterfiles]
                            LEFT JOIN
                  (
                      SELECT DB_ID([ADC].[database_name]) AS [Database_ID]
-                     FROM   [sys].[dm_hadr_availability_group_states] [st]
-                            INNER JOIN [Sys].[availability_databases_cluster] [ADC] ON [ST].[group_id] = [ADC].[group_id]
+                     FROM   [sys].[dm_hadr_availability_group_states] [ST]
+                            INNER JOIN [sys].[availability_databases_cluster] [ADC] ON [ST].[group_id] = [ADC].[group_id]
                      WHERE  [primary_replica] = @@Servername
-                 ) [DatabaseList] ON [DatabaseList].[Database_ID] = [Masterfiles].[Database_ID]
-                 WHERE [Masterfiles].[Database_ID] > 3
+                 ) [DatabaseList] ON [DatabaseList].[Database_ID] = [Masterfiles].[database_id]
+                 WHERE [Masterfiles].[database_id] > 3
                        AND [type_desc] = ''ROWS''
                        AND NOT EXISTS
                  (
                      SELECT [Database_id]
-                     FROM   '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [DatabaseFileSizes]
+                     FROM   '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [DatabaseFileSizes]
                      WHERE  [Servername] = @Servername
                             AND DB_NAME([Masterfiles].[database_id]) = [DatabaseFileSizes].[Database_name]
-                            AND [Masterfiles].[file_id] = [DatabaseFileSizes].[file_id]
+                            AND [Masterfiles].[file_id] = [DatabaseFileSizes].[File_id]
                  )
-                 ORDER BY DB_NAME([Masterfiles].[Database_id]) ASC,
-                          [Type] ASC;
+                 ORDER BY DB_NAME([Masterfiles].[database_id]) ASC,
+                          [type] ASC;
          END
              ELSE
              BEGIN
-                 INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFileSizes]
+                 INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes]
                  ([Servername],
                   [Database_id],
                   [Database_name],
@@ -1757,45 +1766,45 @@ AS
                  )
 
                  SELECT @@SERVERNAME,
-                        [MasterFiles].[Database_id],
-                        DB_NAME([Masterfiles].[Database_id]) AS [Database_name],
+                        [MasterFiles].[database_id],
+                        DB_NAME([Masterfiles].[database_id]) AS [Database_name],
                         GETDATE() AS [OriginalDateLogged],
-                        CAST([Masterfiles].[Size] AS BIGINT) * 8 / 1024 AS [OriginalSize_MB],
+                        CAST([Masterfiles].[size] AS BIGINT) * 8 / 1024 AS [OriginalSize_MB],
                         [Masterfiles].[type_desc],
-                        [MasterFiles].[File_id],
-                        RIGHT([Masterfiles].[Physical_name],CHARINDEX(''\'',REVERSE([Masterfiles].[Physical_name]))-1) AS [Filename], 
-                        CAST([Masterfiles].[Size] AS BIGINT) * 8 / 1024 AS [PostGrowthSize_MB],
+                        [MasterFiles].[file_id],
+                        RIGHT([Masterfiles].[physical_name],CHARINDEX(''\'',REVERSE([Masterfiles].[physical_name]))-1) AS [Filename], 
+                        CAST([Masterfiles].[size] AS BIGINT) * 8 / 1024 AS [PostGrowthSize_MB],
                         CASE [Masterfiles].[is_percent_Growth]
                             WHEN 0
-                            THEN([Masterfiles].[Growth] * 8) / 1024
+                            THEN([Masterfiles].[growth] * 8) / 1024
                             WHEN 1
-                            THEN(((CAST([Size] AS BIGINT) * 8) / 1024) * [Growth]) / 100
+                            THEN(((CAST([size] AS BIGINT) * 8) / 1024) * [growth]) / 100
                         END AS [GrowthRate_MB],			
-                        [Masterfiles].[Is_percent_growth],
+                        [Masterfiles].[is_percent_growth],
                         CASE [Masterfiles].[is_percent_growth]
                             WHEN 0
-                            THEN((CAST([Size] AS BIGINT) * 8) / 1024) + ([Growth] * 8) / 1024
+                            THEN((CAST([size] AS BIGINT) * 8) / 1024) + ([growth] * 8) / 1024
                             WHEN 1
-                            THEN((CAST([Size] AS BIGINT) * 8) / 1024) + (((CAST([Size] AS BIGINT) * 8) / 1024) * [Growth]) / 100
+                            THEN((CAST([size] AS BIGINT) * 8) / 1024) + (((CAST([size] AS BIGINT) * 8) / 1024) * [growth]) / 100
                         END [NextGrowth]													
                  FROM   [sys].[master_files] [Masterfiles]
-                 WHERE  [Masterfiles].[Database_ID] > 3
+                 WHERE  [Masterfiles].[database_id] > 3
                         AND [type_desc] = ''ROWS''
                         AND NOT EXISTS
                  (
                      SELECT [Database_id]
-                     FROM   '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [DatabaseFileSizes]
+                     FROM   '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [DatabaseFileSizes]
                      WHERE  [Servername] = @Servername
                             AND DB_NAME([Masterfiles].[database_id]) = [DatabaseFileSizes].[Database_name]
-                            AND [Masterfiles].[file_id] = [DatabaseFileSizes].[file_id]
+                            AND [Masterfiles].[file_id] = [DatabaseFileSizes].[File_id]
                  )
-                 ORDER BY DB_NAME([Masterfiles].[Database_id]) ASC,
-                          [Type] ASC;
+                 ORDER BY DB_NAME([Masterfiles].[database_id]) ASC,
+                          [type] ASC;
          END
 
 --Remove any databases that have been dropped from SQL but still present in [Inspector].[DatabaseFileSizes]
          DELETE [Sizes]
-         FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [Sizes]
+         FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [Sizes]
               LEFT JOIN [sys].[databases] [DatabasesList] ON [Sizes].[database_name] = [DatabasesList].[name] COLLATE DATABASE_DEFAULT
          WHERE  [Sizes].[Servername] = @Servername
                 AND [DatabasesList].[database_id] IS NULL;
@@ -1804,7 +1813,7 @@ AS
          UPDATE [Sizes]
          SET
                [database_id] = [DatabasesList].[database_id]
-         FROM   '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [Sizes]
+         FROM   '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [Sizes]
                 INNER JOIN [sys].[databases] [DatabasesList] ON [Sizes].[database_name] = [DatabasesList].[name] COLLATE DATABASE_DEFAULT
          WHERE  [Sizes].[Servername] = @Servername
                 AND [DatabasesList].[database_id] != [Sizes].[Database_id];
@@ -1813,32 +1822,32 @@ AS
          UPDATE    [Sizes]
          SET
                [GrowthRate] = [GrowthCheck].[GrowthRate_MB],
-               [Is_percent_growth] = [GrowthCheck].[Is_percent_growth]
+               [Is_percent_growth] = [GrowthCheck].[is_percent_growth]
          FROM
          (
-             SELECT [MasterFiles].[Database_id],
-                    [MasterFiles].[File_id],
-                    CASE [Masterfiles].[is_percent_Growth]
+             SELECT [MasterFiles].[database_id],
+                    [MasterFiles].[file_id],
+                    CASE [Masterfiles].[is_percent_growth]
                         WHEN 0
-                        THEN([Masterfiles].[Growth] * 8) / 1024
+                        THEN([Masterfiles].[growth] * 8) / 1024
                         WHEN 1
-                        THEN(((CAST([Size] AS BIGINT) * 8) / 1024) * [Growth]) / 100
+                        THEN(((CAST([size] AS BIGINT) * 8) / 1024) * [growth]) / 100
                     END AS [GrowthRate_MB],			--IN MB , The physical value expressed as a number
-                    [Masterfiles].[Is_percent_growth]
+                    [Masterfiles].[is_percent_growth]
              FROM   [sys].[master_files] [Masterfiles]
                     INNER JOIN [sys].[databases] [DatabasesList] ON [Masterfiles].[database_id] = [DatabasesList].[database_id]
-             WHERE  [Masterfiles].[Database_ID] > 3
-                    AND [Type_desc] = ''ROWS''
-                    AND [DatabasesList].State = 0
+             WHERE  [Masterfiles].[database_id] > 3
+                    AND [type_desc] = ''ROWS''
+                    AND [DatabasesList].state = 0
          ) [GrowthCheck]
-         INNER JOIN '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [Sizes] ON [GrowthCheck].[Database_id] = [Sizes].[Database_id]
-                                                                                      AND [Sizes].[File_id] = [GrowthCheck].[File_id]
+         INNER JOIN '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [Sizes] ON [GrowthCheck].[database_id] = [Sizes].[Database_id]
+                                                                                      AND [Sizes].[File_id] = [GrowthCheck].[file_id]
          WHERE(([GrowthCheck].[GrowthRate_MB] != [Sizes].[GrowthRate])
-               OR ([Growthcheck].[is_Percent_Growth] != [Sizes].[Is_percent_growth]))
-              AND [ServerName] = @Servername;
+               OR ([Growthcheck].[is_percent_growth] != [Sizes].[Is_percent_growth]))
+              AND [Servername] = @Servername;
 
 --Log the Database Growth event
-         INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFileSizeHistory]
+         INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizeHistory]
          ([Servername],
           [Database_id],
           [Database_name],
@@ -1852,27 +1861,27 @@ AS
           [PostGrowthSize_MB]
          )
 
-         SELECT [DatabaseFileSizes].[ServerName],
-                [MasterFiles].[Database_id],
-                DB_NAME([Masterfiles].[Database_id]) AS [Database_name],
+         SELECT [DatabaseFileSizes].[Servername],
+                [MasterFiles].[database_id],
+                DB_NAME([Masterfiles].[database_id]) AS [Database_name],
                 GETDATE() AS [Log_Date],
                 [Masterfiles].[type_desc],
-                [MasterFiles].[File_id],
-                RIGHT([Masterfiles].[Physical_name],CHARINDEX(''\'',REVERSE([Masterfiles].[Physical_name]))-1) AS [Filename], --Get the Filename
+                [MasterFiles].[file_id],
+                RIGHT([Masterfiles].[physical_name],CHARINDEX(''\'',REVERSE([Masterfiles].[physical_name]))-1) AS [Filename], --Get the Filename
                 [DatabaseFileSizes].[PostGrowthSize_MB],  --PostGrowth size is the Last recorded database size after a growth event
-                [DatabaseFileSizes].[Growthrate],
-                (((CAST([Masterfiles].[Size] AS BIGINT) * 8) / 1024 - [DatabaseFileSizes].[PostGrowthSize_MB]) / [DatabaseFileSizes].[GrowthRate]) AS [TotalGrowthIncrements],  --IF Growth is in Percent then this will be calculated based on the Current DB size Less Originally logged size , Divided by the Growth percentage based on the original database size
-                (CAST([Masterfiles].[Size] AS BIGINT) * 8) / 1024 AS [CurrentSize_MB] --Next approx Growth interval in MB
-         FROM   '+@LinkedServerName+'['+@Databasename+'].[Inspector].[databasefilesizes] [DatabaseFileSizes]
-                INNER JOIN [sys].[master_files] [Masterfiles] ON [Masterfiles].[Database_id] = [DatabaseFileSizes].[Database_id]
+                [DatabaseFileSizes].[GrowthRate],
+                (((CAST([Masterfiles].[size] AS BIGINT) * 8) / 1024 - [DatabaseFileSizes].[PostGrowthSize_MB]) / [DatabaseFileSizes].[GrowthRate]) AS [TotalGrowthIncrements],  --IF Growth is in Percent then this will be calculated based on the Current DB size Less Originally logged size , Divided by the Growth percentage based on the original database size
+                (CAST([Masterfiles].[size] AS BIGINT) * 8) / 1024 AS [CurrentSize_MB] --Next approx Growth interval in MB
+         FROM   '+@LinkedServername+'['+@Databasename+'].[Inspector].[databasefilesizes] [DatabaseFileSizes]
+                INNER JOIN [sys].[master_files] [Masterfiles] ON [Masterfiles].[database_id] = [DatabaseFileSizes].[Database_id]
                                                                  AND [DatabaseFileSizes].[File_id] = [Masterfiles].[file_id]
-         WHERE  [NextGrowth] < (CAST([Masterfiles].[Size] AS BIGINT) * 8) / 1024
-                AND [DatabaseFileSizes].[ServerName] = @Servername
+         WHERE  [NextGrowth] < (CAST([Masterfiles].[size] AS BIGINT) * 8) / 1024
+                AND [DatabaseFileSizes].[Servername] = @Servername
 			 AND NOT EXISTS (
 						  SELECT GrowthID
-						  FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFileSizeHistory] ExistingRecord
+						  FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizeHistory] ExistingRecord
 						  WHERE [Servername] = @Servername 
-						  AND DB_NAME([Masterfiles].[Database_id]) = [Database_name]
+						  AND DB_NAME([Masterfiles].[database_id]) = [Database_name]
 						  AND CAST([Log_Date] AS DATE) = CAST(GETDATE() AS DATE)
 						  ); --Ensure that there has not been any growths logged for today before recording as this will affect thresholds. 
 						     --(this allows the collection to be ran without worrying that the growths will be logged prematurely)
@@ -1880,29 +1889,29 @@ AS
  
 --Double check the databases sizes in the base table are correct and update as required
          UPDATE [Sizes]
-         SET    [PostGrowthSize_MB] = (CAST([Masterfiles].[Size] AS BIGINT) * 8) / 1024
+         SET    [PostGrowthSize_MB] = (CAST([Masterfiles].[size] AS BIGINT) * 8) / 1024
          FROM   [sys].[master_files] [Masterfiles]
-                INNER JOIN '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [Sizes] ON [Masterfiles].[database_id] = [Sizes].[database_id]
-                                                                                             AND [Sizes].[File_id] = [Masterfiles].[File_id]
-         WHERE  [Masterfiles].[Database_ID] > 3
-                AND ((CAST([Masterfiles].[Size] AS BIGINT) * 8) / 1024 != [Sizes].[PostGrowthSize_MB])
+                INNER JOIN '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [Sizes] ON [Masterfiles].[database_id] = [Sizes].[Database_id]
+                                                                                             AND [Sizes].[File_id] = [Masterfiles].[file_id]
+         WHERE  [Masterfiles].[database_id] > 3
+                AND ((CAST([Masterfiles].[size] AS BIGINT) * 8) / 1024 != [Sizes].[PostGrowthSize_MB])
                 AND [Servername] = @Servername;
 
 --Set Next growth size for all Databases on this server which have grown
-         UPDATE '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFileSizes]
+         UPDATE '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes]
          SET    [NextGrowth] = ([PostGrowthSize_MB] + [GrowthRate])
          WHERE  [NextGrowth] <= [PostGrowthSize_MB]
-                AND [ServerName] = @Servername;
+                AND [Servername] = @Servername;
 
 
 --Clean up the history for growths older than 90 days
-         DELETE FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseFileSizeHistory]
+         DELETE FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizeHistory]
          WHERE [Log_Date] < DATEADD(DAY,-90,GETDATE())
          AND [Servername] = @Servername;
 
      END;'
 
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 
 
@@ -1911,91 +1920,91 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
-DECLARE @ServerName NVARCHAR(128) = @@SERVERNAME;
-DECLARE @DatabaseOwnerExclusions NVARCHAR(255) = (SELECT REPLACE(Value,'' '','''') from '+@LinkedServerName+'['+@Databasename+'].Inspector.Settings where Description = ''DatabaseOwnerExclusions'');
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
+DECLARE @DatabaseOwnerExclusions NVARCHAR(255) = (SELECT REPLACE(Value,'' '','''') from '+@LinkedServername+'['+@Databasename+'].Inspector.Settings WHERE Description = ''DatabaseOwnerExclusions'');
 
 DELETE 
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseOwnership]
-WHERE Servername = @ServerName;
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseOwnership]
+WHERE Servername = @Servername;
 
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].Inspector.DatabaseOwnership ([ServerName],[Log_Date],[AGname],[Database_name],[Owner])
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].Inspector.DatabaseOwnership ([Servername],[Log_Date],[AGname],[Database_name],[Owner])
 SELECT 
-@ServerName,
+@Servername,
 GETDATE(),
-AG.Name as AGName,
-Databases.[Name],
+AG.name as AGName,
+Databases.[name],
 COALESCE(SUSER_SNAME(Databases.[Owner_sid]),''Blank'')
-FROM sys.dm_hadr_availability_group_states st
-INNER JOIN master.sys.availability_groups ag ON ST.group_id = AG.group_id
-INNER JOIN Sys.availability_databases_cluster ADC ON AG.group_id = ADC.group_id
-INNER JOIN Sys.Databases Databases ON Databases.Name = ADC.database_name
+FROM sys.dm_hadr_availability_group_states ST
+INNER JOIN master.sys.availability_groups AG ON ST.group_id = AG.group_id
+INNER JOIN sys.availability_databases_cluster ADC ON AG.group_id = ADC.group_id
+INNER JOIN sys.databases Databases ON Databases.name = ADC.database_name
 WHERE primary_replica = @@Servername
-AND Databases.OWNER_SID NOT IN ('+CASE WHEN @Compatibility = 0 
+AND Databases.owner_sid NOT IN ('+CASE WHEN @Compatibility = 0 
 						    THEN 'SELECT SUSER_SID([StringElement])  
-								FROM Master.dbo.fn_SplitString(@DatabaseOwnerExclusions,'','')'
-						    ELSE 'SELECT SUSER_SID([Value])  
+								FROM master.dbo.fn_SplitString(@DatabaseOwnerExclusions,'','')'
+						    ELSE 'SELECT SUSER_SID([value])  
 								FROM STRING_SPLIT(@DatabaseOwnerExclusions,'','')'
 						    END+
 						  ')
-AND Databases.State = 0 
+AND Databases.state = 0 
 UNION ALL 
 SELECT 
-@ServerName,
+@Servername,
 GETDATE(),
 ''Not in an AG'' as AGName,
-Databases.[Name],
-COALESCE(SUSER_SNAME(Databases.[Owner_sid]),''Blank'')
-FROM sys.Databases 
+Databases.[name],
+COALESCE(SUSER_SNAME(Databases.[owner_sid]),''Blank'')
+FROM sys.databases 
 WHERE replica_id IS NULL
-AND Databases.OWNER_SID NOT IN ('+CASE WHEN @Compatibility = 0
+AND Databases.owner_sid NOT IN ('+CASE WHEN @Compatibility = 0
 						    THEN 'SELECT SUSER_SID([StringElement])  
-								FROM Master.dbo.fn_SplitString(@DatabaseOwnerExclusions,'','')'
-						    ELSE 'SELECT SUSER_SID([Value])  
+								FROM master.dbo.fn_SplitString(@DatabaseOwnerExclusions,'','')'
+						    ELSE 'SELECT SUSER_SID([value])  
 								FROM STRING_SPLIT(@DatabaseOwnerExclusions,'','')'
 						    END+
 						  ')
-AND Databases.State = 0 
-AND Source_database_id IS NULL
-ORDER BY Databases.Name ASC
+AND Databases.state = 0 
+AND source_database_id IS NULL
+ORDER BY Databases.name ASC
 END
 ELSE 
 BEGIN 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].Inspector.DatabaseOwnership ([ServerName],[Log_Date],[AGname],[Database_name],[Owner])
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].Inspector.DatabaseOwnership ([Servername],[Log_Date],[AGname],[Database_name],[Owner])
 SELECT 
-@ServerName,
+@Servername,
 GETDATE(),
 ''N/A'' as AGName,
-Databases.[Name],
-COALESCE(SUSER_SNAME(Databases.[Owner_sid]),''Blank'')
-FROM sys.Databases 
+Databases.[name],
+COALESCE(SUSER_SNAME(Databases.[owner_sid]),''Blank'')
+FROM sys.databases 
 WHERE replica_id IS NULL
-AND Databases.OWNER_SID NOT IN ('+CASE WHEN @Compatibility = 0
+AND Databases.owner_sid NOT IN ('+CASE WHEN @Compatibility = 0
 						    THEN 'SELECT SUSER_SID([StringElement])  
-								FROM Master.dbo.fn_SplitString(@DatabaseOwnerExclusions,'','')'
-						    ELSE 'SELECT SUSER_SID([Value])  
+								FROM master.dbo.fn_SplitString(@DatabaseOwnerExclusions,'','')'
+						    ELSE 'SELECT SUSER_SID([value])  
 								FROM STRING_SPLIT(@DatabaseOwnerExclusions,'','')'
 						    END+
 						  ')
-AND Databases.State = 0 
-AND Source_database_id IS NULL
-ORDER BY Databases.Name ASC
+AND Databases.state = 0 
+AND source_database_id IS NULL
+ORDER BY Databases.name ASC
 END
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseOwnership]
-			WHERE Servername = @ServerName)
+			FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseOwnership]
+			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseOwnership] ([ServerName],[Log_Date],[AGname],[Database_name],[Owner])
-			VALUES(@ServerName,GETDATE(),NULL,''No Database Ownership issues present'',NULL)
+			INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseOwnership] ([Servername],[Log_Date],[AGname],[Database_name],[Owner])
+			VALUES(@Servername,GETDATE(),NULL,''No Database Ownership issues present'',NULL)
 			END
 			
 END;'
 
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 
 SET @SQLStatement = 
@@ -2003,43 +2012,43 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
-DELETE FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[BackupSizesByDay]
+DELETE FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[BackupSizesByDay]
 WHERE Servername = @@Servername;
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[BackupSizesByDay] ([ServerName],[Log_Date],[DayOfWeek],[CastedDate],[TotalSizeInBytes])
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[BackupSizesByDay] ([Servername],[Log_Date],[DayOfWeek],[CastedDate],[TotalSizeInBytes])
 SELECT 
-@SERVERNAME,
+@Servername,
 GETDATE(),
 [DayOfWeek] ,
 [CastedDate],
 [TotalSizeInBytes]
 FROM (
 SELECT 
-DATENAME(WEEKDAY,Backup_start_date) AS [DayOfWeek],
-CAST(Backup_Start_date AS DATE) AS [CastedDate] ,
-SUM(COALESCE(Compressed_Backup_Size,Backup_Size)) AS [TotalSizeInBytes]
-FROM Msdb..BackupSet 
-WHERE Backup_Start_Date >= DATEADD(DAY,-7,CAST(GETDATE() AS DATE))
-GROUP BY DATENAME(WEEKDAY,Backup_start_date) ,CAST(Backup_Start_date AS DATE)
+DATENAME(WEEKDAY,backup_start_date) AS [DayOfWeek],
+CAST(backup_start_date AS DATE) AS [CastedDate] ,
+SUM(COALESCE(compressed_backup_size,backup_size)) AS [TotalSizeInBytes]
+FROM msdb.dbo.backupset 
+WHERE backup_start_date >= DATEADD(DAY,-7,CAST(GETDATE() AS DATE))
+GROUP BY DATENAME(WEEKDAY,backup_start_date) ,CAST(backup_start_date AS DATE)
 ) as BackupSizesbyDay;
 
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[BackupSizesByDay]
-			WHERE Servername = @ServerName)
+			FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[BackupSizesByDay]
+			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[BackupSizesByDay] ([ServerName],[Log_Date],[DayOfWeek],[CastedDate],[TotalSizeInBytes])
-			VALUES(@ServerName,NULL,NULL,NULL,NULL)
+			INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[BackupSizesByDay] ([Servername],[Log_Date],[DayOfWeek],[CastedDate],[TotalSizeInBytes])
+			VALUES(@Servername,NULL,NULL,NULL,NULL)
 			END
 
 END;'
 
 
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
@@ -2049,102 +2058,102 @@ AS
 
 BEGIN
 
---Revision date: 31/01/2018
+--Revision date: 14/03/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME 
 DECLARE @LogDate DATETIME = GETDATE()
 
-DELETE FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseSettings]
+DELETE FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseSettings]
 WHERE Servername = @Servername
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
 ''Collation_name'',
-ISNULL(Collation_name,''None'')   ,
-Count(Collation_Name)  
+ISNULL(collation_name,''None'')   ,
+COUNT(collation_name)  
 FROM sys.databases
-GROUP BY Collation_name
+GROUP BY collation_name
 
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
 ''is_auto_close_on'',
 CASE is_auto_close_on WHEN 1 THEN ''Enabled'' ELSE ''Disabled'' END   ,
-Count(is_auto_close_on)  
+COUNT(is_auto_close_on)  
 FROM sys.databases
 GROUP BY is_auto_close_on
 
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
 ''is_auto_shrink_on'',
 CASE is_auto_shrink_on WHEN 1 THEN ''Enabled'' ELSE ''Disabled'' END   ,
-Count(is_auto_shrink_on)  
+COUNT(is_auto_shrink_on)  
 FROM sys.databases
 GROUP BY is_auto_shrink_on
 
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
 ''is_auto_update_stats_on'',
 CASE is_auto_update_stats_on WHEN 1 THEN ''Enabled'' ELSE ''Disabled'' END   ,
-Count(is_auto_update_stats_on)  
+COUNT(is_auto_update_stats_on)  
 FROM sys.databases
 GROUP BY is_auto_update_stats_on
 
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
 ''is_read_only'',
 CASE is_read_only WHEN 1 THEN ''Enabled'' ELSE ''Disabled'' END   ,
-Count(is_read_only)  
+COUNT(is_read_only)  
 FROM sys.databases
 GROUP BY is_read_only
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
 ''user_access_desc'', 
 user_access_desc, 
-Count(user_access_desc)  
+COUNT(user_access_desc)  
 FROM sys.databases
 GROUP BY user_access_desc
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
 ''compatibility_level'',
 [compatibility_level],
-Count([compatibility_level])  
+COUNT([compatibility_level])  
 FROM sys.databases
 GROUP BY [compatibility_level]
 
 
-INSERT INTO '+@LinkedServerName+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
 ''recovery_model_desc'',
 recovery_model_desc,
-Count(recovery_model_desc)  
+COUNT(recovery_model_desc)  
 FROM sys.databases
 GROUP BY recovery_model_desc
 
 END;'
 
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 
 IF @InitialSetup = 0
@@ -2152,77 +2161,77 @@ BEGIN
 --Insert Preserved data into Inspector Data Base tables
 	IF OBJECT_ID('Inspector.ADHocDatabaseCreations_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[ADHocDatabaseCreations] 
-	SELECT * FROM [Inspector].[ADHocDatabaseCreations_Copy]
+	SELECT * FROM [Inspector].[ADHocDatabaseCreations_Copy];
 
 	IF OBJECT_ID('Inspector.ADHocDatabaseSupression_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[ADHocDatabaseSupression] 
-	SELECT * FROM [Inspector].[ADHocDatabaseSupression_Copy]
+	SELECT * FROM [Inspector].[ADHocDatabaseSupression_Copy];
 	
 	IF OBJECT_ID('Inspector.AGCheck_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[AGCheck] 
-	SELECT * FROM [Inspector].[AGCheck_Copy]
+	SELECT * FROM [Inspector].[AGCheck_Copy];
 	
 	IF OBJECT_ID('Inspector.BackupsCheck_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[BackupsCheck] 
-	SELECT * FROM [Inspector].[BackupsCheck_Copy]
+	SELECT * FROM [Inspector].[BackupsCheck_Copy];
 	
 	IF OBJECT_ID('Inspector.BackupSizesByDay_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[BackupSizesByDay] 
-	SELECT * FROM [Inspector].[BackupSizesByDay_Copy]
+	SELECT * FROM [Inspector].[BackupSizesByDay_Copy];
 	
 	IF OBJECT_ID('Inspector.DatabaseFiles_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[DatabaseFiles] 
-	SELECT * FROM [Inspector].[DatabaseFiles_Copy]
+	SELECT * FROM [Inspector].[DatabaseFiles_Copy];
 	
 	IF OBJECT_ID('Inspector.DatabaseFileSizes_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[DatabaseFileSizes] 
-	SELECT * FROM [Inspector].[DatabaseFileSizes_Copy]
+	SELECT * FROM [Inspector].[DatabaseFileSizes_Copy];
 	
 	IF OBJECT_ID('Inspector.DatabaseOwnership_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[DatabaseOwnership] 
-	SELECT * FROM [Inspector].[DatabaseOwnership_Copy]
+	SELECT * FROM [Inspector].[DatabaseOwnership_Copy];
 	
 	IF OBJECT_ID('Inspector.DatabaseSettings_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[DatabaseSettings] 
-	SELECT * FROM [Inspector].[DatabaseSettings_Copy]
+	SELECT * FROM [Inspector].[DatabaseSettings_Copy];
 	
 	IF OBJECT_ID('Inspector.DatabaseStates_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[DatabaseStates] 
-	SELECT * FROM [Inspector].[DatabaseStates_Copy]
+	SELECT * FROM [Inspector].[DatabaseStates_Copy];
 	
 	IF OBJECT_ID('Inspector.DriveSpace_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[DriveSpace] 
-	SELECT * FROM [Inspector].[DriveSpace_Copy]
+	SELECT * FROM [Inspector].[DriveSpace_Copy];
 	
 	IF OBJECT_ID('Inspector.FailedAgentJobs_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[FailedAgentJobs] 
-	SELECT * FROM [Inspector].[FailedAgentJobs_Copy]
+	SELECT * FROM [Inspector].[FailedAgentJobs_Copy];
 	
 	IF OBJECT_ID('Inspector.JobOwner_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[JobOwner] 
-	SELECT * FROM [Inspector].[JobOwner_Copy]
+	SELECT * FROM [Inspector].[JobOwner_Copy];
 	
 	IF OBJECT_ID('Inspector.LoginAttempts_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[LoginAttempts] 
-	SELECT * FROM [Inspector].[LoginAttempts_Copy]
+	SELECT * FROM [Inspector].[LoginAttempts_Copy];
 	
 	IF OBJECT_ID('Inspector.ReportData_Copy') IS NOT NULL
 	BEGIN
 	INSERT INTO [Inspector].[ReportData] ([ReportDate],[ModuleConfig],[ReportData])
-	SELECT [ReportDate],[ModuleConfig],[ReportData] FROM [Inspector].[ReportData_Copy]
+	SELECT [ReportDate],[ModuleConfig],[ReportData] FROM [Inspector].[ReportData_Copy];
 	END
 	
 	IF OBJECT_ID('Inspector.TopFiveDatabases_Copy') IS NOT NULL
 	INSERT INTO [Inspector].[TopFiveDatabases] 
-	SELECT * FROM [Inspector].[TopFiveDatabases_Copy]
+	SELECT * FROM [Inspector].[TopFiveDatabases_Copy];
 	
 	
 	IF OBJECT_ID('Inspector.DatabaseFileSizeHistory_Copy') IS NOT NULL
 	BEGIN
 	SET IDENTITY_INSERT [Inspector].[DatabaseFileSizeHistory] ON 
-	INSERT INTO [Inspector].[DatabaseFileSizeHistory] ([GrowthID],[Database_id],[Database_name],[File_id],[FileName],[GrowthIncrements],[GrowthRate_MB],[Log_Date],[PostGrowthSize_MB],[PreGrowthSize_MB],[ServerName],[Type_Desc]) 
-	SELECT [GrowthID],[Database_id],[Database_name],[File_id],[FileName],[GrowthIncrements],[GrowthRate_MB],[Log_Date],[PostGrowthSize_MB],[PreGrowthSize_MB],[ServerName],[Type_Desc] 
-	FROM [Inspector].[DatabaseFileSizeHistory_Copy] 
+	INSERT INTO [Inspector].[DatabaseFileSizeHistory] ([GrowthID],[Database_id],[Database_name],[File_id],[FileName],[GrowthIncrements],[GrowthRate_MB],[Log_Date],[PostGrowthSize_MB],[PreGrowthSize_MB],[Servername],[Type_Desc]) 
+	SELECT [GrowthID],[Database_id],[Database_name],[File_id],[FileName],[GrowthIncrements],[GrowthRate_MB],[Log_Date],[PostGrowthSize_MB],[PreGrowthSize_MB],[Servername],[Type_Desc] 
+	FROM [Inspector].[DatabaseFileSizeHistory_Copy]; 
 	SET IDENTITY_INSERT [Inspector].[DatabaseFileSizeHistory] OFF
 	END
 
@@ -2303,7 +2312,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 31/01/2018 
+--Revision date: 14/03/2018 
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1
 
@@ -2318,7 +2327,7 @@ SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+
 
 *********************************************/
 '
-IF @LinkedServerName = ''
+IF @LinkedServername = ''
 	BEGIN
 
 	SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ '
@@ -2334,7 +2343,7 @@ AS
 BEGIN
 SET NOCOUNT ON;
 
-IF EXISTS (SELECT name FROM sys.databases WHERE name = '''+@Databasename+''' AND State = 0)
+IF EXISTS (SELECT name FROM sys.databases WHERE name = '''+@Databasename+''' AND state = 0)
 
 '
 
@@ -2354,16 +2363,16 @@ AS
 BEGIN
 SET NOCOUNT ON;
 
-IF EXISTS (SELECT DATA_SOURCE FROM SYS.SERVERS 
-WHERE NAME ='''+REPLACE(REPLACE(REPLACE(@LinkedServerName,'[',''),']',''),'.','')+'''
-AND DATA_SOURCE IN (
-					SELECT AG.NAME AS AGname
-					FROM sys.dm_hadr_availability_group_states st
-					INNER JOIN master.sys.availability_groups ag ON ST.group_id = AG.group_id
-					WHERE primary_replica = @@Servername)
-					 )
-OR @@SERVERNAME = (SELECT DATA_SOURCE FROM SYS.SERVERS 
-WHERE NAME ='''+REPLACE(REPLACE(REPLACE(@LinkedServerName,'[',''),']',''),'.','')+''')
+IF EXISTS (SELECT data_source FROM sys.servers 
+WHERE name ='''+REPLACE(REPLACE(REPLACE(@LinkedServername,'[',''),']',''),'.','')+'''
+AND data_source IN (
+				SELECT Groups.name
+				FROM sys.dm_hadr_availability_group_states States
+				INNER JOIN master.sys.availability_groups Groups ON States.group_id = Groups.group_id
+				WHERE primary_replica = @@Servername)
+				)
+OR @@SERVERNAME = (SELECT data_source FROM SYS.SERVERS 
+WHERE name ='''+REPLACE(REPLACE(REPLACE(@LinkedServername,'[',''),']',''),'.','')+''')
 
 '
 
@@ -2408,7 +2417,7 @@ DECLARE @UseMedian							BIT
 
 
 
-IF OBJECT_ID(''TempDB..#TrafficLightSummary'') IS NOT NULL
+IF OBJECT_ID(''tempdb.dbo.#TrafficLightSummary'') IS NOT NULL
 DROP TABLE #TrafficLightSummary;
 
 CREATE TABLE #TrafficLightSummary
@@ -2425,7 +2434,7 @@ DECLARE @SubjectText VARCHAR(255)
 DECLARE @AlertSubjectText VARCHAR(255) 
 DECLARE @Importance VARCHAR(6) = ''Low''
 DECLARE @EmailBody VARCHAR(MAX) = ''''
-DECLARE @Alertheader VARCHAR(MAX) = ''''
+DECLARE @AlertHeader VARCHAR(MAX) = ''''
 DECLARE @AdvisoryHeader VARCHAR(MAX) = ''''
 DECLARE @RecipientsList VARCHAR(1000) = (SELECT Recipients FROM ['+CAST(REPLACE(@Databasename,',',';') AS VARCHAR(128))+'].[Inspector].[EmailRecipients] WHERE [Description] = @EmailDistributionGroup)
 DECLARE @RedHighlight VARCHAR(7)  = ''#F78181'' 
@@ -2434,7 +2443,7 @@ DECLARE @TableTail VARCHAR(65) = ''</table><p><A HREF = "#Warnings">Back to Top<
 DECLARE @TableHeaderColour VARCHAR(7) 
 DECLARE @ServerSummaryHeader VARCHAR(MAX) = ''<A NAME = "Warnings"></a><b>Server Summary:</b><br></br>''
 DECLARE @ServerSummaryFontColour VARCHAR(30)
-DECLARE @DriveLetterExcludes VARCHAR(10) = (SELECT REPLACE(REPLACE([Value],'':'',''''),''\'','''') from ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''DriveSpaceDriveLetterExcludes'')
+DECLARE @DriveLetterExcludes VARCHAR(10) = (SELECT REPLACE(REPLACE([Value],'':'',''''),''\'','''') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''DriveSpaceDriveLetterExcludes'')
 DECLARE @DisabledModules VARCHAR(450)
 
 IF @ModuleDesc IS NULL 
@@ -2446,8 +2455,9 @@ IF @SubjectText IS NULL BEGIN SET @SubjectText = ''SQLUndercover Inspector check
 SET @SubjectText= @SubjectText +'' for [''+ISNULL(@Stack,'''')+'']''
 SET @AlertSubjectText = @SubjectText +'' - WARNINGS FOUND! ''
 
-IF @Theme IS NULL BEGIN SET @Theme = ''Dark'' END
-IF @Theme NOT IN (''Light'',''Dark'') BEGIN SET @Theme = ''Dark'' END
+IF @Theme IS NOT NULL BEGIN SET @Theme = UPPER(@Theme) END;
+IF @Theme IS NULL BEGIN SET @Theme = ''DARK'' END;
+IF @Theme NOT IN (''LIGHT'',''DARK'') BEGIN SET @Theme = ''DARK'' END
 
 
 --Build beginning of the HTML 
@@ -2461,7 +2471,7 @@ td
     }
 </style>
 </head>
-<body style="background-color: ''+CASE WHEN @Theme = ''Light'' THEN ''White'' ELSE ''Black'' END +'';" text="''+CASE WHEN @Theme = ''Light'' THEN ''Black'' ELSE ''White'' END +''">
+<body style="background-color: ''+CASE WHEN @Theme = ''LIGHT'' THEN ''White'' ELSE ''Black'' END +'';" text="''+CASE WHEN @Theme = ''LIGHT'' THEN ''Black'' ELSE ''White'' END +''">
 <div style="text-align: center;">'' +ISNULL(@EmailHeader,'''')+''</div>
 <BR>
 <BR>''
@@ -2473,7 +2483,7 @@ FOR
 
 SELECT Servername,ModuleConfig_Desc,TableHeaderColour
 FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers]
-WHERE isactive = 1 
+WHERE [IsActive] = 1 
 ORDER BY Servername ASC
 
 
@@ -2556,7 +2566,7 @@ IF @EnableDriveSpaceCheck = 1
 	'';
 
 	IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.DriveSpace 
+	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DriveSpace]
 	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 
 	   BEGIN
@@ -2566,8 +2576,8 @@ WITH TotalDriveEntries AS
 --GROUP THE DRIVE LETTERS AND COUNT TOTAL LOGGED ENTRIES (1 entry per day)
 SELECT Servername,Drive,COUNT(Drive) AS TotalEntries
 FROM (
-SELECT Servername,Drive,CAST(Log_Date AS DATE) AS DATELOGGED
-FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.DriveSpace DriveSpace
+SELECT Servername,Drive,CAST(Log_Date AS DATE) AS Datelogged
+FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DriveSpace]
 WHERE Servername = @Serverlist
 GROUP BY Servername,Drive,CAST(Log_Date AS DATE)
 ) AS X 
@@ -2578,7 +2588,7 @@ SpaceVariation as (
 SELECT Log_Date,DriveSpace.Servername,DriveSpace.Drive,Capacity_GB,(Capacity_GB-AvailableSpace_GB) as UsedSpace_GB,AvailableSpace_GB,
 LAG(Capacity_GB-AvailableSpace_GB,1,Capacity_GB-AvailableSpace_GB) OVER(PARTITION BY DriveSpace.Servername,DriveSpace.Drive ORDER BY DriveSpace.Servername,DriveSpace.Drive,Log_Date) as laggedUsedSpace,
 TotalEntries
-FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.DriveSpace DriveSpace
+FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DriveSpace] AS DriveSpace
 INNER JOIN TotalDriveEntries ON DriveSpace.Drive = TotalDriveEntries.Drive AND DriveSpace.Servername = TotalDriveEntries.Servername
 ),
 ApplyMedianRowNum AS (
@@ -2607,8 +2617,8 @@ WHEN AverageDailyGrowth_GB > 0
 AND CAST(COALESCE((LastRecordedFreeSpace.AvailableSpace_GB)/NULLIF(AverageDailyGrowth_GB,0),0) AS DECIMAL(20,2)) < @DaysUntilDriveFullThreshold
 THEN @RedHighlight 
 WHEN CAST((LastRecordedFreeSpace.AvailableSpace_GB/LastRecordedFreeSpace.Capacity_GB)*100 AS DECIMAL(10,2)) < @FreeSpaceRemainingPercent 
-AND AverageDailyGrowth.Drive COLLATE DATABASE_DEFAULT NOT IN (SELECT '+CASE WHEN @Compatibility = 0 THEN '[StringElement]+'':\''' ELSE '[Value]+'':\''' END+ 
-'FROM '+CASE WHEN @Compatibility = 0 THEN '[Master].[dbo].fn_SplitString(@DriveLetterExcludes,'','') DriveLetterExcludes'
+AND AverageDailyGrowth.Drive COLLATE DATABASE_DEFAULT NOT IN (SELECT '+CASE WHEN @Compatibility = 0 THEN '[StringElement]+'':\''' ELSE '[value]+'':\''' END+ 
+'FROM '+CASE WHEN @Compatibility = 0 THEN '[master].[dbo].fn_SplitString(@DriveLetterExcludes,'','') DriveLetterExcludes'
 										ELSE 'STRING_SPLIT(@DriveLetterExcludes,'','') DriveLetterExcludes'
 										END+')
 THEN @YellowHighlight
@@ -2631,7 +2641,7 @@ FiveDayTotal.SUMFiveDayTotal AS ''td'',''''
 FROM AverageDailyGrowth
 INNER JOIN TotalDriveEntries ON TotalDriveEntries.Drive =  AverageDailyGrowth.Drive AND TotalDriveEntries.Servername =  AverageDailyGrowth.Servername
 CROSS APPLY (SELECT TOP 1 Capacity_GB,AvailableSpace_GB
-			FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.DriveSpace DriveSpace
+			FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DriveSpace] DriveSpace
 			WHERE DriveSpace.Drive = TotalDriveEntries.Drive
 			AND DriveSpace.Servername = TotalDriveEntries.Servername
 			ORDER BY Log_Date DESC) as LastRecordedFreeSpace
@@ -2658,7 +2668,7 @@ FOR XML PATH(''tr''),Elements)
 			  
 			 IF @BodyDriveSpace LIKE ''%''+@RedHighlight+''%''		
 			 BEGIN 
-			 SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDriveSpace+'') Drive Space warnings</font><p>''	  
+			 SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDriveSpace+'') Drive Space warnings</font><p>''	  
 			 SET @Importance = ''High'' 
 			 END
 
@@ -2692,7 +2702,7 @@ FOR XML PATH(''tr''),Elements)
 			 SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDriveSpace, '''') + ISNULL(@BodyDriveSpace, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 			 IF @BodyDriveSpace LIKE ''%''+@RedHighlight+''%''		
 			 BEGIN 
-			 SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDriveSpace+'') Drive Space warnings <b>(Data collection out of Date)</b></font><p>''	  
+			 SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDriveSpace+'') Drive Space warnings <b>(Data collection out of Date)</b></font><p>''	  
 			 SET @Importance = ''High'' 
 			 END
 	   END
@@ -2718,7 +2728,7 @@ SET @TableHeadAGCheck = ''
     '';
 
 	IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.AGCheck 
+	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck]
 	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 
 	   BEGIN
@@ -2727,17 +2737,17 @@ SET @TableHeadAGCheck = ''
 SET @BodyAGCheck = (
 SELECT 
 CASE WHEN [State] != ''HEALTHY'' AND [State] != ''N/A'' THEN @RedHighlight ELSE ''#FFFFFF'' END AS [@bgcolor],
-ServerName  AS ''td'','''', +
+Servername  AS ''td'','''', +
 AGname AS ''td'','''', +
 [State] AS ''td'','''', +
-ISNULL([ReplicaServerName],''N/A'') AS ''td'','''', +
+ISNULL([ReplicaServername],''N/A'') AS ''td'','''', +
 CASE WHEN [Suspended] = 1 THEN ''Y'' 
 WHEN [Suspended] = 0 THEN ''N''
 ELSE ''N/A'' END AS ''td'','''', +
 ISNULL([SuspendReason],''N/A'') AS ''td'',''''
 FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck]
-WHERE servername = @Serverlist
-ORDER BY AGname ASC,ReplicaServerName ASC
+WHERE Servername = @Serverlist
+ORDER BY AGname ASC,ReplicaServername ASC
 FOR XML PATH(''tr''),ELEMENTS);
 
 --Count AG Check Warnings
@@ -2746,7 +2756,7 @@ FOR XML PATH(''tr''),ELEMENTS);
 			SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadAGCheck, '''') + ISNULL(@BodyAGCheck, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 				  IF @BodyAGCheck LIKE ''%''+@RedHighlight+''%''			
 				  BEGIN 
-				  SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountAGCheck+'') AG Warnings</font><p>''  
+				  SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountAGCheck+'') AG Warnings</font><p>''  
 				  SET @Importance = ''High'' 
 				  END   
 			
@@ -2761,7 +2771,7 @@ FOR XML PATH(''tr''),ELEMENTS);
 	   ''Data collection out of date'' AS ''td'','''', +
 	   ''N/A'' AS ''td'',''''
 	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck]
-	   WHERE servername = @Serverlist
+	   WHERE Servername = @Serverlist
 	   ORDER BY AGname ASC
 	   FOR XML PATH(''tr''),ELEMENTS);
 
@@ -2770,7 +2780,7 @@ FOR XML PATH(''tr''),ELEMENTS);
 	   			SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadAGCheck, '''') + ISNULL(@BodyAGCheck, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 				  IF @BodyAGCheck LIKE ''%''+@RedHighlight+''%''			
 				  BEGIN 
-				    SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountAGCheck+'') AG Warnings <b>(Data collection out of Date)</b></font><p>''  
+				    SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountAGCheck+'') AG Warnings <b>(Data collection out of Date)</b></font><p>''  
 				    SET @Importance = ''High'' 
 				  END   
 		END
@@ -2797,7 +2807,7 @@ SET @TableHeadDatabaseStates = ''
     '';
 
 	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.DatabaseStates 
+	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseStates] 
 	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 
 	   BEGIN
@@ -2805,7 +2815,6 @@ SET @TableHeadDatabaseStates = ''
 	   SET @BodyDatabaseStates =(
 	   SELECT 
 	   CASE 
-	   --WHEN DatabaseState != ''ONLINE'' AND DatabaseState != ''SNAPSHOT (less than 10 days old)'' THEN @RedHighlight ELSE ''#FFFFFF'' END AS [@bgcolor],
 	   WHEN DatabaseState IN (''Restoring'',''RECOVERING'',''OFFLINE'',''SNAPSHOT (more than 10 days old)'') THEN @YellowHighlight 
 	   WHEN DatabaseState IN (''RECOVERY_PENDING'',''SUSPECT'',''EMERGENCY'') THEN @RedHighlight
 	   ELSE ''#FFFFFF'' END AS [@bgcolor],
@@ -2814,7 +2823,7 @@ SET @TableHeadDatabaseStates = ''
 	   Total AS ''td'','''', +
 	   DatabaseNames AS ''td'',''''
 	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseStates]
-	   WHERE servername = @Serverlist
+	   WHERE Servername = @Serverlist
 	   ORDER BY Total DESC
 	   FOR XML PATH(''tr''),ELEMENTS);
 	   
@@ -2830,7 +2839,7 @@ SET @TableHeadDatabaseStates = ''
 	   SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseStates, '''') + ISNULL(@BodyDatabaseStates, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 	   	  IF @BodyDatabaseStates LIKE ''%''+@RedHighlight+''%''		
 	   	  BEGIN 
-	   		 SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "Red">  - <b>has (''+@CountDatabaseStates+'') Database State warnings ''+ISNULL(@SuspectAlertText,'''')+''</font></b><p>''	  
+	   		 SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "Red">  - <b>has (''+@CountDatabaseStates+'') Database State warnings ''+ISNULL(@SuspectAlertText,'''')+''</font></b><p>''	  
 	   		 SET @Importance = ''High'' 
 	   	  END
 		  IF @BodyDatabaseStates LIKE ''%''+@YellowHighlight+''%''
@@ -2857,7 +2866,7 @@ SET @TableHeadDatabaseStates = ''
 	   SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseStates, '''') + ISNULL(@BodyDatabaseStates, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 	   IF @BodyDatabaseStates LIKE ''%''+@RedHighlight+''%''		
 	   BEGIN 
-	   SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDatabaseStates+'') Database State warnings <b>(Data collection out of Date)</b></font><p>''	  
+	   SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDatabaseStates+'') Database State warnings <b>(Data collection out of Date)</b></font><p>''	  
 	   SET @Importance = ''High'' 
 	   END
 
@@ -2882,21 +2891,21 @@ DECLARE @BodyFailedJobsTotals  VARCHAR(MAX) ,
     '';
 
 	IF (SELECT MAX(Log_Date)   
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.FailedAgentJobs 
+	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[FailedAgentJobs]
 	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE) 
 
 	   BEGIN
 
     SET @BodyFailedJobsTotals = 
      (SELECT @RedHighlight AS [@bgcolor],
-	ServerName AS ''td'','''', + 
+	Servername AS ''td'','''', + 
 	CONVERT(VARCHAR(17),Log_Date,113) AS ''td'','''', + 
 	JobName AS ''td'','''', +  
 	LastStepFailed AS ''td'','''', +  
 	CONVERT(VARCHAR(17),LastFailedDate,113) AS ''td'','''',+  
 	LastError + ''...'' AS ''td'',''''
 	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[FailedAgentJobs]
-	WHERE servername = @Serverlist
+	WHERE Servername = @Serverlist
 	AND JobName != ''No Failed Jobs present''
 	FOR XML PATH(''tr''),ELEMENTS);
 
@@ -2922,7 +2931,7 @@ SET @CountFailedJobsTotals =  (LEN(@BodyFailedJobsTotals) - LEN(REPLACE(@BodyFai
  SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadFailedJobsTotals,'''') + ISNULL(@BodyFailedJobsTotals, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 				  IF @BodyFailedJobsTotals LIKE ''%''+@RedHighlight+''%''	
 				  BEGIN 
-				  SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountFailedJobsTotals+'') Failed Job warnings</font><p>''  
+				  SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountFailedJobsTotals+'') Failed Job warnings</font><p>''  
 				  SET @Importance = ''High'' 
 				  END
 	   END
@@ -2944,7 +2953,7 @@ SET @CountFailedJobsTotals =  (LEN(@BodyFailedJobsTotals) - LEN(REPLACE(@BodyFai
 		     SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadFailedJobsTotals,'''') + ISNULL(@BodyFailedJobsTotals, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 				  IF @BodyFailedJobsTotals LIKE ''%''+@RedHighlight+''%''	
 				  BEGIN 
-				  SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountFailedJobsTotals+'') Failed Job warnings  <b>(Data collection out of Date)</b></font><p>''  
+				  SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountFailedJobsTotals+'') Failed Job warnings  <b>(Data collection out of Date)</b></font><p>''  
 				  SET @Importance = ''High'' 
 				  END
 	END
@@ -2968,7 +2977,7 @@ BEGIN
 	'';
 
 	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.AGCheck 
+	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck] 
 	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 
 	BEGIN
@@ -2977,13 +2986,13 @@ BEGIN
 
 SET @BodyLoginAttempts = (SELECT
 					''#FFFFFF'' AS [@bgcolor],
-					ServerName AS ''td'','''',+
+					Servername AS ''td'','''',+
 					Username AS ''td'','''',+
 					Attempts AS ''td'','''',+
 					CONVERT(VARCHAR(17),LastErrorDate,113) AS ''td'','''',+
 					LastError AS ''td'',''''
 					FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[LoginAttempts]
-					WHERE servername = @Serverlist
+					WHERE Servername = @Serverlist
 					AND Username != ''No Failed Logins present''
 					FOR XML PATH(''tr''),ELEMENTS)
 
@@ -3046,7 +3055,7 @@ SET @TableHeadJobOwner = ''
     '';
 
     	IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.JobOwner 
+	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[JobOwner] 
 	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 
 	   BEGIN
@@ -3054,11 +3063,11 @@ SET @TableHeadJobOwner = ''
 --JOB OWNER SCRIPT
 SET @BodyJobOwner = (SELECT 
 				@YellowHighlight AS [@bgcolor],
-				ServerName AS ''td'','''',+
-				job_id AS ''td'','''', + 
+				Servername AS ''td'','''',+
+				Job_ID AS ''td'','''', + 
 				JobName AS ''td'',''''
 				FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[JobOwner]
-				WHERE servername = @Serverlist
+				WHERE Servername = @Serverlist
 				AND Jobname != ''No Job Owner issues present''
 				FOR XML PATH(''tr''),ELEMENTS);
 
@@ -3118,7 +3127,7 @@ SET @TableHeadTopFiveDatabases = ''
     '';
 
 	IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.TopFiveDatabases 
+	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[TopFiveDatabases] 
 	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 
 	   BEGIN
@@ -3126,11 +3135,11 @@ SET @TableHeadTopFiveDatabases = ''
 --TOP 5 DATABASES BY SIZE SCRIPT
 SET @BodyTopFiveDatabases = (SELECT 
 					   ''#FFFFFF'' AS [@bgcolor],
-					   ServerName AS ''td'','''', + 
-					   DatabaseName AS ''td'','''', + 
+					   Servername AS ''td'','''', + 
+					   Databasename AS ''td'','''', + 
 					   TotalSize_MB AS ''td'',''''
 					   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[TopFiveDatabases] 
-					   WHERE servername = @Serverlist
+					   WHERE Servername = @Serverlist
 					   FOR XML PATH(''tr''),ELEMENTS);
 
 	   
@@ -3168,7 +3177,7 @@ SET @TableHeadDatabaseFiles = ''
     '';
 
 	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.DatabaseFiles 
+	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseFiles] 
 	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 
 	   BEGIN
@@ -3178,12 +3187,12 @@ SET @TableHeadDatabaseFiles = ''
 
 SET @BodyDatabaseFiles = (SELECT 
 					@RedHighlight AS [@bgcolor],
-					ServerName AS ''td'','''', +
+					Servername AS ''td'','''', +
 					Databasename AS ''td'','''', + 
 					FileType AS ''td'','''', +
 					FilePath AS ''td'',''''
 					FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseFiles]
-					WHERE ServerName = @Serverlist
+					WHERE Servername = @Serverlist
 					AND Databasename != ''No Database File issues present''
 					FOR XML PATH(''tr''),ELEMENTS);
 
@@ -3205,7 +3214,7 @@ SET @CountDatabaseFiles = (LEN(@BodyDatabaseFiles) - LEN(REPLACE(@BodyDatabaseFi
 SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseFiles, '''') + ISNULL(@BodyDatabaseFiles, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 IF @BodyDatabaseFiles LIKE ''%''+@RedHighlight+''%''		
 BEGIN 
-SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDatabaseFiles+'') Data or Log files on incorrect drives</font><p>''  
+SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDatabaseFiles+'') Data or Log files on incorrect drives</font><p>''  
 SET @Importance = ''High'' 
 END
 
@@ -3227,7 +3236,7 @@ END
 	   SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseFiles, '''') + ISNULL(@BodyDatabaseFiles, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 	   IF @BodyDatabaseFiles LIKE ''%''+@RedHighlight+''%''		
 	   BEGIN 
-	   SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDatabaseFiles+'') Data or Log files on incorrect drives <b>(Data collection out of Date)</b></font><p>''  
+	   SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDatabaseFiles+'') Data or Log files on incorrect drives <b>(Data collection out of Date)</b></font><p>''  
 	   SET @Importance = ''High'' 
 	   END
 	END
@@ -3238,7 +3247,7 @@ END
 IF @EnableBackupsCheck = 1 
 BEGIN
 
-	IF OBJECT_ID(''Tempdb..#RawData'') IS NOT NULL 
+	IF OBJECT_ID(''tempdb.dbo.#RawData'') IS NOT NULL 
 	DROP TABLE #RawData;
 
 	CREATE TABLE #RawData
@@ -3254,7 +3263,7 @@ BEGIN
 	IsSystemDB BIT
 	);
 
-	IF OBJECT_ID(''Tempdb..#Aggregates'') IS NOT NULL
+	IF OBJECT_ID(''tempdb.dbo.#Aggregates'') IS NOT NULL
 	DROP TABLE #Aggregates;
 
 	CREATE TABLE #Aggregates
@@ -3269,7 +3278,7 @@ BEGIN
 	IsSystemDB BIT
 	);
 
-	IF OBJECT_ID(''Tempdb..#Validations'') IS NOT NULL 
+	IF OBJECT_ID(''tempdb.dbo.#Validations'') IS NOT NULL 
 	DROP TABLE #Validations; 
 
 	CREATE TABLE #Validations
@@ -3302,7 +3311,7 @@ SET @TableHeadBackupsReport = ''
 
 
 	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.BackupsCheck 
+	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupsCheck] 
 	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 
 	   BEGIN
@@ -3313,9 +3322,9 @@ SET @TableHeadBackupsReport = ''
 		  [FULL] AS LastFull,
 		  [DIFF] AS LastDiff,
 		  [LOG] AS LastLog,
-		  BackupSet.AGName,
-		  CASE WHEN BackupSet.AGName = ''Not in an AG'' THEN SERVERNAME
-		  ELSE BackupSet.AGName END AS GroupingMethod,  
+		  BackupSet.AGname,
+		  CASE WHEN BackupSet.AGname = ''Not in an AG'' THEN Servername
+		  ELSE BackupSet.AGname END AS GroupingMethod,  
 		  Servername,
 		  BackupSet.IsFullRecovery,
 		  BackupSet.IsSystemDB
@@ -3329,7 +3338,7 @@ SET @TableHeadBackupsReport = ''
 		  MAX(LastFull) AS LastFull,
 		  MAX(LastDiff) AS LastDiff,
 		  MAX(LastLog) AS LastLog,
-		  AGname,
+		  AGName,
 		  GroupingMethod,
 		  IsFullRecovery,
 		  IsSystemDB
@@ -3340,19 +3349,19 @@ SET @TableHeadBackupsReport = ''
 		  INSERT INTO #Validations (Databasename,AGName,FullState,DiffState,LogState,IsFullRecovery,Serverlist)
 		  SELECT 
 		  Databasename,
-		  AGname,
+		  AGName,
 		  CASE
 		  	WHEN [LastFull] = ''19000101'' THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
 		  	WHEN ([LastFull] >= ''19000101'' AND [LastFull] < DATEADD(DAY,-@FullBackupThreshold,GetDate()) OR [LastFull] IS NULL) THEN ISNULL(CONVERT(VARCHAR(17),[LastFull],113),''More then ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' days ago'')
 		  	ELSE ''OK'' END AS [FullState], 
 		  	CASE 
-		  	WHEN [LastDIFF] = ''19000101'' AND IsSystemDB = 0 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
-		  	WHEN ([LastDIFF] >= ''19000101'' AND LastDIFF < DATEADD(DAY,-@DiffBackupThreshold,GetDate())  OR [lastdiff] IS NULL) AND IsSystemDB = 0 THEN ISNULL(CONVERT(VARCHAR(17),LastDIFF,113),''More then ''+CAST(@DiffBackupThreshold AS VARCHAR(3))+'' days ago'')
+		  	WHEN [LastDiff] = ''19000101'' AND IsSystemDB = 0 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
+		  	WHEN ([LastDiff] >= ''19000101'' AND [LastDiff] < DATEADD(DAY,-@DiffBackupThreshold,GetDate())  OR [LastDiff] IS NULL) AND IsSystemDB = 0 THEN ISNULL(CONVERT(VARCHAR(17),[LastDiff],113),''More then ''+CAST(@DiffBackupThreshold AS VARCHAR(3))+'' days ago'')
 		  	WHEN IsSystemDB = 1 THEN ''N/A''
 		  	ELSE ''OK'' END AS [DiffState], 
 		  	CASE 
-		  	WHEN  LastLOG = ''19000101'' AND IsSystemDB = 0 AND Aggregates.IsFullRecovery = 1 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
-		  	WHEN (([LastLOG] >= ''19000101'' AND [LastLOG] < DATEADD(MINUTE,-@LogBackupThreshold,GetDate()) OR lastlog IS NULL) AND IsSystemDB = 0 AND (Aggregates.IsFullRecovery = 1 OR CAST(Aggregates.IsFullRecovery AS VARCHAR(3)) = ''N/A'')) THEN ISNULL(CONVERT(VARCHAR(17),[LastLOG] ,113),''More than ''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minutes ago'')
+		  	WHEN  [LastLog] = ''19000101'' AND IsSystemDB = 0 AND Aggregates.IsFullRecovery = 1 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
+		  	WHEN (([LastLog] >= ''19000101'' AND [LastLog] < DATEADD(MINUTE,-@LogBackupThreshold,GetDate()) OR [LastLog] IS NULL) AND IsSystemDB = 0 AND (Aggregates.IsFullRecovery = 1 OR CAST(Aggregates.IsFullRecovery AS VARCHAR(3)) = ''N/A'')) THEN ISNULL(CONVERT(VARCHAR(17),[LastLog] ,113),''More than ''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minutes ago'')
 		  	WHEN Aggregates.IsFullRecovery = 0  OR IsSystemDB = 1 THEN ''N/A''
 		  	ELSE ''OK'' END AS [LogState],
 		  CASE IsFullRecovery WHEN 1 THEN ''Y'' ELSE ''N'' END AS IsFullRecovery,
@@ -3364,7 +3373,7 @@ SET @TableHeadBackupsReport = ''
 		  			AND Aggregates.Databasename = RawData.Databasename 
 		  			AND Aggregates.IsFullRecovery = RawData.IsFullRecovery
 		  			AND Aggregates.IsSystemDB = RawData.IsSystemDB
-		  			AND Aggregates.AGname = RawData.AGname
+		  			AND Aggregates.AGName = RawData.AGName
 		  			FOR XML PATH('''')
 		  			) AS Serverlist (Serverlist) 
 		  
@@ -3374,7 +3383,7 @@ SET @TableHeadBackupsReport = ''
 		  SELECT 
 		  @RedHighlight [@bgcolor], 
 		  Databasename  AS ''td'','''', +
-		  AGname  AS ''td'','''', +
+		  AGName  AS ''td'','''', +
 		  FullState  AS ''td'','''', +
 		  DiffState  AS ''td'','''', +
 		  LogState  AS ''td'','''', +
@@ -3417,7 +3426,7 @@ SET @TableHeadBackupsReport = ''
 
 		  	  IF @BodyBackupsReport LIKE ''%''+@RedHighlight+''%''		
 		  	  BEGIN 
-		  	  SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Backup''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountBackupsReport+'') Database Backup issues</font><p>''   
+		  	  SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Backup''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountBackupsReport+'') Database Backup issues</font><p>''   
 		  	  SET @Importance = ''High'' 
 		  	  END
 
@@ -3443,7 +3452,7 @@ SET @TableHeadBackupsReport = ''
 			  SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadBackupsReport, '''') + ISNULL(@BodyBackupsReport, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 		  	  IF @BodyBackupsReport LIKE ''%''+@RedHighlight+''%''		
 		  	  BEGIN 
-		  	  SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Backup''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountBackupsReport+'') Database Backup issues <b>(Data collection out of Date)</b></font><p>''   
+		  	  SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Backup''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountBackupsReport+'') Database Backup issues <b>(Data collection out of Date)</b></font><p>''   
 		  	  SET @Importance = ''High'' 
 		  	  END
 
@@ -3474,7 +3483,7 @@ SET @TableHeadDBOwner = ''
     '';
 
 	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.DatabaseOwnership 
+	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseOwnership]
 	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 
 	   BEGIN
@@ -3483,14 +3492,14 @@ SET @TableHeadDBOwner = ''
 		  SET @BodyDBOwner = 
 		  (SELECT 
 		  @YellowHighlight AS [@bgcolor],
-		  [ServerName] AS ''td'','''', + 
+		  [Servername] AS ''td'','''', + 
 		  [AGName] AS ''td'','''', + 
-		  [Database_Name] AS ''td'','''', + 
+		  [Database_name] AS ''td'','''', + 
 		  [Owner] AS ''td'',''''
 		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseOwnership]
-		  WHERE [ServerName] = @Serverlist
-		  AND [Database_Name] != ''No Database Ownership issues present''
-		  ORDER BY [Database_Name]
+		  WHERE [Servername] = @Serverlist
+		  AND [Database_name] != ''No Database Ownership issues present''
+		  ORDER BY [Database_name]
 		  FOR XML PATH(''tr''),ELEMENTS);
 
 		  IF @BodyDBOwner IS NULL
@@ -3535,7 +3544,7 @@ SET @TableHeadDBOwner = ''
 	   SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDBOwner, '''') + ISNULL(@BodyDBOwner, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 	   IF @BodyDBOwner LIKE ''%''+@RedHighlight+''%''			
 	   BEGIN 
-	   SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDBOwner+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+'' <b>(Data collection out of Date)</b></font><p>''   
+	   SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDBOwner+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+'' <b>(Data collection out of Date)</b></font><p>''   
 	   SET @Importance = ''High'' 
 	   END
 
@@ -3561,7 +3570,7 @@ SET @TableHeadBackupsByDay = ''
 
 	
 	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.BackupSizesByDay 
+	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupSizesByDay]
 	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 
 	   BEGIN
@@ -3590,7 +3599,7 @@ SET @TableHeadBackupsByDay = ''
 	   ELSE 
 	   BEGIN  
 				IF EXISTS (SELECT Log_Date 
-						   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.BackupSizesByDay 
+						   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupSizesByDay] 
 						   WHERE Servername = @Serverlist
 						   AND Log_Date IS NULL) 
 			 BEGIN
@@ -3636,7 +3645,7 @@ SET @TableHeadAdHocDatabases = ''
     '';
 
 	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.ADHocDatabaseCreations 
+	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ADHocDatabaseCreations] 
 	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 
 	   BEGIN
@@ -3645,7 +3654,7 @@ SET @TableHeadAdHocDatabases = ''
 		  (SELECT 
 		  @YellowHighlight  AS [@bgcolor],
 		  Databasename AS ''td'','''', + 
-		  CONVERT(VARCHAR(17),create_date,113) AS ''td'',''''
+		  CONVERT(VARCHAR(17),Create_Date,113) AS ''td'',''''
 		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ADHocDatabaseCreations]
 		  WHERE Servername = @Serverlist
 		  AND Databasename != ''No Ad hoc database creations present''
@@ -3654,7 +3663,7 @@ SET @TableHeadAdHocDatabases = ''
 				WHERE Servername = @Serverlist 
 				AND Suppressed.Databasename = Databasename
 				AND Suppressed.Suppress = 1)
-		  ORDER BY create_date ASC
+		  ORDER BY Create_Date ASC
 		  FOR XML PATH(''tr''),ELEMENTS);
 
 		  
@@ -3696,7 +3705,7 @@ SET @TableHeadAdHocDatabases = ''
 		  SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadAdHocDatabases, '''') +ISNULL(@BodyAdHocDatabases, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 		  IF @BodyAdHocDatabases LIKE ''%''+@RedHighlight+''%''    
 		  BEGIN 
-		  SET @Alertheader = @Alertheader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountAdHocDatabases+'') Potential AD Hoc Database creations <b>(Data collection out of Date)</b></font><p>''   
+		  SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountAdHocDatabases+'') Potential AD Hoc Database creations <b>(Data collection out of Date)</b></font><p>''   
 		  SET @Importance = ''High'' 
 		  END
 
@@ -3729,7 +3738,7 @@ SET @TableHeadDatabaseSettings = ''
     '';
 
 	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].Inspector.DatabaseSettings 
+	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings] 
 	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 
 	   BEGIN
@@ -3919,7 +3928,7 @@ WHEN @ServerSummaryFontColour = ''<font color= "Green">'' THEN 3
 END
 
 --Add Break to the end of the Server warning ready for the next
-IF @Alertheader LIKE ''%''+@Serverlist+''%'' BEGIN SET @Alertheader = @Alertheader + ''<BR></BR>'' END
+IF @AlertHeader LIKE ''%''+@Serverlist+''%'' BEGIN SET @AlertHeader = @AlertHeader + ''<BR></BR>'' END
 
 --Add Break to the end of the Server Advisory Condition ready for the next
 IF @AdvisoryHeader LIKE ''%''+@Serverlist+''%'' BEGIN SET @AdvisoryHeader = @AdvisoryHeader + ''<BR></BR>'' END
@@ -3967,7 +3976,7 @@ THEN @YellowHighlight
 WHEN [GrowthIncrements] > @DatabaseGrowthsAllowedPerDay AND [GrowthIncrements] >= @MAXDatabaseGrowthsAllowedPerDay 
 THEN @RedHighlight
 END AS [@bgcolor], 
-[ServerName] AS ''td'','''', + 
+[Servername] AS ''td'','''', + 
 [Database_name] AS ''td'','''', +
 [Type_Desc] AS ''td'','''', +
 [File_id] AS ''td'','''', +
@@ -3984,7 +3993,7 @@ ELSE
   WHERE [Log_Date] >= CAST(GETDATE() AS DATE)
   AND [GrowthIncrements] > @DatabaseGrowthsAllowedPerDay
   ORDER BY Servername,Database_name,[File_id]
-  for xml path(''tr''),Elements);
+  FOR XML PATH(''tr''),Elements);
 
 
   --CHECK FOR Database Growth Advisory Condition, then for any warnings 
@@ -4003,7 +4012,7 @@ IF @BodyGrowthCheck LIKE ''%''+@RedHighlight+''%''
 		  
 	   BEGIN 
 		    SET @CountGrowthCheck = (LEN(@BodyGrowthCheck) - LEN(REPLACE(@BodyGrowthCheck,@RedHighlight, '''')))/LEN(@RedHighlight)
-		    SET @Alertheader = @Alertheader + ''<A HREF = "#''+''GrowthEvents''+''Growth''+''">''+''Database Growth''+''</a><font color= "Red">  - (''+@CountGrowthCheck+'') Database Growth events found which equal or exceed your Max Threshold of ''+CAST(@MAXDatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'' Growths per 24hrs</font><p>''  
+		    SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''GrowthEvents''+''Growth''+''">''+''Database Growth''+''</a><font color= "Red">  - (''+@CountGrowthCheck+'') Database Growth events found which equal or exceed your Max Threshold of ''+CAST(@MAXDatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'' Growths per 24hrs</font><p>''  
 		    SET @Importance = ''High'' 
 	   END
 
@@ -4031,7 +4040,7 @@ SET @TableHeadBackupSpace = ''
 
 IF (Select [Value]
 	From sys.configurations
-	WHERE Name = ''xp_cmdshell'') = 1
+	WHERE name = ''xp_cmdshell'') = 1
 
 		BEGIN
 
@@ -4043,12 +4052,12 @@ IF (Select [Value]
 		  DECLARE @FreeSpace_Bytes BIGINT = ''''
 		  DECLARE @FreeSpace_GB INT = '''' 
 		  DECLARE @Xpcmd VARCHAR(128)   
-		  IF OBJECT_ID(''Tempdb..#BackupDriveSpace'') IS NOT NULL
-		  DROP TABLE #BackupDriveSpace
+		  IF OBJECT_ID(''tempdb.dbo.#BackupDriveSpace'') IS NOT NULL
+		  DROP TABLE #BackupDriveSpace;
 		     
 		  CREATE TABLE #BackupDriveSpace
 		  (
-		  BytesFree nvarchar(max) 
+		  BytesFree NVARCHAR(MAX) 
 		  ); 
 		  
 
@@ -4057,7 +4066,7 @@ IF (Select [Value]
 		  
 		  SET @Xpcmd =  ''DIR\ ''+@BackupRoot
 		  INSERT INTO #BackupDriveSpace (BytesFree)
-		  EXEC XP_CMDSHELL @Xpcmd
+		  EXEC xp_cmdshell @Xpcmd
 		  
 		  IF EXISTS (SELECT TOP 1 BytesFree
 					FROM #BackupDriveSpace
@@ -4084,7 +4093,7 @@ IF (Select [Value]
 							 SET @ErrorEncountered = 1
 							 SET @ErrorEncounteredText = ''Invalid Backup Path Specified in [Inspector].[Settings]''
 							 
-							 SET @Alertheader = @Alertheader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= "Red">  - Access denied for Backup Path Specified in [Inspector].[Settings]</font><p>'' 
+							 SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= "Red">  - Access denied for Backup Path Specified in [Inspector].[Settings]</font><p>'' 
 							 SET @Importance = ''High''
 
 						  END
@@ -4107,7 +4116,7 @@ IF (Select [Value]
 						SET @ErrorEncountered = 1
 						SET @ErrorEncounteredText = ''Invalid Backup Path Specified in [Inspector].[Settings]''
 						
-						SET @Alertheader = @Alertheader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= "Red">  - Invalid Backup Path Specified in [Inspector].[Settings]</font><p>'' 
+						SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= "Red">  - Invalid Backup Path Specified in [Inspector].[Settings]</font><p>'' 
 						SET @Importance = ''High''
 
 					
@@ -4117,7 +4126,7 @@ IF (Select [Value]
 		END
 		ELSE
 		BEGIN 
-		SET @Alertheader = @Alertheader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= "Red">  - xp_cmdshell must be enabled for module BackupSizesCheck to run</font><p>'' 
+		SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= "Red">  - xp_cmdshell must be enabled for module BackupSizesCheck to run</font><p>'' 
 		SET @Importance = ''High'' 
 		SET @ErrorEncountered = 1
 		SET @ErrorEncounteredText = ''xp_cmdshell must be enabled''
@@ -4181,7 +4190,7 @@ ELSE
 
 	--If unsufficient space then create and alert.
 	IF @FreeSpace_GB < (@BackupSizeForNextWeekday + (@BackupSizeForNextWeekday*10) /100)	
-	BEGIN SET @Alertheader = @Alertheader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''Backup Storage''+''</a><font color= "Red"> - There is insufficient free space on the backup server [''+@BackupRoot+''] for tonight''''s backups, Minimum space required: ''+CAST(@BackupSizeForNextWeekday AS VARCHAR(15))+'' GB , Space Available ''+CAST(@FreeSpace_GB AS VARCHAR(15)) + '' GB <p></font>'' SET @Importance = ''High'' END
+	BEGIN SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''Backup Storage''+''</a><font color= "Red"> - There is insufficient free space on the backup server [''+@BackupRoot+''] for tonight''''s backups, Minimum space required: ''+CAST(@BackupSizeForNextWeekday AS VARCHAR(15))+'' GB , Space Available ''+CAST(@FreeSpace_GB AS VARCHAR(15)) + '' GB <p></font>'' SET @Importance = ''High'' END
 
 END
 
@@ -4237,20 +4246,20 @@ END
 IF @Importance = ''High'' SET @SubjectText = @AlertSubjectText
 
 
-IF @Alertheader != '''' 
+IF @AlertHeader != '''' 
 BEGIN
 
-SET @Alertheader = ''
+SET @AlertHeader = ''
 <BR></BR>
 <B>Warnings Conditions:</b>
 <p>''
-+@Alertheader
++@AlertHeader
 
 END 
 ELSE
 BEGIN 
 
-SET @Alertheader = ''
+SET @AlertHeader = ''
 <BR></BR>
 <B>NO Warnings are present</B>
 <p></p>
@@ -4325,7 +4334,7 @@ SET @EmailBody = ''
 <BR></BR>
 <HR></HR>
 <div style="background:linear-gradient(to right, ''+CASE WHEN @Theme = ''Light'' THEN ''#FFFFFF'' ELSE ''#000000'' END+'' 35%, #F78181 110%)">
-<text>''+@Alertheader +''<BR></text>
+<text>''+@AlertHeader +''<BR></text>
 </div>
 <div style="background: linear-gradient(to right, ''+CASE WHEN @Theme = ''Light'' THEN ''#FFFFFF'' ELSE ''#000000'' END+'' 35%, #FAFCA4 110%)">
 <text>'' + ISNULL(@AdvisoryHeader,'''') + ''</text>
@@ -4343,7 +4352,7 @@ SET @EmailBody = @EmailHeader + @EmailBody
 
 IF @TestMode = 1 OR (@RecipientsList IS NULL OR @RecipientsList = '''')
 BEGIN
-INSERT INTO '+CAST(@Databasename AS VARCHAR(128))+'.Inspector.ReportData (ReportDate,ModuleConfig,ReportData)
+INSERT INTO '+CAST(@Databasename AS VARCHAR(128))+'.[Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData)
 SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody
 END
 ELSE
@@ -4353,20 +4362,20 @@ IF @EmailRedWarningsOnly = 1
 	BEGIN
 		IF @Importance = ''High''
 		BEGIN
-			EXEC MSDB..sp_send_dbmail 
+			EXEC msdb.dbo.sp_send_dbmail 
 			@recipients = @RecipientsList,
 			@subject = @SubjectText,
-			@Importance = @Importance,
+			@importance = @Importance,
 			@body=@EmailBody ,
 			@body_format = ''HTML'' 
 		END
 	END
 	ELSE 
 	BEGIN
-			EXEC MSDB..sp_send_dbmail 
+			EXEC msdb.dbo.sp_send_dbmail 
 			@recipients = @RecipientsList,
 			@subject = @SubjectText,
-			@Importance = @Importance,
+			@importance = @Importance,
 			@body=@EmailBody ,
 			@body_format = ''HTML'' 
 	END
@@ -4382,14 +4391,14 @@ END
 
 END'
 
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 
 --Agent job creations
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
 USE [msdb];
 
-IF NOT EXISTS (SELECT Name FROM sysjobs WHERE Name = ''SQLUndercover Inspector Data Collection'')
+IF NOT EXISTS (SELECT name FROM sysjobs WHERE name = ''SQLUndercover Inspector Data Collection'')
 BEGIN
 BEGIN TRANSACTION
 DECLARE @ReturnCode INT
@@ -4411,7 +4420,7 @@ EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=N''SQLUndercover Inspector Dat
 		@notify_level_page=0, 
 		@delete_level=0, 
 		@description=N''Collect data and insert into  
-		'+@LinkedServerName+'['+@Databasename+'] and email the results.'', 
+		'+@LinkedServername+'['+@Databasename+'] and email the results.'', 
 		@category_name=N''[Uncategorized (Local)]'', 
 		@owner_login_name=N''sa'', @job_id = @jobId OUTPUT
 IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
@@ -4447,7 +4456,7 @@ DECLARE @EnableDatabaseSettings				BIT
 DECLARE @ModuleConfig VARCHAR(20)
 
 SELECT @ModuleConfig = ModuleConfig_Desc
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[CurrentServers]
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[CurrentServers]
 WHERE isactive = 1 
 AND Servername = @@SERVERNAME
 
@@ -4468,7 +4477,7 @@ SELECT
 @EnableTopFiveDatabaseSizeCheck		= ISNULL(EnableTopFiveDatabaseSizeCheck,0),		
 @EnableADHocDatabaseCreationCheck		= ISNULL(EnableADHocDatabaseCreationCheck,0),	
 @EnableDatabaseSettings				= ISNULL(EnableDatabaseSettings,0)
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[Modules]
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Modules]
 WHERE ModuleConfig_Desc = @ModuleConfig
 
 
@@ -4571,7 +4580,7 @@ EXEC (@SQLStatement)
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'USE [msdb];
 
-IF NOT EXISTS (SELECT Name FROM sysjobs WHERE Name = ''SQLUndercover Periodic Backups Collection'')
+IF NOT EXISTS (SELECT name FROM sysjobs WHERE name = ''SQLUndercover Periodic Backups Collection'')
 BEGIN
 BEGIN TRANSACTION
 DECLARE @ReturnCode INT
@@ -4594,7 +4603,7 @@ EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=N''SQLUndercover Periodic Back
 		@delete_level=0, 
 		@description=N''--SQLUndercover Periodic Backups Collection
 Collect Backup information and insert into: 
-'+@LinkedServerName+'['+@Databasename+']'', 
+'+@LinkedServername+'['+@Databasename+']'', 
 		@category_name=N''[Uncategorized (Local)]'', 
 		@owner_login_name=N''sa'', @job_id = @jobId OUTPUT
 IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
@@ -4619,14 +4628,14 @@ DECLARE @EnableBackupsCheck		BIT
 DECLARE @ModuleConfig			VARCHAR(20)
 
 SELECT @ModuleConfig = ISNULL(ModuleConfig_Desc,''''Default'''')
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[CurrentServers]
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[CurrentServers]
 WHERE isactive = 1 
 AND Servername = @@SERVERNAME
 
 
 SELECT 											
 @EnableBackupsCheck	= ISNULL(EnableBackupsCheck,0)
-FROM '+@LinkedServerName+'['+@Databasename+'].[Inspector].[Modules]
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Modules]
 WHERE ModuleConfig_Desc = @ModuleConfig
 
 
@@ -4652,7 +4661,7 @@ EXEC (@SQLStatement)
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'USE [msdb];
 
-IF NOT EXISTS (SELECT Name FROM sysjobs WHERE Name = ''SQLUndercover Periodic Backups Report'')
+IF NOT EXISTS (SELECT name FROM sysjobs WHERE name = ''SQLUndercover Periodic Backups Report'')
 BEGIN
 BEGIN TRANSACTION
 DECLARE @ReturnCode INT
@@ -4676,7 +4685,7 @@ EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=N''SQLUndercover Periodic Back
 		@description=N''--SQLUndercover Periodic Backup Report
 
 Check Backup information inserted into: 
-'+@LinkedServerName+'['+@Databasename+'] 
+'+@LinkedServername+'['+@Databasename+'] 
 and email if any issues are found.'', 
 		@category_name=N''[Uncategorized (Local)]'', 
 		@owner_login_name=N''sa'', @job_id = @jobId OUTPUT
@@ -4717,7 +4726,7 @@ QuitWithRollback:
 EndSave:
 END'
 
-EXEC (@SQLStatement)
+EXEC (@SQLStatement);
 
 
 --Inspector Information
@@ -4725,16 +4734,16 @@ EXEC (@SQLStatement)
 IF @Compatibility = 0 
 	SET @SQLStatement = 
 'IF EXISTS(SELECT [StringElement] 
-			FROM Master.dbo.Fn_Splitstring('''+@DataDrive+''','','')
+			FROM master.dbo.fn_SplitString('''+@DataDrive+''','','')
 			WHERE [StringElement] IN (SELECT [StringElement] 
-					FROM Master.dbo.Fn_Splitstring('''+@LogDrive+''','','')
+					FROM master.dbo.fn_SplitString('''+@LogDrive+''','','')
 					) )'
 
 IF @Compatibility = 1
 	SET @SQLStatement =
-'IF EXISTS(SELECT [Value] 
+'IF EXISTS(SELECT [value] 
 			FROM STRING_SPLIT('''+@DataDrive+''','','')
-			WHERE [Value] IN (SELECT [Value] 
+			WHERE [value] IN (SELECT [value] 
 					FROM STRING_SPLIT('''+@LogDrive+''','','')
 					) )'
 
@@ -4753,7 +4762,7 @@ ________________________________________________________________________________
 ''
 END
 '
-EXEC(@SQLStatement)
+EXEC(@SQLStatement);
 
 
 PRINT '
@@ -4824,8 +4833,8 @@ END
 END
 ELSE
 BEGIN
-RAISERROR('Fn_SplitString does not exist, SQLUndercover Inspector requires Fn_Splitstring because your system is not compatible with STRING_SPLIT.
-Download Fn_SplitString here - https://sqlundercover.com/2017/06/01/undercover-toolbox-fn_splitstring-its-like-string_split-but-for-luddites-or-those-who-havent-moved-to-sql-2016-yet/
+RAISERROR('fn_SplitString does not exist, SQLUndercover Inspector requires fn_SplitString because your system is not compatible with STRING_SPLIT.
+Download fn_SplitString here - https://sqlundercover.com/2017/06/01/undercover-toolbox-fn_splitstring-its-like-string_split-but-for-luddites-or-those-who-havent-moved-to-sql-2016-yet/
 and create the Function in the Master Database',0,0)
 END
 
