@@ -659,16 +659,7 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'','''+@StackNameForEmailSubject+''
 		
 INSERT INTO [Inspector].[Settings] ([Description],[Value])
 VALUES	(''DriveSpaceRetentionPeriodInDays'','+CAST(@DriveSpaceHistoryRetentionInDays AS VARCHAR(6))+'),
-		'+CASE 
-			WHEN @DriveLetterExcludes IS NULL 
-			THEN 
-			'(''DriveSpaceDriveLetterExcludes'',NULL),
-			'
-			ELSE
-			'(''DriveSpaceDriveLetterExcludes'','''+@DriveLetterExcludes+'''),
-			'
-			END+
-		'(''FullBackupThreshold'','+CAST(@FullBackupThreshold AS VARCHAR(3))+'),
+		(''FullBackupThreshold'','+CAST(@FullBackupThreshold AS VARCHAR(3))+'),
 		(''DiffBackupThreshold'','+CAST(@DiffBackupThreshold AS VARCHAR(3))+'),
 		(''LogBackupThreshold'' ,'+CAST(@LogBackupThreshold AS VARCHAR(6))+'),
 		(''DaysUntilDriveFullThreshold'' ,'+CAST(@DaysUntilDriveFullThreshold AS VARCHAR(4))+'),
@@ -684,7 +675,17 @@ VALUES	(''BackupsPath'','''+@BackupsPath+'''),
 		(''AgentJobOwnerExclusions'','''+@AgentJobOwnerExclusions+''')
 
 INSERT INTO [Inspector].[Settings] ([Description],[Value])
-VALUES	(''InspectorBuild'','''+@Build+''')
+VALUES	(''InspectorBuild'','''+@Build+'''),
+'+CASE 
+			WHEN @DriveLetterExcludes IS NULL 
+			THEN 
+			'(''DriveSpaceDriveLetterExcludes'',NULL)
+			'
+			ELSE
+			'(''DriveSpaceDriveLetterExcludes'','''+@DriveLetterExcludes+''')
+			'
+			END+
+		'
 		
 
 
