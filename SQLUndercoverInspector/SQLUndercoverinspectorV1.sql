@@ -39,7 +39,7 @@
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 14/03/2018
+Revision date: 19/03/2018
 Version: 1
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
@@ -167,7 +167,7 @@ GO
 DECLARE @LinkedServername NVARCHAR(128) = NULL  --Name of the Linked Server , SET to NULL if you are not using Linked Servers for this solution
 									   --Run against the Target of the linked server First!! then the remaining servers you want to monitor.
 
-DECLARE @Databasename NVARCHAR(128) = 'SQLUndercoverCS'	--Name of the Logging Database
+DECLARE @Databasename NVARCHAR(128) = 'SQLUndercover'	--Name of the Logging Database
 
 DECLARE @DataDrive VARCHAR(7) = 'S,U'	--List Data Drives here (Maximum of 4 - comma delimited e.g 'P,Q,R,S')
 DECLARE @LogDrive VARCHAR(7) = 'T,V'	--List Log Drives here (Maximum of 4 - comma delimited e.g 'T,U,V,W')
@@ -1017,7 +1017,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 
@@ -1076,7 +1076,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
 SET NOCOUNT ON;
 
@@ -1178,7 +1178,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
 SET NOCOUNT ON;
 
@@ -1223,7 +1223,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
 SET NOCOUNT ON;
 
@@ -1280,7 +1280,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
 DECLARE @Retention INT = (SELECT Value From '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'')
 
@@ -1314,7 +1314,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
 SET NOCOUNT ON;
 
@@ -1398,7 +1398,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
 SET NOCOUNT ON;
 
@@ -1462,7 +1462,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
 SET NOCOUNT ON;
 
@@ -1509,7 +1509,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
 SET NOCOUNT ON;
 
@@ -1545,7 +1545,7 @@ SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 DECLARE @FullBackupThreshold INT = (Select [Value] FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] WHERE Description = ''FullBackupThreshold'')
@@ -1628,13 +1628,13 @@ ORDER BY database_id
 INSERT INTO #BackupAggregation ([Database_id],[Databasename],[Full],[Diff],[Log])
 SELECT Database_id,database_name, [D], [I], [L]    
 FROM 
-(SELECT database_id,backuplog.database_name,backuplog.type,MAX(backuplog.backup_finish_date) AS backup_finish_date                                   
+(SELECT Database_id,backuplog.database_name,backuplog.type,MAX(backuplog.backup_finish_date) AS backup_finish_date                                   
 FROM msdb.dbo.backupset backuplog
 INNER JOIN #DatabaseList ON #DatabaseList.Databasename = backuplog.database_name  
 WHERE backup_finish_date > DATEADD(DAY,-@FullBackupThreshold,CAST(GETDATE() AS DATE))
-GROUP BY database_id,backuplog.database_name,backuplog.type ) p
+GROUP BY Database_id,backuplog.database_name,backuplog.type ) p
 PIVOT( MAX(backup_finish_date) FOR type IN ([D],[I],[L])) d
-ORDER BY database_id ASC
+ORDER BY Database_id ASC
 
 INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[BackupsCheck] ([Servername],[Log_Date],[Databasename],[AGname],[FULL],[DIFF],[LOG],[IsFullRecovery],[IsSystemDB])
 SELECT 
@@ -1642,14 +1642,14 @@ SELECT
 [Log_Date],
 #DatabaseList.[Databasename],
 COALESCE(#DatabaseList.AGName,''Not in an AG'') AS AGname,
-ISNULL([FULL],''19000101'') AS [FULL],
-ISNULL([DIFF],''19000101'') AS [DIFF],
-ISNULL([LOG],''19000101'') AS [LOG],
+ISNULL([Full],''19000101'') AS [FULL],
+ISNULL([Diff],''19000101'') AS [DIFF],
+ISNULL([Log],''19000101'') AS [LOG],
 [IsFullRecovery],
 [IsSystemDB]
 FROM #DatabaseList
-LEFT JOIN #BackupAggregation ON #DatabaseList.Database_ID = #BackupAggregation.Database_ID
-WHERE ([State] = 0 AND source_database_id IS NULL) 
+LEFT JOIN #BackupAggregation ON #DatabaseList.Database_id = #BackupAggregation.Database_id
+WHERE ([State] = 0 AND Source_database_id IS NULL) 
 
 END 
 ELSE 
@@ -1680,7 +1680,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[DatabaseGrowthsInsert]
 AS
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
      SET NOCOUNT ON;
 
@@ -1921,7 +1921,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 DECLARE @DatabaseOwnerExclusions NVARCHAR(255) = (SELECT REPLACE(Value,'' '','''') from '+@LinkedServername+'['+@Databasename+'].Inspector.Settings WHERE Description = ''DatabaseOwnerExclusions'');
@@ -2013,7 +2013,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
@@ -2059,7 +2059,7 @@ AS
 
 BEGIN
 
---Revision date: 14/03/2018
+--Revision date: 19/03/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME 
 DECLARE @LogDate DATETIME = GETDATE()
@@ -2313,7 +2313,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 14/03/2018 
+--Revision date: 19/03/2018 
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1
 
