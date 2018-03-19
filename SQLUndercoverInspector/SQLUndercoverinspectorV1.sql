@@ -4458,7 +4458,7 @@ DECLARE @ModuleConfig VARCHAR(20)
 
 SELECT @ModuleConfig = ModuleConfig_Desc
 FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[CurrentServers]
-WHERE isactive = 1 
+WHERE IsActive = 1 
 AND Servername = @@SERVERNAME
 
 IF @ModuleConfig IS NULL BEGIN SET @ModuleConfig = ''''Default'''' END;
@@ -4630,7 +4630,7 @@ DECLARE @ModuleConfig			VARCHAR(20)
 
 SELECT @ModuleConfig = ISNULL(ModuleConfig_Desc,''''Default'''')
 FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[CurrentServers]
-WHERE isactive = 1 
+WHERE IsActive = 1 
 AND Servername = @@SERVERNAME
 
 
