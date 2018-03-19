@@ -41,7 +41,7 @@ Author: Adrian Buckman
 Created Date: 25/7/2017
 Revision date: 14/03/2018
 Version: 1
-Description: SQLUndercover Inspector setup script
+Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
 URL: https://github.com/SQLUndercover/UndercoverToolbox/blob/master/SQLUndercoverInspector/SQLUndercoverinspectorV1.sql
 
