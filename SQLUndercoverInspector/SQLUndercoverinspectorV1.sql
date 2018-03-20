@@ -176,7 +176,7 @@ DECLARE @LogDrive VARCHAR(7) = 'T,V'	--List Log Drives here (Maximum of 4 - comm
 --============================= IMPORTANT!! ============================================
 --================ LEAVE @InitialSetup = 1 FOR INITIAL SETUP ===========================
 
-DECLARE @InitialSetup BIT = 1	 --Set to 1 for intial setup, 0 to Upgrade or re deploy to preserve previously logged data and settings config.
+DECLARE @InitialSetup BIT = 0	 --Set to 1 for intial setup, 0 to Upgrade or re deploy to preserve previously logged data and settings config.
 
 
 --======================================================================================
@@ -201,13 +201,13 @@ DECLARE @DriveLetterExcludes			  VARCHAR(10) = NULL -- Exclude Drive letters fro
 DECLARE @DatabaseGrowthsAllowedPerDay	  TINYINT = 1  -- Total Database Growths acceptable for a 24hour period If exceeded a Yellow Advisory condition will be shown
 DECLARE @MAXDatabaseGrowthsAllowedPerDay  TINYINT = 10 -- MAX Database Growths for a 24 hour period If equal or exceeded a Red Warning condition will be shown
 
-DECLARE @AgentJobOwnerExclusions VARCHAR(50) = 'SA'  --Exclude agent jobs with these owners (Comma delimited)
+DECLARE @AgentJobOwnerExclusions VARCHAR(50) = 'sa'  --Exclude agent jobs with these owners (Comma delimited)
 
 DECLARE @FullBackupThreshold TINYINT = 8		-- X Days older than Getdate()
 DECLARE @DiffBackupThreshold TINYINT = 2		-- X Days older than Getdate() 
 DECLARE @LogBackupThreshold  TINYINT  = 60		-- X Minutes older than Getdate()
 
-DECLARE @DatabaseOwnerExclusions VARCHAR(255) = 'SA'  --Exclude databases with these owners (Comma delimited)
+DECLARE @DatabaseOwnerExclusions VARCHAR(255) = 'sa'  --Exclude databases with these owners (Comma delimited)
 
 --======================================================================================
 --============================= STEP 3: RUN THE CODE ===================================
@@ -224,7 +224,7 @@ SELECT	@Compatibility = CASE
 FROM sys.databases
 WHERE name = DB_NAME()
 
-
+IF @LinkedServername IS NOT NULL BEGIN SET @LinkedServername = UPPER(@LinkedServername) END;
 
 IF @Compatibility = 1 OR (@Compatibility = 0 AND OBJECT_ID('master.dbo.fn_SplitString') IS NOT NULL) 
 BEGIN
@@ -1700,6 +1700,7 @@ AS
      BEGIN
 
          DECLARE @Servername NVARCHAR(128)= @@Servername;
+	    DECLARE @LastUpdated DATETIME = GETDATE();
 
 --Insert any databases that are present on the serverbut not present in [Inspector].[DatabaseFileSizes]
          IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
@@ -1826,7 +1827,8 @@ AS
 --Ensure that the Database_Id column is synced in the base table as a database may have been dropped and restored as a new Database_id
          UPDATE [Sizes]
          SET
-               [Database_id] = [DatabasesList].[database_id]
+               [Database_id] = [DatabasesList].[database_id],
+			[LastUpdated] = @LastUpdated
          FROM   '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [Sizes]
                 INNER JOIN [sys].[databases] [DatabasesList] ON [Sizes].[Database_name] = [DatabasesList].[name] COLLATE DATABASE_DEFAULT
          WHERE  [Sizes].[Servername] = @Servername
@@ -1836,7 +1838,8 @@ AS
          UPDATE    [Sizes]
          SET
                [GrowthRate] = [GrowthCheck].[GrowthRate_MB],
-               [Is_percent_growth] = [GrowthCheck].[is_percent_growth]
+               [Is_percent_growth] = [GrowthCheck].[is_percent_growth],
+			[LastUpdated] = @LastUpdated
          FROM
          (
              SELECT [Masterfiles].[database_id],
@@ -1903,7 +1906,8 @@ AS
  
 --Double check the databases sizes in the base table are correct and update as required
          UPDATE [Sizes]
-         SET    [PostGrowthSize_MB] = (CAST([Masterfiles].[size] AS BIGINT) * 8) / 1024
+         SET    [PostGrowthSize_MB] = (CAST([Masterfiles].[size] AS BIGINT) * 8) / 1024,
+			 [LastUpdated] = @LastUpdated
          FROM   [sys].[master_files] [Masterfiles]
                 INNER JOIN '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [Sizes] ON [Masterfiles].[database_id] = [Sizes].[Database_id]
                                                                                              AND [Sizes].[File_id] = [Masterfiles].[file_id]
@@ -1915,7 +1919,8 @@ AS
 
 --Set Next growth size for all Databases on this server which have grown
          UPDATE '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes]
-         SET    [NextGrowth] = ([PostGrowthSize_MB] + [GrowthRate])
+         SET    [NextGrowth] = ([PostGrowthSize_MB] + [GrowthRate]),
+			 [LastUpdated] = @LastUpdated
          WHERE  [NextGrowth] <= [PostGrowthSize_MB]
                 AND [Servername] = @Servername;
 
