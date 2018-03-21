@@ -176,7 +176,7 @@ DECLARE @LogDrive VARCHAR(7) = 'T,V'	--List Log Drives here (Maximum of 4 - comm
 --============================= IMPORTANT!! ============================================
 --================ LEAVE @InitialSetup = 1 FOR INITIAL SETUP ===========================
 
-DECLARE @InitialSetup BIT = 0	 --Set to 1 for intial setup, 0 to Upgrade or re deploy to preserve previously logged data and settings config.
+DECLARE @InitialSetup BIT = 1	 --Set to 1 for intial setup, 0 to Upgrade or re deploy to preserve previously logged data and settings config.
 
 
 --======================================================================================
@@ -187,7 +187,7 @@ DECLARE @InitialSetup BIT = 0	 --Set to 1 for intial setup, 0 to Upgrade or re d
 --SKIP SETTING THESE IF YOU SET @InitialSetup = 0 IN STEP 1
 --======================================================================================
 
-DECLARE @StackNameForEmailSubject VARCHAR(255) = 'SQLUndercoverDB'	  --Specify the name for this stack that you want to show in the email subject
+DECLARE @StackNameForEmailSubject VARCHAR(255) = 'SQLUndercover'	  --Specify the name for this stack that you want to show in the email subject
 
 DECLARE @EmailRecipientList VARCHAR(1000) = NULL	  -- This will populate the EmailRecipients table for 'DBA'
 
@@ -2418,6 +2418,7 @@ DECLARE @DiffBackupThreshold				INT = (SELECT ISNULL(CAST([Value] AS INT),2) FRO
 DECLARE @LogBackupThreshold				INT = (SELECT ISNULL(CAST([Value] AS INT),60) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''LogBackupThreshold'')
 DECLARE @DatabaseGrowthsAllowedPerDay	     INT = (SELECT ISNULL(CAST([Value] AS INT),1) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''DatabaseGrowthsAllowedPerDay'')
 DECLARE @MAXDatabaseGrowthsAllowedPerDay     INT = (SELECT ISNULL(CAST([Value] AS INT),10) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''MAXDatabaseGrowthsAllowedPerDay'')
+DECLARE @InspectorBuild				     VARCHAR(6) = (SELECT ISNULL([Value],'''') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''InspectorBuild'')
 
 DECLARE @EnableAGCheck						BIT 
 DECLARE @EnableBackupsCheck					BIT 
@@ -2462,7 +2463,7 @@ DECLARE @RedHighlight VARCHAR(7)  = ''#F78181''
 DECLARE @YellowHighlight VARCHAR(7) = ''#FAFCA4''
 DECLARE @TableTail VARCHAR(65) = ''</table><p><A HREF = "#Warnings">Back to Top</a><p>''
 DECLARE @TableHeaderColour VARCHAR(7) 
-DECLARE @ServerSummaryHeader VARCHAR(MAX) = ''<A NAME = "Warnings"></a><b>Server Summary:</b><br></br>''
+DECLARE @ServerSummaryHeader VARCHAR(MAX) = ''<A NAME = "Warnings"></a><b>SQLUndercover Inspector Build: ''+@InspectorBuild+''<hr><p>Server Summary:</b><br></br>''
 DECLARE @ServerSummaryFontColour VARCHAR(30)
 DECLARE @DriveLetterExcludes VARCHAR(10) = (SELECT REPLACE(REPLACE([Value],'':'',''''),''\'','''') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''DriveSpaceDriveLetterExcludes'')
 DECLARE @DisabledModules VARCHAR(450)
