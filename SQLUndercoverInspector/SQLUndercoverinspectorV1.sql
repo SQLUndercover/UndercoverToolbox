@@ -39,7 +39,7 @@
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 20/03/2018
+Revision date: 26/03/2018
 Version: 1
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
@@ -243,7 +243,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 
 			DECLARE @SQLStatement VARCHAR(MAX) 
 			DECLARE @DatabaseFileSizesResult INT
-			DECLARE @Build VARCHAR(6) ='1.0.1'
+			DECLARE @Build VARCHAR(6) ='1.1'
 			 
 			
 			IF RIGHT(@BackupsPath,1) != '\' BEGIN SET @BackupsPath = @BackupsPath +'\' END
@@ -1030,7 +1030,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 
@@ -1089,7 +1089,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
 SET NOCOUNT ON;
 
@@ -1191,7 +1191,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
 SET NOCOUNT ON;
 
@@ -1236,7 +1236,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
 SET NOCOUNT ON;
 
@@ -1293,7 +1293,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
 DECLARE @Retention INT = (SELECT Value From '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'')
 
@@ -1327,7 +1327,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
 SET NOCOUNT ON;
 
@@ -1411,7 +1411,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
 SET NOCOUNT ON;
 
@@ -1475,7 +1475,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
 SET NOCOUNT ON;
 
@@ -1522,7 +1522,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
 SET NOCOUNT ON;
 
@@ -1558,7 +1558,7 @@ SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 DECLARE @FullBackupThreshold INT = (Select [Value] FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] WHERE Description = ''FullBackupThreshold'')
@@ -1693,7 +1693,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[DatabaseGrowthsInsert]
 AS
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
      SET NOCOUNT ON;
 
@@ -1941,7 +1941,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 DECLARE @DatabaseOwnerExclusions NVARCHAR(255) = (SELECT REPLACE(Value,'' '','''') from '+@LinkedServername+'['+@Databasename+'].Inspector.Settings WHERE Description = ''DatabaseOwnerExclusions'');
@@ -2033,7 +2033,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
@@ -2079,7 +2079,7 @@ AS
 
 BEGIN
 
---Revision date: 20/03/2018
+--Revision date: 26/03/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME 
 DECLARE @LogDate DATETIME = GETDATE()
@@ -2333,7 +2333,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 20/03/2018 
+--Revision date: 26/03/2018 
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1
 
@@ -4532,7 +4532,78 @@ QuitWithRollback:
 EndSave:
 END'
 
-EXEC (@SQLStatement)
+EXEC (@SQLStatement);
+
+
+--Fix typo LoginAttemptsiInsert
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+IF (SELECT CAST([Value] AS DECIMAL(4,1)) FROM ['+@Databasename+'].[Inspector].[Settings] WHERE [Description] = ''InspectorBuild'') = 1 
+BEGIN 
+EXEC msdb.dbo.sp_update_jobstep @job_name=''SQLUndercover Inspector Data Collection'', @step_id=1 , 
+		@command=N''--AGENT JOB COMMANDS aaaaaaaaaaaaaa
+
+--Data Collection Code , use this code within an Agent job to collect data used by the report
+
+DECLARE @EnableAGCheck						BIT 
+DECLARE @EnableBackupsCheck					BIT 
+DECLARE @EnableBackupSizesCheck				BIT 
+DECLARE @EnableDatabaseGrowthCheck				BIT 
+DECLARE @EnableDatabaseFileCheck				BIT 
+DECLARE @EnableDatabaseOwnershipCheck			BIT 
+DECLARE @EnableDatabaseStatesCheck				BIT 
+DECLARE @EnableDriveSpaceCheck				BIT 
+DECLARE @EnableFailedAgentJobCheck				BIT 
+DECLARE @EnableJobOwnerCheck					BIT 
+DECLARE @EnableFailedLoginsCheck				BIT 
+DECLARE @EnableTopFiveDatabaseSizeCheck			BIT 
+DECLARE @EnableADHocDatabaseCreationCheck		BIT 
+DECLARE @EnableDatabaseSettings				BIT
+DECLARE @ModuleConfig VARCHAR(20)
+
+SELECT @ModuleConfig = ModuleConfig_Desc
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[CurrentServers]
+WHERE IsActive = 1 
+AND Servername = @@SERVERNAME
+
+IF @ModuleConfig IS NULL BEGIN SET @ModuleConfig = ''''Default'''' END;
+
+SELECT 							
+@EnableAGCheck						= ISNULL(EnableAGCheck,0),					
+@EnableBackupsCheck					= ISNULL(EnableBackupsCheck,0),					
+@EnableBackupSizesCheck				= ISNULL(EnableBackupSizesCheck,0),			
+@EnableDatabaseGrowthCheck			= ISNULL(EnableDatabaseGrowthCheck,0),			
+@EnableDatabaseFileCheck				= ISNULL(EnableDatabaseFileCheck,0),			
+@EnableDatabaseOwnershipCheck			= ISNULL(EnableDatabaseOwnershipCheck,0),		
+@EnableDatabaseStatesCheck			= ISNULL(EnableDatabaseStatesCheck,0),			
+@EnableDriveSpaceCheck				= ISNULL(EnableDriveSpaceCheck,0),				
+@EnableFailedAgentJobCheck			= ISNULL(EnableFailedAgentJobCheck,0),			
+@EnableJobOwnerCheck				= ISNULL(EnableJobOwnerCheck,0),				
+@EnableFailedLoginsCheck				= ISNULL(EnableFailedLoginsCheck,0),			
+@EnableTopFiveDatabaseSizeCheck		= ISNULL(EnableTopFiveDatabaseSizeCheck,0),		
+@EnableADHocDatabaseCreationCheck		= ISNULL(EnableADHocDatabaseCreationCheck,0),	
+@EnableDatabaseSettings				= ISNULL(EnableDatabaseSettings,0)
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Modules]
+WHERE ModuleConfig_Desc = @ModuleConfig
+
+
+IF @EnableAGCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[AGCheckInsert] END
+IF @EnableBackupsCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[BackupsCheckInsert] END
+IF @EnableBackupSizesCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[BackupSizesByDayInsert] END
+IF @EnableDatabaseGrowthCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseGrowthsInsert] END
+IF @EnableDatabaseFileCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseFilesInsert] END
+IF @EnableDatabaseOwnershipCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseOwnershipInsert] END
+IF @EnableDatabaseStatesCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseStatesInsert] END
+IF @EnableDriveSpaceCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DriveSpaceInsert] END
+IF @EnableFailedAgentJobCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[FailedAgentJobsInsert] END
+IF @EnableJobOwnerCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[JobOwnerInsert] END
+IF @EnableFailedLoginsCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[LoginAttemptsInsert] END
+IF @EnableTopFiveDatabaseSizeCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[TopFiveDatabasesInsert] END
+IF @EnableADHocDatabaseCreationCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[ADHocDatabaseCreationsInsert] END
+IF @EnableDatabaseSettings = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseSettingsInsert] END''
+
+END'
+
+EXEC (@SQLStatement);
 
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
@@ -4596,7 +4667,7 @@ QuitWithRollback:
 EndSave:
 END'
 
-EXEC (@SQLStatement)
+EXEC (@SQLStatement);
 
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
@@ -4677,7 +4748,7 @@ QuitWithRollback:
 EndSave:
 END'
 
-EXEC (@SQLStatement)
+EXEC (@SQLStatement);
 
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
