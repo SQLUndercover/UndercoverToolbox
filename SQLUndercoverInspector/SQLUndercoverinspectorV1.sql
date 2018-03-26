@@ -4540,7 +4540,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
 IF (SELECT CAST([Value] AS DECIMAL(4,1)) FROM ['+@Databasename+'].[Inspector].[Settings] WHERE [Description] = ''InspectorBuild'') = 1 
 BEGIN 
 EXEC msdb.dbo.sp_update_jobstep @job_name=''SQLUndercover Inspector Data Collection'', @step_id=1 , 
-		@command=N''--AGENT JOB COMMANDS aaaaaaaaaaaaaa
+		@command=N''--AGENT JOB COMMANDS
 
 --Data Collection Code , use this code within an Agent job to collect data used by the report
 
