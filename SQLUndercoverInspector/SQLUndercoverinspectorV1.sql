@@ -107,7 +107,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 
--- 15 x STORED PROCEDURES: 
+-- 16 x STORED PROCEDURES: 
 ---------------------------------------------
 -- [Inspector].[ADHocDatabaseCreationsInsert]
 -- [Inspector].[AGCheckInsert]
@@ -124,6 +124,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 -- [Inspector].[LoginAttemptsInsert]
 -- [Inspector].[TopFiveDatabasesInsert]
 -- [Inspector].[SQLUnderCoverInspectorReport]
+-- [Inspector].[InspectorDataCollection]
 --===========================================
 
 -- 4 x AGENT JOBS: 
@@ -648,7 +649,7 @@ BEGIN
 			
 				INSERT INTO [Inspector].[EmailConfig] (ModuleConfig_Desc,EmailSubject)
 				SELECT [ModuleConfig_Desc],[EmailSubject]
-				FROM [Inspector].[EmailConfig_Copy]
+				FROM [Inspector].[EmailConfig_Copy];
 			
 			END
 			
@@ -659,7 +660,7 @@ BEGIN
 --Insert Settings into Inspector Base tables  
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
 INSERT INTO [Inspector].[Settings] ([Description],[Value])
-VALUES  (''SQLUndercoverInspectorEmailSubject'','''+@StackNameForEmailSubject+''')
+VALUES  (''SQLUndercoverInspectorEmailSubject'','''+@StackNameForEmailSubject+''');
 
 		
 INSERT INTO [Inspector].[Settings] ([Description],[Value])
@@ -670,14 +671,14 @@ VALUES	(''DriveSpaceRetentionPeriodInDays'','+CAST(@DriveSpaceHistoryRetentionIn
 		(''DaysUntilDriveFullThreshold'' ,'+CAST(@DaysUntilDriveFullThreshold AS VARCHAR(4))+'),
 		(''FreeSpaceRemainingPercent'','+CAST(@FreeSpaceRemainingPercent AS VARCHAR(3))+'),
 		(''DatabaseGrowthsAllowedPerDay'','+CAST(@DatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'),
-		(''MAXDatabaseGrowthsAllowedPerDay'','+CAST(@MAXDatabaseGrowthsAllowedPerDay AS VARCHAR(5))+')
+		(''MAXDatabaseGrowthsAllowedPerDay'','+CAST(@MAXDatabaseGrowthsAllowedPerDay AS VARCHAR(5))+');
 
 
 INSERT INTO [Inspector].[Settings] ([Description],[Value])
 VALUES	(''BackupsPath'','''+@BackupsPath+'''),
 		(''EmailBannerURL'',''https://i2.wp.com/sqlundercover.files.wordpress.com/2017/11/inspector_whitehandle.png?ssl=1&w=450''),
 		(''DatabaseOwnerExclusions'','''+@DatabaseOwnerExclusions+'''),
-		(''AgentJobOwnerExclusions'','''+@AgentJobOwnerExclusions+''')
+		(''AgentJobOwnerExclusions'','''+@AgentJobOwnerExclusions+''');
 
 INSERT INTO [Inspector].[Settings] ([Description],[Value])
 VALUES	(''InspectorBuild'','''+@Build+'''),
@@ -687,7 +688,7 @@ VALUES	(''InspectorBuild'','''+@Build+'''),
 			'(''DriveSpaceDriveLetterExcludes'',NULL)
 			'
 			ELSE
-			'(''DriveSpaceDriveLetterExcludes'','''+@DriveLetterExcludes+''')
+			'(''DriveSpaceDriveLetterExcludes'','''+@DriveLetterExcludes+''');
 			'
 			END+
 		'
@@ -697,10 +698,10 @@ VALUES	(''InspectorBuild'','''+@Build+'''),
 INSERT INTO [Inspector].[Modules] (ModuleConfig_Desc,EnableAGCheck,EnableBackupsCheck,EnableBackupSizesCheck,EnableDatabaseGrowthCheck,EnableDatabaseFileCheck,EnableDatabaseOwnershipCheck,
 					   EnableDatabaseStatesCheck,EnableDriveSpaceCheck,EnableFailedAgentJobCheck,EnableJobOwnerCheck,EnableFailedLoginsCheck,EnableTopFiveDatabaseSizeCheck,
 					   EnableADHocDatabaseCreationCheck,EnableBackupSpaceCheck,EnableDatabaseSettings,UseMedianCalculationForDriveSpaceCalc)
-VALUES	(''Default'',1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0),(''PeriodicBackupCheck'',0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0)
+VALUES	(''Default'',1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0),(''PeriodicBackupCheck'',0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
         
 INSERT INTO Inspector.EmailConfig (ModuleConfig_Desc,EmailSubject)
-VALUES (''Default'',''SQLUndercover Inspector check ''),(''PeriodicBackupCheck'',''SQLUndercover Backups Report'')
+VALUES (''Default'',''SQLUndercover Inspector check ''),(''PeriodicBackupCheck'',''SQLUndercover Backups Report'');
 
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
@@ -722,12 +723,12 @@ CASE
 WHEN @EmailRecipientList IS NULL 
 THEN 
 'INSERT INTO [Inspector].[EmailRecipients] (Description)
-VALUES (''DBA'')
+VALUES (''DBA'');
 '
 ELSE
 '
 INSERT INTO [Inspector].[EmailRecipients] (Description,Recipients)
-VALUES (''DBA'','''+@EmailRecipientList+''')
+VALUES (''DBA'','''+@EmailRecipientList+''');
 
 '
 END
@@ -1022,7 +1023,8 @@ END
 			IF OBJECT_ID('Inspector.SQLUnderCoverInspectorReport') IS NOT NULL 
 			DROP PROCEDURE [Inspector].[SQLUnderCoverInspectorReport];
 
-
+			IF OBJECT_ID('Inspector.InspectorDataCollection') IS NOT NULL 
+			DROP PROCEDURE [Inspector].[InspectorDataCollection];
 
 
 SET @SQLStatement = 
@@ -2175,6 +2177,165 @@ GROUP BY recovery_model_desc
 END;'
 
 EXEC(@SQLStatement);
+
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[InspectorDataCollection]
+(
+@ModuleConfig VARCHAR(20)  = NULL,
+@LogDuration BIT = 0
+)
+AS 
+BEGIN 
+
+--Revision date: 26/03/2018
+
+SET NOCOUNT ON;
+
+DECLARE @EnableAGCheck				    BIT
+DECLARE @EnableBackupsCheck			    BIT
+DECLARE @EnableBackupSizesCheck		    BIT
+DECLARE @EnableDatabaseGrowthCheck		    BIT
+DECLARE @EnableDatabaseFileCheck		    BIT
+DECLARE @EnableDatabaseOwnershipCheck	    BIT
+DECLARE @EnableDatabaseStatesCheck		    BIT
+DECLARE @EnableDriveSpaceCheck		    BIT
+DECLARE @EnableFailedAgentJobCheck		    BIT
+DECLARE @EnableJobOwnerCheck			    BIT
+DECLARE @EnableFailedLoginsCheck		    BIT
+DECLARE @EnableTopFiveDatabaseSizeCheck	    BIT
+DECLARE @EnableADHocDatabaseCreationCheck   BIT
+DECLARE @EnableDatabaseSettings		    BIT
+
+
+    IF EXISTS (SELECT ModuleConfig_Desc FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Modules] WHERE ModuleConfig_Desc = @ModuleConfig) OR @ModuleConfig IS NULL 
+    BEGIN
+
+	   --If @ModuleConfig IS NULL check if specific server has a Moduleconfig set against it and set @ModuleConfig accordingly, if none found then set ''Default''
+	   IF @ModuleConfig IS NULL  
+	   BEGIN
+		  SELECT @ModuleConfig = ISNULL(ModuleConfig_Desc,''Default'')
+		  FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[CurrentServers]
+		  WHERE IsActive = 1 
+		  AND Servername = @@SERVERNAME;
+	   END
+	   
+	   
+	   --Get enabled module list for @ModuleConfig
+	   SELECT 							
+	   @EnableAGCheck  = ISNULL(EnableAGCheck,0),					
+	   @EnableBackupsCheck = ISNULL(EnableBackupsCheck,0),					
+	   @EnableBackupSizesCheck = ISNULL(EnableBackupSizesCheck,0),			
+	   @EnableDatabaseGrowthCheck	 = ISNULL(EnableDatabaseGrowthCheck,0),			
+	   @EnableDatabaseFileCheck	 = ISNULL(EnableDatabaseFileCheck,0),			
+	   @EnableDatabaseOwnershipCheck	= ISNULL(EnableDatabaseOwnershipCheck,0),		
+	   @EnableDatabaseStatesCheck	 = ISNULL(EnableDatabaseStatesCheck,0),			
+	   @EnableDriveSpaceCheck  = ISNULL(EnableDriveSpaceCheck,0),				
+	   @EnableFailedAgentJobCheck	 = ISNULL(EnableFailedAgentJobCheck,0),			
+	   @EnableJobOwnerCheck	  = ISNULL(EnableJobOwnerCheck,0),				
+	   @EnableFailedLoginsCheck	 = ISNULL(EnableFailedLoginsCheck,0),			
+	   @EnableTopFiveDatabaseSizeCheck	= ISNULL(EnableTopFiveDatabaseSizeCheck,0),		
+	   @EnableADHocDatabaseCreationCheck   = ISNULL(EnableADHocDatabaseCreationCheck,0),	
+	   @EnableDatabaseSettings = ISNULL(EnableDatabaseSettings,0)
+	   FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Modules]
+	   WHERE ModuleConfig_Desc = @ModuleConfig;
+	   
+	   
+
+	   IF @EnableAGCheck = 1 
+	   BEGIN 
+		  EXEC ['+@Databasename+'].[Inspector].[AGCheckInsert];
+		  RAISERROR(''Running [AGCheckInsert]'',0,0) WITH NOWAIT;
+	   END
+
+	   IF @EnableBackupsCheck = 1 
+	   BEGIN 
+	      EXEC ['+@Databasename+'].[Inspector].[BackupsCheckInsert];
+		 RAISERROR(''Running [BackupsCheckInsert]'',0,0) WITH NOWAIT;
+	   END
+
+	   IF @EnableBackupSizesCheck = 1 
+	   BEGIN 
+	      EXEC ['+@Databasename+'].[Inspector].[BackupSizesByDayInsert]; 
+		 RAISERROR(''Running [BackupSizesByDayInsert]'',0,0) WITH NOWAIT;
+	   END
+
+	   IF @EnableDatabaseGrowthCheck = 1 
+	   BEGIN 
+	      EXEC ['+@Databasename+'].[Inspector].[DatabaseGrowthsInsert];
+		 RAISERROR(''Running [DatabaseGrowthsInsert]'',0,0) WITH NOWAIT; 
+	   END
+
+	   IF @EnableDatabaseFileCheck = 1 
+	   BEGIN 
+	      EXEC ['+@Databasename+'].[Inspector].[DatabaseFilesInsert]; 
+		 RAISERROR(''Running [DatabaseFilesInsert]'',0,0) WITH NOWAIT;
+	   END
+
+	   IF @EnableDatabaseOwnershipCheck = 1 
+	   BEGIN 
+	      EXEC ['+@Databasename+'].[Inspector].[DatabaseOwnershipInsert]; 
+		 RAISERROR(''Running [DatabaseOwnershipInsert]'',0,0) WITH NOWAIT;
+	   END
+
+	   IF @EnableDatabaseStatesCheck = 1 
+	   BEGIN 
+	      EXEC ['+@Databasename+'].[Inspector].[DatabaseStatesInsert]; 
+		 RAISERROR(''Running [DatabaseStatesInsert]'',0,0) WITH NOWAIT;
+	   END
+
+	   IF @EnableDriveSpaceCheck = 1 
+	   BEGIN 
+	      EXEC ['+@Databasename+'].[Inspector].[DriveSpaceInsert]; 
+		 RAISERROR(''Running [DriveSpaceInsert]'',0,0) WITH NOWAIT;
+	   END
+
+	   IF @EnableFailedAgentJobCheck = 1 
+	   BEGIN 
+	      EXEC ['+@Databasename+'].[Inspector].[FailedAgentJobsInsert]; 
+		 RAISERROR(''Running [FailedAgentJobsInsert]'',0,0) WITH NOWAIT;
+	   END
+
+	   IF @EnableJobOwnerCheck = 1 
+	   BEGIN 
+	      EXEC ['+@Databasename+'].[Inspector].[JobOwnerInsert]; 
+		 RAISERROR(''Running [JobOwnerInsert]'',0,0) WITH NOWAIT;
+	   END
+
+	   IF @EnableFailedLoginsCheck = 1 
+	   BEGIN 
+	      EXEC ['+@Databasename+'].[Inspector].[LoginAttemptsInsert]; 
+		 RAISERROR(''Running [LoginAttemptsInsert]'',0,0) WITH NOWAIT;
+	   END
+
+	   IF @EnableTopFiveDatabaseSizeCheck = 1 
+	   BEGIN 
+	      EXEC ['+@Databasename+'].[Inspector].[TopFiveDatabasesInsert]; 
+		 RAISERROR(''Running [TopFiveDatabasesInsert]'',0,0) WITH NOWAIT;
+	   END
+
+	   IF @EnableADHocDatabaseCreationCheck = 1 
+	   BEGIN 
+	      EXEC ['+@Databasename+'].[Inspector].[ADHocDatabaseCreationsInsert]; 
+		 RAISERROR(''Running [ADHocDatabaseCreationsInsert]'',0,0) WITH NOWAIT;
+	   END
+
+	   IF @EnableDatabaseSettings = 1 
+	   BEGIN 
+	      EXEC ['+@Databasename+'].[Inspector].[DatabaseSettingsInsert]; 
+		 RAISERROR(''Running [DatabaseSettingsInsert]'',0,0) WITH NOWAIT;
+	   END
+    
+    END
+    ELSE
+    BEGIN
+	   RAISERROR(''@ModuleConfig supplied: ''''%s'''' is not a valid module config description, for valid options query [Inspector].[Modules]'',11,0,@ModuleConfig);
+    END
+
+END'
+
+EXEC(@SQLStatement);
+
 
 
 IF @InitialSetup = 0
@@ -4441,8 +4602,7 @@ EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=N''SQLUndercover Inspector Dat
 		@notify_level_netsend=0, 
 		@notify_level_page=0, 
 		@delete_level=0, 
-		@description=N''Collect data and insert into  
-		'+@LinkedServername+'['+@Databasename+'] and email the results.'', 
+		@description=N''Collect data and insert into '+@LinkedServername+'['+@Databasename+'].'', 
 		@category_name=N''[Uncategorized (Local)]'', 
 		@owner_login_name=N''sa'', @job_id = @jobId OUTPUT
 IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
@@ -4457,67 +4617,7 @@ EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId, @step_name=N''Collect
 		@retry_attempts=0, 
 		@retry_interval=0, 
 		@os_run_priority=0, @subsystem=N''TSQL'', 
-		@command=N''--AGENT JOB COMMANDS 
-
---Data Collection Code , use this code within an Agent job to collect data used by the report
-
-DECLARE @EnableAGCheck						BIT 
-DECLARE @EnableBackupsCheck					BIT 
-DECLARE @EnableBackupSizesCheck				BIT 
-DECLARE @EnableDatabaseGrowthCheck				BIT 
-DECLARE @EnableDatabaseFileCheck				BIT 
-DECLARE @EnableDatabaseOwnershipCheck			BIT 
-DECLARE @EnableDatabaseStatesCheck				BIT 
-DECLARE @EnableDriveSpaceCheck				BIT 
-DECLARE @EnableFailedAgentJobCheck				BIT 
-DECLARE @EnableJobOwnerCheck					BIT 
-DECLARE @EnableFailedLoginsCheck				BIT 
-DECLARE @EnableTopFiveDatabaseSizeCheck			BIT 
-DECLARE @EnableADHocDatabaseCreationCheck		BIT 
-DECLARE @EnableDatabaseSettings				BIT
-DECLARE @ModuleConfig VARCHAR(20)
-
-SELECT @ModuleConfig = ModuleConfig_Desc
-FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[CurrentServers]
-WHERE IsActive = 1 
-AND Servername = @@SERVERNAME
-
-IF @ModuleConfig IS NULL BEGIN SET @ModuleConfig = ''''Default'''' END;
-
-SELECT 							
-@EnableAGCheck						= ISNULL(EnableAGCheck,0),					
-@EnableBackupsCheck					= ISNULL(EnableBackupsCheck,0),					
-@EnableBackupSizesCheck				= ISNULL(EnableBackupSizesCheck,0),			
-@EnableDatabaseGrowthCheck			= ISNULL(EnableDatabaseGrowthCheck,0),			
-@EnableDatabaseFileCheck				= ISNULL(EnableDatabaseFileCheck,0),			
-@EnableDatabaseOwnershipCheck			= ISNULL(EnableDatabaseOwnershipCheck,0),		
-@EnableDatabaseStatesCheck			= ISNULL(EnableDatabaseStatesCheck,0),			
-@EnableDriveSpaceCheck				= ISNULL(EnableDriveSpaceCheck,0),				
-@EnableFailedAgentJobCheck			= ISNULL(EnableFailedAgentJobCheck,0),			
-@EnableJobOwnerCheck				= ISNULL(EnableJobOwnerCheck,0),				
-@EnableFailedLoginsCheck				= ISNULL(EnableFailedLoginsCheck,0),			
-@EnableTopFiveDatabaseSizeCheck		= ISNULL(EnableTopFiveDatabaseSizeCheck,0),		
-@EnableADHocDatabaseCreationCheck		= ISNULL(EnableADHocDatabaseCreationCheck,0),	
-@EnableDatabaseSettings				= ISNULL(EnableDatabaseSettings,0)
-FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Modules]
-WHERE ModuleConfig_Desc = @ModuleConfig
-
-
-IF @EnableAGCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[AGCheckInsert] END
-IF @EnableBackupsCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[BackupsCheckInsert] END
-IF @EnableBackupSizesCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[BackupSizesByDayInsert] END
-IF @EnableDatabaseGrowthCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseGrowthsInsert] END
-IF @EnableDatabaseFileCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseFilesInsert] END
-IF @EnableDatabaseOwnershipCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseOwnershipInsert] END
-IF @EnableDatabaseStatesCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseStatesInsert] END
-IF @EnableDriveSpaceCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DriveSpaceInsert] END
-IF @EnableFailedAgentJobCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[FailedAgentJobsInsert] END
-IF @EnableJobOwnerCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[JobOwnerInsert] END
-IF @EnableFailedLoginsCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[LoginAttemptsInsert] END
-IF @EnableTopFiveDatabaseSizeCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[TopFiveDatabasesInsert] END
-IF @EnableADHocDatabaseCreationCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[ADHocDatabaseCreationsInsert] END
-IF @EnableDatabaseSettings = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseSettingsInsert] END''
-, 
+		@command=N''EXEC ['+@Databasename+'].[Inspector].[InspectorDataCollection] @ModuleConfig = NULL;'', 
 		@database_name=N''master'', 
 		@flags=0
 IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
@@ -4530,77 +4630,6 @@ GOTO EndSave
 QuitWithRollback:
     IF (@@TRANCOUNT > 0) ROLLBACK TRANSACTION
 EndSave:
-END'
-
-EXEC (@SQLStatement);
-
-
---Fix typo LoginAttemptsiInsert
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
-IF (SELECT CAST([Value] AS DECIMAL(4,1)) FROM ['+@Databasename+'].[Inspector].[Settings] WHERE [Description] = ''InspectorBuild'') = 1 
-BEGIN 
-EXEC msdb.dbo.sp_update_jobstep @job_name=''SQLUndercover Inspector Data Collection'', @step_id=1 , 
-		@command=N''--AGENT JOB COMMANDS
-
---Data Collection Code , use this code within an Agent job to collect data used by the report
-
-DECLARE @EnableAGCheck						BIT 
-DECLARE @EnableBackupsCheck					BIT 
-DECLARE @EnableBackupSizesCheck				BIT 
-DECLARE @EnableDatabaseGrowthCheck				BIT 
-DECLARE @EnableDatabaseFileCheck				BIT 
-DECLARE @EnableDatabaseOwnershipCheck			BIT 
-DECLARE @EnableDatabaseStatesCheck				BIT 
-DECLARE @EnableDriveSpaceCheck				BIT 
-DECLARE @EnableFailedAgentJobCheck				BIT 
-DECLARE @EnableJobOwnerCheck					BIT 
-DECLARE @EnableFailedLoginsCheck				BIT 
-DECLARE @EnableTopFiveDatabaseSizeCheck			BIT 
-DECLARE @EnableADHocDatabaseCreationCheck		BIT 
-DECLARE @EnableDatabaseSettings				BIT
-DECLARE @ModuleConfig VARCHAR(20)
-
-SELECT @ModuleConfig = ModuleConfig_Desc
-FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[CurrentServers]
-WHERE IsActive = 1 
-AND Servername = @@SERVERNAME
-
-IF @ModuleConfig IS NULL BEGIN SET @ModuleConfig = ''''Default'''' END;
-
-SELECT 							
-@EnableAGCheck						= ISNULL(EnableAGCheck,0),					
-@EnableBackupsCheck					= ISNULL(EnableBackupsCheck,0),					
-@EnableBackupSizesCheck				= ISNULL(EnableBackupSizesCheck,0),			
-@EnableDatabaseGrowthCheck			= ISNULL(EnableDatabaseGrowthCheck,0),			
-@EnableDatabaseFileCheck				= ISNULL(EnableDatabaseFileCheck,0),			
-@EnableDatabaseOwnershipCheck			= ISNULL(EnableDatabaseOwnershipCheck,0),		
-@EnableDatabaseStatesCheck			= ISNULL(EnableDatabaseStatesCheck,0),			
-@EnableDriveSpaceCheck				= ISNULL(EnableDriveSpaceCheck,0),				
-@EnableFailedAgentJobCheck			= ISNULL(EnableFailedAgentJobCheck,0),			
-@EnableJobOwnerCheck				= ISNULL(EnableJobOwnerCheck,0),				
-@EnableFailedLoginsCheck				= ISNULL(EnableFailedLoginsCheck,0),			
-@EnableTopFiveDatabaseSizeCheck		= ISNULL(EnableTopFiveDatabaseSizeCheck,0),		
-@EnableADHocDatabaseCreationCheck		= ISNULL(EnableADHocDatabaseCreationCheck,0),	
-@EnableDatabaseSettings				= ISNULL(EnableDatabaseSettings,0)
-FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Modules]
-WHERE ModuleConfig_Desc = @ModuleConfig
-
-
-IF @EnableAGCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[AGCheckInsert] END
-IF @EnableBackupsCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[BackupsCheckInsert] END
-IF @EnableBackupSizesCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[BackupSizesByDayInsert] END
-IF @EnableDatabaseGrowthCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseGrowthsInsert] END
-IF @EnableDatabaseFileCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseFilesInsert] END
-IF @EnableDatabaseOwnershipCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseOwnershipInsert] END
-IF @EnableDatabaseStatesCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseStatesInsert] END
-IF @EnableDriveSpaceCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DriveSpaceInsert] END
-IF @EnableFailedAgentJobCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[FailedAgentJobsInsert] END
-IF @EnableJobOwnerCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[JobOwnerInsert] END
-IF @EnableFailedLoginsCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[LoginAttemptsInsert] END
-IF @EnableTopFiveDatabaseSizeCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[TopFiveDatabasesInsert] END
-IF @EnableADHocDatabaseCreationCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[ADHocDatabaseCreationsInsert] END
-IF @EnableDatabaseSettings = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[DatabaseSettingsInsert] END''
-
 END'
 
 EXEC (@SQLStatement);
@@ -4630,8 +4659,7 @@ EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=N''SQLUndercover Inspector Rep
 		@notify_level_netsend=0, 
 		@notify_level_page=0, 
 		@delete_level=0, 
-		@description=N''Create a report from the collected data in 
-		['+@Databasename+'] and email the results.'', 
+		@description=N''Produce SQLUndercover Inspector HTML report from the collected data in ['+@Databasename+']'', 
 		@category_name=N''[Uncategorized (Local)]'', 
 		@owner_login_name=N''sa'', @job_id = @jobId OUTPUT
 IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
@@ -4648,10 +4676,15 @@ EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId, @step_name=N''Report'
 		@os_run_priority=0, @subsystem=N''TSQL'', 
 		@command=N''EXEC ['+@Databasename+'].[Inspector].[SQLUnderCoverInspectorReport]
 @EmailDistributionGroup = ''''DBA'''',
-@TestMode = 0,
+@TestMode = 0, 
 @ModuleDesc = NULL,
-@EmailRedWarningsOnly = 0,
-@Theme = ''''Dark''''
+@EmailRedWarningsOnly = 0, 
+@Theme = ''''Dark'''';
+
+/*
+@TestMode : 0 = Log to Inspector.ReportData, 1 = Email report.
+@EmailRedWarningsOnly 0 = show all backup info, 1 = show threshold breaches only.
+*/
 '', 
 		@database_name=N''master'', 
 		@flags=0
@@ -4694,9 +4727,7 @@ EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=N''SQLUndercover Periodic Back
 		@notify_level_netsend=0, 
 		@notify_level_page=0, 
 		@delete_level=0, 
-		@description=N''--SQLUndercover Periodic Backups Collection
-Collect Backup information and insert into: 
-'+@LinkedServername+'['+@Databasename+']'', 
+		@description=N''SQLUndercover Periodic Backups Collection , Collect Backup information and insert into: '+@LinkedServername+'['+@Databasename+']'', 
 		@category_name=N''[Uncategorized (Local)]'', 
 		@owner_login_name=N''sa'', @job_id = @jobId OUTPUT
 IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
@@ -4711,29 +4742,7 @@ EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId, @step_name=N''Collect
 		@retry_attempts=0, 
 		@retry_interval=0, 
 		@os_run_priority=0, @subsystem=N''TSQL'', 
-		@command=N''USE ['+@Databasename+'];
-
---SQLUndercover Periodic Backups Collection
-
---Periodic Backup Checks using SQLUndercover Inspector Report Module ''''BackupsCheck''''
-
-DECLARE @EnableBackupsCheck		BIT 
-DECLARE @ModuleConfig			VARCHAR(20)
-
-SELECT @ModuleConfig = ISNULL(ModuleConfig_Desc,''''Default'''')
-FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[CurrentServers]
-WHERE IsActive = 1 
-AND Servername = @@SERVERNAME
-
-
-SELECT 											
-@EnableBackupsCheck	= ISNULL(EnableBackupsCheck,0)
-FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Modules]
-WHERE ModuleConfig_Desc = @ModuleConfig
-
-
-
-IF @EnableBackupsCheck = 1 BEGIN EXEC ['+@Databasename+'].[Inspector].[BackupsCheckInsert] END'', 
+		@command=N''EXEC ['+@Databasename+'].[Inspector].[InspectorDataCollection] @ModuleConfig = ''''PeriodicBackupCheck'''';'', 
 		@database_name=N''master'', 
 		@flags=0
 IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
@@ -4775,11 +4784,7 @@ EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=N''SQLUndercover Periodic Back
 		@notify_level_netsend=0, 
 		@notify_level_page=0, 
 		@delete_level=0, 
-		@description=N''--SQLUndercover Periodic Backup Report
-
-Check Backup information inserted into: 
-'+@LinkedServername+'['+@Databasename+'] 
-and email if any issues are found.'', 
+		@description=N''SQLUndercover Periodic Backup Report, check Backup information inserted into: '+@LinkedServername+'['+@Databasename+'] and report.'', 
 		@category_name=N''[Uncategorized (Local)]'', 
 		@owner_login_name=N''sa'', @job_id = @jobId OUTPUT
 IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
@@ -4797,13 +4802,17 @@ EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId, @step_name=N''Collate
 		@command=N''USE ['+@Databasename+'];
 
 --SQLUndercover Periodic Backup Report
-
 EXEC ['+@Databasename+'].[Inspector].[SQLUnderCoverInspectorReport] 
 @EmailDistributionGroup = ''''DBA'''',
 @TestMode = 0,
 @ModuleDesc = ''''PeriodicBackupCheck'''',
-@EmailRedWarningsOnly = 1,
+@EmailRedWarningsOnly = 1, 
 @Theme = ''''Dark'''' 
+
+/*
+@TestMode : 0 = Log to Inspector.ReportData, 1 = Email report.
+@EmailRedWarningsOnly 0 = show all backup info, 1 = show threshold breaches only.
+*/
 '',
 		@database_name=N''master'', 
 		@flags=0
@@ -4820,6 +4829,21 @@ EndSave:
 END'
 
 EXEC (@SQLStatement);
+
+
+--If Inspector build is 1.1 or less then update job command to use Collection stored procedure introduced with issue #13
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+IF (SELECT CAST([Value] AS DECIMAL(4,1)) FROM ['+@Databasename+'].[Inspector].[Settings] WHERE [Description] = ''InspectorBuild'') <= 1.1 
+BEGIN 
+EXEC msdb.dbo.sp_update_jobstep @job_name=''SQLUndercover Inspector Data Collection'', @step_id=1 , 
+		@command=N''EXEC ['+@Databasename+'].[Inspector].[InspectorDataCollection] @ModuleConfig = NULL;'';
+
+EXEC msdb.dbo.sp_update_jobstep @job_name=''SQLUndercover Periodic Backups Collection'', @step_id=1 , 
+		@command=N''EXEC ['+@Databasename+'].[Inspector].[InspectorDataCollection] @ModuleConfig = ''''PeriodicBackupCheck'''';'';
+END'
+
+EXEC (@SQLStatement);
+
 
 
 --Inspector Information
