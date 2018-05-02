@@ -1,4 +1,4 @@
-/*                                                                                                                      
+﻿/*                                                                                                                      
                                                                                                                                                                                                                                               
               @     ,@                                                                                                  
              #@@   @@@                                                                                                  
@@ -39,7 +39,7 @@
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 26/03/2018
+Revision date: 02/05/2018
 Version: 1
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
@@ -2188,7 +2188,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 26/03/2018
+--Revision date: 02/05/2018
 
 SET NOCOUNT ON;
 
