@@ -3,7 +3,7 @@ Author: Adrian Buckman
 Revision date: 10/12/2017
 Version: 1
 
-URL: 
+URL: https://github.com/SQLUndercover/UndercoverToolbox/blob/master/LSNCheck%20and%20FileExistence_CS.sql
 
 
 Description: Check backup information , backup file existence and check the restore chain is in tact 
