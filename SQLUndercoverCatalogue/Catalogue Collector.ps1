@@ -136,7 +136,7 @@ If ($AutoDiscoverInstances -eq "1")
 }
 Else
 {
-Write-Host "Auto Discover Instances: Disabled" -ForegroundColor Red
+Write-Host "Auto Discover Instances: Disabled" -ForegroundColor Yellow
 }
 
 ####################    update catalogue     ##########################################################################

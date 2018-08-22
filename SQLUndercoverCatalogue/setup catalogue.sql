@@ -37,7 +37,7 @@
                                                                                                                             
 Undercover Catalogue Installation 0.1.0                                                      
 Written By David Fowler
-10/08/2018
+22/08/2018
 
 MIT License
 ------------
@@ -71,11 +71,15 @@ GO
 
 --Create the catalogue schema
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'Catalogue')
-{CREATE SCHEMA Catalogue}
+EXEC('CREATE SCHEMA Catalogue')
 GO
 
 -----------------------------------------Catalogue Databases--------------------------------------------------------------
 --create database table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Databases')
 CREATE TABLE [Catalogue].[Databases](
 	[ServerName] [nvarchar](128) NOT NULL,
 	[DBName] [sysname] NOT NULL,
@@ -100,6 +104,10 @@ CREATE TABLE [Catalogue].[Databases](
 GO
 
 --create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Databases_Stage')
 CREATE TABLE [Catalogue].[Databases_Stage](
 	[ServerName] [nvarchar](128) NOT NULL,
 	[DBName] [sysname] NOT NULL,
@@ -120,7 +128,16 @@ GO
 
 --create job to get database details
 
-CREATE OR ALTER PROC [Catalogue].[GetDatabases]
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'GetDatabases'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.GetDatabases
+GO
+
+CREATE PROC [Catalogue].[GetDatabases]
 AS
 
 BEGIN
@@ -154,7 +171,16 @@ GO
 
 
 --create catalogue database update procedure
-CREATE OR ALTER PROC [Catalogue].[UpdateDatabases]
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'UpdateDatabases'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.UpdateDatabases
+GO
+
+CREATE PROC [Catalogue].[UpdateDatabases]
 AS
 
 BEGIN
@@ -203,6 +229,11 @@ END
 GO
 
 --------------------------------------Catalogue Servers----------------------------------------------------------------
+--create servers staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Servers_Stage')
 CREATE TABLE Catalogue.Servers_Stage
 (ServerName nvarchar(128) NOT NULL,
 Collation nvarchar(128) NOT NULL,
@@ -213,6 +244,11 @@ VersionNo nvarchar(128) NOT NULL
 	[ServerName] ASC
 ))
 
+--create servers table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Servers')
 CREATE TABLE Catalogue.Servers
 (ServerName nvarchar(128) NOT NULL,
 Collation nvarchar(128) NOT NULL,
@@ -231,7 +267,16 @@ GO
 
 --create proc to get server details
 
-CREATE OR ALTER PROC Catalogue.GetServers
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'GetServers'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.GetServers
+GO
+
+CREATE PROC Catalogue.GetServers
 AS
 BEGIN
 
@@ -244,7 +289,16 @@ END
 GO
 
 --create proc to update server catalogue
-CREATE OR ALTER PROC [Catalogue].[UpdateServers]
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'UpdateServers'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.UpdateServers
+GO
+
+CREATE PROC [Catalogue].[UpdateServers]
 AS
 BEGIN
 --update servers where they are known to the catalogue
@@ -279,6 +333,11 @@ END
 GO
 
 ------------------------------------------Catalogue Logins-----------------------------------------------------
+--create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Logins')
 CREATE TABLE [Catalogue].[Logins](
 	[ServerName] [nvarchar](128) NULL,
 	[LoginName] [sysname] NOT NULL,
@@ -296,6 +355,11 @@ CREATE TABLE [Catalogue].[Logins](
 ))
 GO
 
+--create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Logins_Stage')
 CREATE TABLE [Catalogue].[Logins_Stage](
 	[ServerName] [nvarchar](128) NULL,
 	[LoginName] [sysname] NOT NULL,
@@ -312,7 +376,16 @@ GO
 
 --create proc to get logins
 
-CREATE OR ALTER PROC [Catalogue].GetLogins
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'GetLogins'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.GetLogins
+GO
+
+CREATE PROC [Catalogue].GetLogins
 AS
 BEGIN
 
@@ -335,7 +408,17 @@ END
 GO
 
 --update logins
-CREATE OR ALTER PROC [Catalogue].UpdateLogins
+
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'UpdateLogins'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.UpdateLogins
+GO
+
+CREATE PROC [Catalogue].UpdateLogins
 AS
 BEGIN
 
@@ -373,6 +456,11 @@ END
 GO
 
 ---------------------------------Catalogue Agent Jobs-----------------------------------------
+--create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'AgentJobs')
 CREATE TABLE [Catalogue].[AgentJobs](
 	[ServerName] [nvarchar](128) NULL,
 	[job_id] [uniqueidentifier] NOT NULL,
@@ -400,6 +488,11 @@ CREATE TABLE [Catalogue].[AgentJobs](
 
 GO
 
+--create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'AgentJobs_Stage')
 CREATE TABLE [Catalogue].[AgentJobs_Stage](
 	[ServerName] [nvarchar](128) NOT NULL,
 	[job_id] [uniqueidentifier] NOT NULL,
@@ -424,8 +517,16 @@ CREATE TABLE [Catalogue].[AgentJobs_Stage](
 
 GO
 
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'GetAgentJobs'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.GetAgentJobs
+GO
 
-CREATE OR ALTER PROC Catalogue.GetAgentJobs
+CREATE PROC Catalogue.GetAgentJobs
 AS
 BEGIN
 --get all agent jobs on server
@@ -549,7 +650,17 @@ JOIN msdb.dbo.sysjobsteps ON sysjobsteps.job_id = sysjobs.job_id
 END
 GO
 
-CREATE OR ALTER PROC Catalogue.UpdateAgentJobs
+
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'UpdateAgentJobs'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.UpdateAgentJobs
+GO
+
+CREATE PROC Catalogue.UpdateAgentJobs
 AS
 BEGIN
 
@@ -610,6 +721,11 @@ GO
 
 ---------------------------------------Catalogue Availability Groups-----------------------------------------------------
 
+--create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'AvailabilityGroups')
 CREATE TABLE [Catalogue].[AvailabilityGroups](
 	[AGName] [sysname] NOT NULL,
 	[ServerName] [nvarchar](256) NOT NULL,
@@ -628,6 +744,11 @@ CREATE TABLE [Catalogue].[AvailabilityGroups](
 ))
 GO
 
+--create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'AvailabilityGroups_Stage')
 CREATE TABLE [Catalogue].[AvailabilityGroups_Stage](
 	[AGName] [sysname] NOT NULL,
 	[ServerName] [nvarchar](256) NOT NULL,
@@ -643,8 +764,15 @@ CREATE TABLE [Catalogue].[AvailabilityGroups_Stage](
 ))
 GO
 
-
-CREATE OR ALTER PROC Catalogue.GetAvailabilityGroups
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'GetAvailabilityGroups'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.GetAvailabilityGroups
+GO
+CREATE PROC Catalogue.GetAvailabilityGroups
 AS
 BEGIN
 
@@ -664,7 +792,16 @@ END
 
 GO
 
-CREATE OR ALTER PROC Catalogue.UpdateAvailabilityGroups
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'UpdateAvailabilityGroups'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.UpdateAvailabilityGroups
+GO
+
+CREATE PROC Catalogue.UpdateAvailabilityGroups
 AS
 BEGIN
 
@@ -709,6 +846,11 @@ GO
 
 -----------------------------------------Catalogue Users--------------------------------------------------------
 
+--create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Users')
 CREATE TABLE [Catalogue].[Users](
 	[ServerName] [nvarchar](128) NULL,
 	[DBName] [nvarchar](128) NULL,
@@ -726,6 +868,11 @@ CREATE TABLE [Catalogue].[Users](
 ))
 GO
 
+--create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Users_Stage')
 CREATE TABLE [Catalogue].[Users_Stage](
 	[ServerName] [nvarchar](128) NULL,
 	[DBName] [nvarchar](128) NULL,
@@ -740,7 +887,17 @@ CREATE TABLE [Catalogue].[Users_Stage](
 ))
 GO
 
-CREATE OR ALTER PROC Catalogue.GetUsers
+
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'GetUsers'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.GetUsers
+GO
+
+CREATE PROC Catalogue.GetUsers
 AS
 
 BEGIN
@@ -815,8 +972,16 @@ END
 GO
 
 
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'UpdateUsers'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.UpdateUsers
+GO
 
-CREATE OR ALTER PROCEDURE Catalogue.UpdateUsers
+CREATE PROCEDURE Catalogue.UpdateUsers
 AS
 BEGIN
 
@@ -856,7 +1021,11 @@ WHERE NOT EXISTS
 END
 
 --------------------------------------Catalogue Explicit Permissions-----------------------------------------------
-
+--create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'ExplicitPermissions')
 CREATE TABLE [Catalogue].[ExplicitPermissions](
 	[name] [sysname] NOT NULL,
 	[permission_name] [nvarchar](128) NULL,
@@ -875,6 +1044,11 @@ CREATE TABLE [Catalogue].[ExplicitPermissions](
 ))
 GO
 
+--create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'ExplicitPermissions_Stage')
 CREATE TABLE [Catalogue].[ExplicitPermissions_Stage](
 	[name] [sysname] NOT NULL,
 	[permission_name] [nvarchar](128) NULL,
@@ -891,7 +1065,16 @@ CREATE TABLE [Catalogue].[ExplicitPermissions_Stage](
 GO
 
 
-CREATE OR ALTER PROC Catalogue.GetExplicitPermissions
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'GetExplicitPermissions'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.GetExplicitPermissions
+GO
+
+CREATE PROC Catalogue.GetExplicitPermissions
 AS
 
 BEGIN
@@ -960,8 +1143,16 @@ SELECT * FROM #ExplicitPermissions_tmp
 END
 GO
 
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'UpdateExplicitPermissions'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.UpdateExplicitPermissions
+GO
 
-CREATE OR ALTER PROC Catalogue.UpdateExplicitPermissions
+CREATE PROC Catalogue.UpdateExplicitPermissions
 AS
 BEGIN
 
@@ -1012,59 +1203,85 @@ END
 
 -------------------------------------create config tables--------------------------------------------------------
 
-CREATE TABLE Catalogue.ConfigModules
-(ID INT IDENTITY(1,1) NOT NULL,
-ModuleName VARCHAR(20) NOT NULL,
-GetProcName VARCHAR(128) NOT NULL,
-UpdateProcName VARCHAR(128) NOT NULL,
-StageTableName VARCHAR(128) NOT NULL,
-MainTableName VARCHAR(128) NOT NULL,
-Active BIT NOT NULL DEFAULT 1
- CONSTRAINT [PK_ConfigModules] PRIMARY KEY CLUSTERED 
-(
-	[ID] ASC
-))
+--create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'ConfigModules')
+BEGIN
+	CREATE TABLE Catalogue.ConfigModules
+	(ID INT IDENTITY(1,1) NOT NULL,
+	ModuleName VARCHAR(20) NOT NULL,
+	GetProcName VARCHAR(128) NOT NULL,
+	UpdateProcName VARCHAR(128) NOT NULL,
+	StageTableName VARCHAR(128) NOT NULL,
+	MainTableName VARCHAR(128) NOT NULL,
+	Active BIT NOT NULL DEFAULT 1
+	 CONSTRAINT [PK_ConfigModules] PRIMARY KEY CLUSTERED 
+	(
+		[ID] ASC
+	))
+
+	INSERT INTO Catalogue.ConfigModules ([ModuleName], [GetProcName], [UpdateProcName], [StageTableName], [MainTableName], [Active])
+	VALUES	('Databases','GetDatabases','UpdateDatabases','Databases_Stage','Databases',1),
+			('Servers','GetServers','UpdateServers','Servers_Stage','Servers',1),
+			('Logins','GetLogins','UpdateLogins','Logins_Stage','Logins',1),
+			('Agent Jobs','GetAgentJobs','UpdateAgentJobs','AgentJobs_Stage','AgentJobs',1),
+			('Availability Groups','GetAvailabilityGroups','UpdateAvailabilityGroups','AvailabilityGroups_Stage','AvailabilityGroups',1),
+			('Users','GetUsers','UpdateUsers','Users_Stage','Users',1),
+			('ExplicitPermissions','GetExplicitPermissions','UpdateExplicitPermissions','ExplicitPermissions_Stage','ExplicitPermissions',1)
+END
 GO
 
-CREATE TABLE Catalogue.ConfigInstances
-(ID INT IDENTITY(1,1) NOT NULL,
-ServerName VARCHAR(128) NOT NULL,
-InstanceName VARCHAR(128) NULL,
-Active BIT NOT NULL DEFAULT 1
- CONSTRAINT [PK_ConfigTables] PRIMARY KEY CLUSTERED 
-(
-	[ID] ASC
-))
+--create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'ConfigInstances')
+BEGIN
+	CREATE TABLE Catalogue.ConfigInstances
+	(ID INT IDENTITY(1,1) NOT NULL,
+	ServerName VARCHAR(128) NOT NULL,
+	InstanceName VARCHAR(128) NULL,
+	Active BIT NOT NULL DEFAULT 1
+	 CONSTRAINT [PK_ConfigTables] PRIMARY KEY CLUSTERED 
+	(
+		[ID] ASC
+	))
+
+	INSERT INTO Catalogue.ConfigInstances ([ServerName])
+	VALUES (@@SERVERNAME)
+END
 GO
 
-CREATE TABLE Catalogue.ConfigPoSH
-(ID INT IDENTITY(1,1) NOT NULL,
-ParameterName VARCHAR(100) NOT NULL,
-ParameterValue VARCHAR(100) NOT NULL
-CONSTRAINT [PK_ConfigPoSH] PRIMARY KEY CLUSTERED 
-(
-	[ID] ASC
-))
+--create database staging table
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'ConfigPoSH')
+BEGIN
+	CREATE TABLE Catalogue.ConfigPoSH
+	(ID INT IDENTITY(1,1) NOT NULL,
+	ParameterName VARCHAR(100) NOT NULL,
+	ParameterValue VARCHAR(100) NOT NULL
+	CONSTRAINT [PK_ConfigPoSH] PRIMARY KEY CLUSTERED 
+	(
+		[ID] ASC
+	))
+
+	INSERT INTO catalogue.configPosh (ParameterName,ParameterValue)
+	VALUES	('CatalogueVersion', '0.1.0'),
+			('AutoDiscoverInstances','0'),
+			('DBAToolsRequirement', '0.9.385'),
+			('AutoInstall', '0'),
+			('AutoUpdate', '0'),
+			('InstallationScriptPath', '{script path}')
+END
 GO
 
-INSERT INTO Catalogue.ConfigModules ([ModuleName], [GetProcName], [UpdateProcName], [StageTableName], [MainTableName], [Active])
-VALUES	('Databases','GetDatabases','UpdateDatabases','Databases_Stage','Databases',1),
-		('Servers','GetServers','UpdateServers','Servers_Stage','Servers',1),
-		('Logins','GetLogins','UpdateLogins','Logins_Stage','Logins',1),
-		('Agent Jobs','GetAgentJobs','UpdateAgentJobs','AgentJobs_Stage','AgentJobs',1),
-		('Availability Groups','GetAvailabilityGroups','UpdateAvailabilityGroups','AvailabilityGroups_Stage','AvailabilityGroups',1),
-		('Users','GetUsers','UpdateUsers','Users_Stage','Users',1),
-		('ExplicitPermissions','GetExplicitPermissions','UpdateExplicitPermissions','ExplicitPermissions_Stage','ExplicitPermissions',1)
-GO
 
-INSERT INTO Catalogue.ConfigInstances ([ServerName])
-VALUES (@@SERVERNAME)
 
-INSERT INTO catalogue.configPosh (ParameterName,ParameterValue)
-VALUES	('CatalogueVersion', '0.1.0'),
-		('AutoDiscoverInstances','0'),
-		('DBAToolsRequirement', '0.9.385'),
-		('AutoInstall', '0'),
-		('AutoUpdate', '0'),
-		('InstallationScriptPath', '{script path}')
+
+
+
 
