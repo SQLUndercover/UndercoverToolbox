@@ -35,9 +35,9 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-Undercover Catalogue Installation 0.1.0                                                      
+Undercover Catalogue Installation 0.2.0                                                      
 Written By David Fowler
-22/08/2018
+28/08/2018
 
 MIT License
 ------------
@@ -83,11 +83,11 @@ IF NOT EXISTS (	SELECT 1
 CREATE TABLE [Catalogue].[Databases](
 	[ServerName] [nvarchar](128) NOT NULL,
 	[DBName] [sysname] NOT NULL,
-	[database_id] [int] NOT NULL,
+	[DatabaseID] [int] NOT NULL,
 	[OwnerName] [sysname] NULL,
-	[compatibility_level] [tinyint] NOT NULL,
-	[collation_name] [sysname] NULL,
-	[recovery_model_desc] [nvarchar](60) NULL,
+	[CompatibilityLevel] [tinyint] NOT NULL,
+	[CollationName] [sysname] NULL,
+	[RecoveryModelDesc] [nvarchar](60) NULL,
 	[AGName] [sysname] NULL,
 	[FilePaths] [nvarchar](max) NULL,
 	[DatabaseSizeMB] [bigint] NULL,
@@ -99,7 +99,7 @@ CREATE TABLE [Catalogue].[Databases](
  CONSTRAINT [PK_Databases] PRIMARY KEY CLUSTERED 
 (
 	[ServerName] ASC,
-	[database_id] ASC
+	[DatabaseID] ASC
 ))
 GO
 
@@ -111,18 +111,18 @@ IF NOT EXISTS (	SELECT 1
 CREATE TABLE [Catalogue].[Databases_Stage](
 	[ServerName] [nvarchar](128) NOT NULL,
 	[DBName] [sysname] NOT NULL,
-	[database_id] [int] NOT NULL,
+	[DatabaseID] [int] NOT NULL,
 	[OwnerName] [sysname] NULL,
-	[compatibility_level] [tinyint] NOT NULL,
-	[collation_name] [sysname] NULL,
-	[recovery_model_desc] [nvarchar](60) NULL,
+	[CompatibilityLevel] [tinyint] NOT NULL,
+	[CollationName] [sysname] NULL,
+	[RecoveryModelDesc] [nvarchar](60) NULL,
 	[AGName] [sysname] NULL,
 	[FilePaths] [nvarchar](max) NULL,
 	[DatabaseSizeMB] [bigint] NULL
  CONSTRAINT [PK_Databases_Stage] PRIMARY KEY CLUSTERED 
 (
 	[ServerName] ASC,
-	[database_id] ASC
+	[DatabaseID] ASC
 ))
 GO
 
@@ -189,29 +189,29 @@ BEGIN
 UPDATE Catalogue.Databases 
 SET		ServerName = Databases_Stage.ServerName,
 		DBName = Databases_Stage.DBName,
-		database_id = Databases_Stage.database_id,
+		DatabaseID = Databases_Stage.DatabaseID,
 		OwnerName = Databases_Stage.OwnerName,
-		compatibility_level = Databases_Stage.compatibility_level,
-		collation_name = Databases_Stage.collation_name,
-		recovery_model_desc = Databases_Stage.recovery_model_desc,
+		CompatibilityLevel = Databases_Stage.CompatibilityLevel,
+		CollationName = Databases_Stage.CollationName,
+		RecoveryModelDesc = Databases_Stage.RecoveryModelDesc,
 		AGName = Databases_Stage.AGName,
 		FilePaths = Databases_Stage.FilePaths,
 		DatabaseSizeMB= Databases_Stage.DatabaseSizeMB,
 		LastRecorded = GETDATE()
 FROM Catalogue.Databases_Stage
 WHERE	Databases.ServerName = Databases_Stage.ServerName
-		AND Databases.database_id = Databases_Stage.database_id
+		AND Databases.DatabaseID = Databases_Stage.DatabaseID
 
 --insert jobs that are unknown to the catlogue
 INSERT INTO Catalogue.Databases
-(ServerName, DBName, database_id, OwnerName, Compatibility_level, collation_name, recovery_model_desc, AGName,FilePaths,DatabaseSizeMB,FirstRecorded,LastRecorded)
+(ServerName, DBName, DatabaseID, OwnerName, CompatibilityLevel, CollationName, RecoveryModelDesc, AGName,FilePaths,DatabaseSizeMB,FirstRecorded,LastRecorded)
 SELECT ServerName,
 		DBName,
-		database_id,
+		DatabaseID,
 		OwnerName,
-		compatibility_level,
-		collation_name,
-		recovery_model_desc,
+		CompatibilityLevel,
+		CollationName,
+		RecoveryModelDesc,
 		AGName,
 		FilePaths,
 		DatabaseSizeMB,
@@ -220,7 +220,7 @@ SELECT ServerName,
 FROM Catalogue.Databases_Stage
 WHERE NOT EXISTS 
 (SELECT 1 FROM Catalogue.Databases
-		WHERE database_id = Databases_Stage.database_id
+		WHERE DatabaseID = Databases_Stage.DatabaseID
 		AND Databases.ServerName = Databases_Stage.ServerName)
 
 END
@@ -341,7 +341,7 @@ IF NOT EXISTS (	SELECT 1
 CREATE TABLE [Catalogue].[Logins](
 	[ServerName] [nvarchar](128) NULL,
 	[LoginName] [sysname] NOT NULL,
-	[sid] [varbinary](85) NULL,
+	[SID] [varbinary](85) NULL,
 	[RoleName] [sysname] NULL,
 	[ID] [int] IDENTITY(1,1) NOT NULL,
 	[IsDisabled] [bit] NULL,
@@ -363,7 +363,7 @@ IF NOT EXISTS (	SELECT 1
 CREATE TABLE [Catalogue].[Logins_Stage](
 	[ServerName] [nvarchar](128) NULL,
 	[LoginName] [sysname] NOT NULL,
-	[sid] [varbinary](85) NULL,
+	[SID] [varbinary](85) NULL,
 	[RoleName] [sysname] NULL,
 	[ID] [int] IDENTITY(1,1) NOT NULL,
 	[IsDisabled] [bit] NULL,
@@ -426,7 +426,7 @@ BEGIN
 UPDATE	Catalogue.Logins 
 SET		ServerName = [Logins_Stage].ServerName,
 		LoginName = [Logins_Stage].LoginName,
-		sid = [Logins_Stage].sid,
+		SID = [Logins_Stage].SID,
 		RoleName = [Logins_Stage].RoleName,
 		PasswordHash = [Logins_Stage].PasswordHash,
 		LastRecorded = GETDATE(),
@@ -437,10 +437,10 @@ WHERE	Logins.ServerName = [Logins_Stage].ServerName
 
 --insert jobs that are unknown to the catlogue
 INSERT INTO Catalogue.Logins
-(ServerName,LoginName,sid,Rolename,FirstRecorded,LastRecorded, IsDisabled, PasswordHash)
+(ServerName,LoginName,SID,RoleName,FirstRecorded,LastRecorded, IsDisabled, PasswordHash)
 SELECT ServerName,
 		LoginName,
-		sid,
+		SID,
 		RoleName,
 		GETDATE(),
 		GETDATE(),
@@ -449,7 +449,7 @@ SELECT ServerName,
 FROM [Catalogue].[Logins_Stage]
 WHERE NOT EXISTS 
 (SELECT 1 FROM Catalogue.Logins
-		WHERE sid = [Logins_Stage].sid
+		WHERE SID = [Logins_Stage].SID
 		AND Logins.ServerName = [Logins_Stage].ServerName)
 
 END
@@ -463,20 +463,20 @@ IF NOT EXISTS (	SELECT 1
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'AgentJobs')
 CREATE TABLE [Catalogue].[AgentJobs](
 	[ServerName] [nvarchar](128) NULL,
-	[job_id] [uniqueidentifier] NOT NULL,
+	[JobID] [uniqueidentifier] NOT NULL,
 	[JobName] [sysname] NOT NULL,
-	[enabled] [tinyint] NOT NULL,
-	[description] [nvarchar](512) NULL,
+	[Enabled] [tinyint] NOT NULL,
+	[Description] [nvarchar](512) NULL,
 	[Category] [sysname] NOT NULL,
-	[date_created] [datetime] NOT NULL,
-	[date_modified] [datetime] NOT NULL,
+	[DateCreated] [datetime] NOT NULL,
+	[DateModified] [datetime] NOT NULL,
 	[ScheduleEnabled] [int] NOT NULL,
 	[ScheduleName] [sysname] NOT NULL,
 	[ScheduleFrequency] [varchar](8000) NULL,
-	[step_id] [int] NOT NULL,
-	[step_name] [sysname] NOT NULL,
-	[subsystem] [nvarchar](40) NOT NULL,
-	[command] [nvarchar](max) NULL,
+	[StepID] [int] NOT NULL,
+	[StepName] [sysname] NOT NULL,
+	[SubSystem] [nvarchar](40) NOT NULL,
+	[Command] [nvarchar](max) NULL,
 	[DatabaseName] [sysname] NULL,
 	[FirstRecorded] [datetime] NULL,
 	[LastRecorded] [datetime] NULL,
@@ -495,24 +495,24 @@ IF NOT EXISTS (	SELECT 1
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'AgentJobs_Stage')
 CREATE TABLE [Catalogue].[AgentJobs_Stage](
 	[ServerName] [nvarchar](128) NOT NULL,
-	[job_id] [uniqueidentifier] NOT NULL,
+	[JobID] [uniqueidentifier] NOT NULL,
 	[JobName] [sysname] NOT NULL,
-	[enabled] [tinyint] NOT NULL,
-	[description] [nvarchar](512) NULL,
+	[Enabled] [tinyint] NOT NULL,
+	[Description] [nvarchar](512) NULL,
 	[Category] [sysname] NOT NULL,
-	[date_created] [datetime] NOT NULL,
-	[date_modified] [datetime] NOT NULL,
+	[DateCreated] [datetime] NOT NULL,
+	[DateModified] [datetime] NOT NULL,
 	[ScheduleEnabled] [int] NOT NULL,
 	[ScheduleName] [sysname] NOT NULL,
 	[ScheduleFrequency] [varchar](8000) NULL,
-	[step_id] [int] NOT NULL,
-	[step_name] [sysname] NOT NULL,
-	[subsystem] [nvarchar](40) NOT NULL,
-	[command] [nvarchar](max) NULL,
+	[StepID] [int] NOT NULL,
+	[StepName] [sysname] NOT NULL,
+	[SubSystem] [nvarchar](40) NOT NULL,
+	[Command] [nvarchar](max) NULL,
 	[DatabaseName] [sysname] NULL
  CONSTRAINT [PK_AgentJobs_Stage] PRIMARY KEY CLUSTERED 
 (
-	[job_id],[ServerName],[step_id] ASC
+	[JobID],[ServerName],[StepID] ASC
 ))
 
 GO
@@ -667,53 +667,53 @@ BEGIN
 --update jobs where they are known
 UPDATE Catalogue.AgentJobs 
 SET JobName = AgentJobs_Stage.JobName,
-	enabled = AgentJobs_Stage.enabled,
-	description = AgentJobs_Stage.description,
-	category = AgentJobs_Stage.Category,
-	date_created = AgentJobs_Stage.date_created,
-	date_modified = AgentJobs_Stage.date_modified,
-	scheduleEnabled = AgentJobs_Stage.ScheduleEnabled,
+	Enabled = AgentJobs_Stage.Enabled,
+	Description = AgentJobs_Stage.Description,
+	Category = AgentJobs_Stage.Category,
+	DateCreated = AgentJobs_Stage.DateCreated,
+	DateModified = AgentJobs_Stage.DateModified,
+	ScheduleEnabled = AgentJobs_Stage.ScheduleEnabled,
 	ScheduleName = AgentJobs_Stage.ScheduleName,
 	ScheduleFrequency = AgentJobs_Stage.ScheduleFrequency,
-	step_id = AgentJobs_Stage.step_id,
-	step_name = AgentJobs_Stage.step_name,
-	subsystem = AgentJobs_Stage.subsystem,
-	command = AgentJobs_Stage.command,
-	databaseName = AgentJobs_Stage.DatabaseName,
+	StepID = AgentJobs_Stage.StepID,
+	StepName = AgentJobs_Stage.StepName,
+	SubSystem = AgentJobs_Stage.SubSystem,
+	Command = AgentJobs_Stage.Command,
+	DatabaseName = AgentJobs_Stage.DatabaseName,
 	LastRecorded = GETDATE()
 FROM Catalogue.AgentJobs_Stage
 WHERE	AgentJobs.ServerName = AgentJobs_Stage.ServerName
-		AND AgentJobs.job_id = AgentJobs_Stage.job_id
-		AND AgentJobs.step_id = AgentJobs_Stage.step_id
+		AND AgentJobs.JobID = AgentJobs_Stage.JobID
+		AND AgentJobs.StepID = AgentJobs_Stage.StepID
 
 --insert jobs that are unknown to the catlogue
 INSERT INTO Catalogue.AgentJobs 
-(ServerName,job_id,JobName,enabled,description,Category,date_created,date_modified,
-ScheduleEnabled,ScheduleName,ScheduleFrequency,step_id, step_name,subsystem,command,DatabaseName,
+(ServerName,JobID,JobName,Enabled,Description,Category,DateCreated,DateModified,
+ScheduleEnabled,ScheduleName,ScheduleFrequency,StepID, StepName,SubSystem,Command,DatabaseName,
 FirstRecorded, LastRecorded)
 SELECT	ServerName,
-		job_id,
+		JobID,
 		JobName,
-		enabled,
-		description,
+		Enabled,
+		Description,
 		Category,
-		date_created,
-		date_modified,
+		DateCreated,
+		DateModified,
 		ScheduleEnabled,
 		ScheduleName,
 		ScheduleFrequency,
-		step_id,
-		step_name,
-		subsystem,
-		command,
+		StepID,
+		StepName,
+		SubSystem,
+		Command,
 		DatabaseName,
 		GETDATE(),
 		GETDATE()
 FROM Catalogue.AgentJobs_Stage
 WHERE NOT EXISTS 
 (SELECT 1 FROM Catalogue.AgentJobs 
-		WHERE job_id = AgentJobs_Stage.job_id 
-		AND step_id = AgentJobs_Stage.step_id 
+		WHERE JobID = AgentJobs_Stage.JobID 
+		AND StepID = AgentJobs_Stage.StepID
 		AND ServerName = AgentJobs_Stage.ServerName)
 
 END
@@ -778,12 +778,12 @@ BEGIN
 
 --Get availability group details
 SELECT	AGs.name AS AGName,
-		Replicas.replica_server_name AS ServerName,
+		replicas.replica_server_name AS ServerName,
 		replica_states.role_desc AS Role,
 		AGs.automated_backup_preference_desc AS BackupPreference,
-		Replicas.availability_mode_desc AS AvailabilityMode,
-		Replicas.failover_mode_desc AS FailoverMode,
-		Replicas.secondary_role_allow_connections_desc AS ConnectionsToSecondary
+		replicas.availability_mode_desc AS AvailabilityMode,
+		replicas.failover_mode_desc AS FailoverMode,
+		replicas.secondary_role_allow_connections_desc AS ConnectionsToSecondary
 FROM sys.availability_groups AGs
 JOIN sys.availability_replicas replicas ON replicas.group_id = AGs.group_id
 JOIN sys.dm_hadr_availability_replica_states replica_states ON replica_states.replica_id = replicas.replica_id
@@ -855,7 +855,7 @@ CREATE TABLE [Catalogue].[Users](
 	[ServerName] [nvarchar](128) NULL,
 	[DBName] [nvarchar](128) NULL,
 	[UserName] [sysname] NOT NULL,
-	[sid] [varbinary](85) NULL,
+	[SID] [varbinary](85) NULL,
 	[RoleName] [sysname] NULL,
 	[MappedLoginName] [sysname] NOT NULL,
 	[FirstRecorded] [datetime] NULL,
@@ -877,7 +877,7 @@ CREATE TABLE [Catalogue].[Users_Stage](
 	[ServerName] [nvarchar](128) NULL,
 	[DBName] [nvarchar](128) NULL,
 	[UserName] [sysname] NOT NULL,
-	[sid] [varbinary](85) NULL,
+	[SID] [varbinary](85) NULL,
 	[RoleName] [sysname] NULL,
 	[MappedLoginName] [sysname] NOT NULL,
 	[ID] [int] IDENTITY(1,1) NOT NULL
@@ -990,7 +990,7 @@ UPDATE	Catalogue.Users
 SET		ServerName = Users_Stage.ServerName,
 		DBName = Users_Stage.DBName,
 		UserName = Users_Stage.UserName,
-		sid = Users_Stage.sid,
+		SID = Users_Stage.SID,
 		LastRecorded = GETDATE(),
 		MappedLoginName = Users_Stage.MappedLoginName
 FROM Catalogue.Users_Stage
@@ -1001,11 +1001,11 @@ WHERE	Users.UserName = Users_Stage.UserName
 
 --insert users that are unknown to the catlogue
 INSERT INTO Catalogue.Users
-(ServerName, DBName, UserName, sid, RoleName,MappedLoginName,FirstRecorded,LastRecorded)
+(ServerName, DBName, UserName, SID, RoleName,MappedLoginName,FirstRecorded,LastRecorded)
 SELECT ServerName,
 		DBName,
 		UserName,
-		sid,
+		SID,
 		RoleName,
 		MappedLoginName,
 		GETDATE(),
@@ -1027,9 +1027,9 @@ IF NOT EXISTS (	SELECT 1
 				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'ExplicitPermissions')
 CREATE TABLE [Catalogue].[ExplicitPermissions](
-	[name] [sysname] NOT NULL,
-	[permission_name] [nvarchar](128) NULL,
-	[state_desc] [nvarchar](60) NULL,
+	[Name] [sysname] NOT NULL,
+	[PermissionName] [nvarchar](128) NULL,
+	[StateDesc] [nvarchar](60) NULL,
 	[ServerName] [nvarchar](128) NULL,
 	[DBName] [nvarchar](128) NULL,
 	[MajorObject] [nvarchar](128) NULL,
@@ -1049,9 +1049,9 @@ IF NOT EXISTS (	SELECT 1
 				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'ExplicitPermissions_Stage')
 CREATE TABLE [Catalogue].[ExplicitPermissions_Stage](
-	[name] [sysname] NOT NULL,
-	[permission_name] [nvarchar](128) NULL,
-	[state_desc] [nvarchar](60) NULL,
+	[Name] [sysname] NOT NULL,
+	[PermissionName] [nvarchar](128) NULL,
+	[StateDesc] [nvarchar](60) NULL,
 	[ServerName] [nvarchar](128) NULL,
 	[DBName] [nvarchar](128) NULL,
 	[MajorObject] [nvarchar](128) NULL,
@@ -1086,9 +1086,9 @@ DROP TABLE #ExplicitPermissions_tmp
 
 --create temp table to bulid up result set
 CREATE TABLE #ExplicitPermissions_tmp(
-	[name] [sysname] NOT NULL,
-	[permission_name] [nvarchar](128) NULL,
-	[state_desc] [nvarchar](60) NULL,
+	[Name] [sysname] NOT NULL,
+	[PermissionName] [nvarchar](128) NULL,
+	[StateDesc] [nvarchar](60) NULL,
 	[ServerName] [nvarchar](128) NULL,
 	[DBName] [nvarchar](128) NULL,
 	[MajorObject] [nvarchar](128) NULL,
@@ -1123,7 +1123,7 @@ FROM sys.database_principals
 JOIN sys.database_permissions ON database_principals.principal_id = database_permissions.grantee_principal_id
 WHERE database_principals.name != ''public'''
 
-INSERT INTO #ExplicitPermissions_tmp(name,permission_name,state_desc,ServerName,DBName,MajorObject,MinorObject) 
+INSERT INTO #ExplicitPermissions_tmp(Name,PermissionName,StateDesc,ServerName,DBName,MajorObject,MinorObject) 
 EXEC sp_executesql @stmt = @cmd
 END TRY
 BEGIN CATCH
@@ -1157,18 +1157,18 @@ BEGIN
 
 --update permissions where they are known
 UPDATE	Catalogue.ExplicitPermissions 
-SET		name = ExplicitPermissions_Stage.name,
-		permission_name = ExplicitPermissions_Stage.permission_name,
-		state_desc = ExplicitPermissions_Stage.state_desc,
+SET		Name = ExplicitPermissions_Stage.Name,
+		PermissionName = ExplicitPermissions_Stage.PermissionName,
+		StateDesc = ExplicitPermissions_Stage.StateDesc,
 		ServerName = ExplicitPermissions_Stage.ServerName,
 		DBName = ExplicitPermissions_Stage.DBName,
 		MajorObject = ExplicitPermissions_Stage.MajorObject,
 		MinorObject = ExplicitPermissions_Stage.MinorObject,
 		LastRecorded = GETDATE()
 FROM Catalogue.ExplicitPermissions_Stage
-WHERE ExplicitPermissions.name  = ExplicitPermissions_Stage.name
-		AND ExplicitPermissions.permission_name = ExplicitPermissions_Stage.permission_name
-		AND ExplicitPermissions.state_desc = ExplicitPermissions_Stage.state_desc
+WHERE ExplicitPermissions.Name  = ExplicitPermissions_Stage.Name
+		AND ExplicitPermissions.PermissionName = ExplicitPermissions_Stage.PermissionName
+		AND ExplicitPermissions.StateDesc = ExplicitPermissions_Stage.StateDesc
 		AND ExplicitPermissions.ServerName = ExplicitPermissions_Stage.ServerName
 		AND ExplicitPermissions.DBName  = ExplicitPermissions_Stage.DBName
 		AND ISNULL(ExplicitPermissions.MajorObject,'') = ISNULL(ExplicitPermissions_Stage.MajorObject,'')
@@ -1176,10 +1176,10 @@ WHERE ExplicitPermissions.name  = ExplicitPermissions_Stage.name
 
 --insert permissions that are unknown to the catlogue
 INSERT INTO Catalogue.ExplicitPermissions
-(name, permission_name,state_desc,ServerName,DBName,MajorObject,MinorObject,FirstRecorded,LastRecorded)
-SELECT	name,
-		permission_name,
-		state_desc,
+(Name, PermissionName,StateDesc,ServerName,DBName,MajorObject,MinorObject,FirstRecorded,LastRecorded)
+SELECT	Name,
+		PermissionName,
+		StateDesc,
 		ServerName,
 		DBName,
 		MajorObject,
@@ -1189,9 +1189,9 @@ SELECT	name,
 FROM Catalogue.ExplicitPermissions_Stage
 WHERE NOT EXISTS 
 (SELECT 1 FROM Catalogue.ExplicitPermissions
-		WHERE ExplicitPermissions.name = ExplicitPermissions_Stage.name
-		AND ExplicitPermissions.permission_name = ExplicitPermissions_Stage.permission_name
-		AND ExplicitPermissions.state_desc = ExplicitPermissions_Stage.state_desc
+		WHERE ExplicitPermissions.Name = ExplicitPermissions_Stage.Name
+		AND ExplicitPermissions.PermissionName = ExplicitPermissions_Stage.PermissionName
+		AND ExplicitPermissions.StateDesc = ExplicitPermissions_Stage.StateDesc
 		AND ExplicitPermissions.ServerName = ExplicitPermissions_Stage.ServerName
 		AND ExplicitPermissions.DBName = ExplicitPermissions_Stage.DBName
 		AND ISNULL(ExplicitPermissions.MajorObject,'') = ISNULL(ExplicitPermissions_Stage.MajorObject,'')
@@ -1267,8 +1267,8 @@ BEGIN
 		[ID] ASC
 	))
 
-	INSERT INTO catalogue.configPosh (ParameterName,ParameterValue)
-	VALUES	('CatalogueVersion', '0.1.0'),
+	INSERT INTO Catalogue.ConfigPoSH (ParameterName,ParameterValue)
+	VALUES	('CatalogueVersion', '0.2.0'),
 			('AutoDiscoverInstances','0'),
 			('DBAToolsRequirement', '0.9.385'),
 			('AutoInstall', '0'),

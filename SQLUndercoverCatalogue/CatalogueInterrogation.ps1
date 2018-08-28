@@ -21,9 +21,9 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 Import-Module dbatools
 
 #configuration variables
-$ConfigServer = "{configuration instance}"
+$ConfigServer = "LAPTOP-FOWLERD\SQL2016_2"
 $SQLUndercoverDatabase = "SQLUndercover"
-$ScriptVersion = "0.1.0"
+$ScriptVersion = "0.2.0"
 
 Clear-Host
 
@@ -66,13 +66,13 @@ Write-Host "|                                  cKkl,                            
 Write-Host "|                                  ;c.                                      |" -ForegroundColor White -BackgroundColor Black                                                                      
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "|                           Undercover Catalogue                            |" -ForegroundColor White -BackgroundColor Black
-Write-Host "|                               version 0.1                                 |" -ForegroundColor White -BackgroundColor Black
+Write-Host "|                               version 0.2                                 |" -ForegroundColor White -BackgroundColor Black
 Write-Host "|                          ©2018 sqlundercover.com                          |" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "getting configuration parameters..." -ForegroundColor Yellow
 
-$Config = Invoke-DbaSqlQuery -ServerInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT ParameterName, ParameterValue FROM catalogue.configPoSH" -As DataSet
+$Config = Invoke-DbaSqlQuery -ServerInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT ParameterName, ParameterValue FROM Catalogue.ConfigPoSH" -As DataSet
 
 $dbatoolsRequiredVersion = $Config.Tables[0].Select("ParameterName = 'DBAToolsRequirement'").ItemArray[1].ToString()
 $CatalogueVersion = $Config.Tables[0].Select("ParameterName = 'CatalogueVersion'").ItemArray[1].ToString()
@@ -156,7 +156,7 @@ ForEach ($instance in $Instances.Tables[0].Rows)
 
         Write-Host "Checking Local Catalogue Version..." -ForegroundColor Yellow
         #check local catalogue version
-        $LocalConfig = Invoke-DbaSqlQuery -ServerInstance $instance.ItemArray[0].ToString() -Database $SQLUndercoverDatabase -Query "SELECT ParameterName, ParameterValue FROM catalogue.configPoSH" -As DataSet -WarningVariable WarningMessage
+        $LocalConfig = Invoke-DbaSqlQuery -ServerInstance $instance.ItemArray[0].ToString() -Database $SQLUndercoverDatabase -Query "SELECT ParameterName, ParameterValue FROM Catalogue.ConfigPoSH" -As DataSet -WarningVariable WarningMessage
         $LocalCatalogueVersion = $LocalConfig.Tables[0].Select("ParameterName = 'CatalogueVersion'").ItemArray[1].ToString()
         If ($LocalCatalogueVersion -eq $CatalogueVersion) #if catalogue version ok, carry on with interrogation
         {Write-Host "Version Check OK" -ForegroundColor Green
