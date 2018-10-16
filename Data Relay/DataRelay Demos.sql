@@ -18,7 +18,7 @@
     ;@@@@@@@@@@@@@@@@@@@@@@@@@@'        @     @   @# @#      #@   @ #@@@   @@@@  @@@  @@@@@  @@@   @@  @   @  @@   @ @@
         .+@@@@@@@@@@@@@@@@+.            @@@@  @   @@ @#      #@   @ #@  @ @@  @  @  @  @@   @  @  @ `@  @ @  @  @  @@
        '`                  `,#           @@@@ @   @@ @#      #@   @ #@  @ @#  @ @@@@@  @    @     @  @  @ @  @@@@  @`
-     ,@@@@ '@@@@@@@@@@@@@ .@@@@;           @  @   @@ @#      #@   @ #@  @ @@  @ @@     @ `  @     @  @  @@@  @     @
+     ,@@@@ '@@@@@@@@@@@@@ .@@@@;           @  @   @@ @#      #@   @ #@  @ @@  @ @@     @    @     @  @  @@@  @     @
     #@@@@@@ @@@@@  +@@@@  +@@@@@@       @@@@   @@@@  @@@@@   `@@@@@ #@  @ #@ @@  @  @  @    @@ @  @  @   @   @  @  @
    @@@@@@@@  ,#.    `#;   @@@@@@@@'      @@     @@   @@@@@     @@,  #@  @  @@ @   @@  @@     #@    @@    @    @@   @
   ;#@@@@@@@@             @@@@@@@@@#,              @
@@ -218,9 +218,19 @@ EXEC EncryptData_CaesarXOR @PlainText = '”±¤±†µ¼±©', @Key = 210, @Shi
 
 
 
+
+
+
+
+
 --Substitution cypher example
 
 EXEC EncryptData_CaesarXOR @PlainText = 'AAABBBCCC',@Key = 113, @Shift = 2, @Decrypt = 0
+
+
+
+
+
 
 
 
@@ -245,6 +255,10 @@ What is the gig economy?
 Speaking at its launch, the prime minister will say the Taylor report confronts issues that "go right to the heart of this governments agenda and right to the heart of our values as a people".
 Mrs May will say: "I am clear that this government will act to ensure that the interests of employees on traditional contracts, the self-employed and those people working in the gig economy are all properly protected."',
  10, 2
+
+
+
+
 
 
 
@@ -308,6 +322,7 @@ SELECT REPLACE('\`m(i}|`{~({b(i(c{rm~zemz|(~mrams(az|{(s{~g(x~io|aom(a(oiddazc
 ,(SELECT Character FROM #CharacterFrequency WHERE PredictedCharacter = ' '),' ')
 GO
 
+\`m i}|`{~ {b i c{rm~zemz| ~mrams az|{ s{~g x~io|aom a oiddazc b{~ |`m mzl {b |`m .oi` az `izl mo{z{eq.:Ei||`ms \iqd{~$ s`{m ~mx{~| a {}| {z \}mliq$ ial oi` f{n dagm sazl{s odmizazc izl lmo{~i|azc sm~m s{~|` }x |{ ?2nz i qmi~$ e}o` {b a| }z|ipml:Az|mil$ |`m s{~g `{}dl nm xial |`~{}c` .xiqemz| xdi|b{~e.$ E~ \iqd{~ |{dl NNO mo{z{eao mla|{~ Gieid I`eml:\`m ~mrams$ o{eeaa{zml nq \`m~mi Eiq$ id{ |iogdm d{s%xial s{~g$ vm~{ `{}~ o{z|~io| izl |`m cac mo{z{eq:E~ \iqd{~$ s`{ a o`amb mpmo}|arm {b |`m ^{qid _{oam|q {b I~| izl i b{~em~ \{zq Ndia~ ilra{~$ a m| |{ oidd b{~ oi` f{n |{ nm xial |`~{}c` xdi|b{~e }o` i o~mla| oi~l$ o{z|io|dm xiqemz| izl XiqXid:\`a s{}dl eigm a| `i~lm~ b{~ o}|{em~ izl s{~gm~ |{ ir{al xiqazc |ip:X~{xm~dq x~{|mo|ml\`m ~mo{eemzli|a{z i~m xi~| {b i e}o` salm~ ~mrams az|{ e{lm~z s{~gazc x~io|aom$ azod}lazc |`m cac mo{z{eq:E~ \iqd{~ ~mx{~| ~mo{eemzl i zms oi|mc{~q {b s{~gm~ oiddml i .lmxmzlmz| o{z|~io|{~.$ s`{ `{}dl nm carmz mp|~i x~{|mo|a{z nq ba~e dagm ]nm~ izl Lmdarm~{{:A| id{ iq d{s%xial s{~gm~ `{}dl z{| nm .|}og. i| |`m eazae}e darazc sicm {~ biom azmo}~a|q:Eazae}e sicm x}` b{~ cac mo{z{eq s{~gm~Lmdarm~{{ e{rm {z nmzmba| b{~ ~alm~S`i| a |`m cac mo{z{eqK_xmigazc i| a| di}zo`$ |`m x~aem eaza|m~ sadd iq |`m \iqd{~ ~mx{~| o{zb~{z| a}m |`i| .c{ ~ac`| |{ |`m `mi~| {b |`a c{rm~zemz| icmzli izl ~ac`| |{ |`m `mi~| {b {}~ rid}m i i xm{xdm.:E~ Eiq sadd iq6 .A ie odmi~ |`i| |`a c{rm~zemz| sadd io| |{ mz}~m |`i| |`m az|m~m| {b mexd{qmm {z |~ila|a{zid o{z|~io|$ |`m mdb%mexd{qml izl |`{m xm{xdm s{~gazc az |`m cac mo{z{eq i~m idd x~{xm~dq x~{|mo|ml:.
 
 
 
