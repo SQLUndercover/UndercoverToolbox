@@ -39,6 +39,12 @@ Undercover Catalogue Installation 0.2.0
 Written By David Fowler
 28/08/2018
 
+Fresh Installation and Upgrade
+
+Changes:
+Modifications to 0.1 schema to make compatible with case sensitive collations
+Hardware information added to Servers module
+
 MIT License
 ------------
 
@@ -80,27 +86,36 @@ IF NOT EXISTS (	SELECT 1
 				FROM sys.tables
 				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'Databases')
-CREATE TABLE [Catalogue].[Databases](
-	[ServerName] [nvarchar](128) NOT NULL,
-	[DBName] [sysname] NOT NULL,
-	[DatabaseID] [int] NOT NULL,
-	[OwnerName] [sysname] NULL,
-	[CompatibilityLevel] [tinyint] NOT NULL,
-	[CollationName] [sysname] NULL,
-	[RecoveryModelDesc] [nvarchar](60) NULL,
-	[AGName] [sysname] NULL,
-	[FilePaths] [nvarchar](max) NULL,
-	[DatabaseSizeMB] [bigint] NULL,
-	[FirstRecorded] [datetime] NULL,
-	[LastRecorded] [datetime] NULL,
-	[CustomerName] [varchar](50) NULL,
-	[ApplicationName] [varchar](50) NULL,
-	[Notes] [varchar](255) NULL,
- CONSTRAINT [PK_Databases] PRIMARY KEY CLUSTERED 
-(
-	[ServerName] ASC,
-	[DatabaseID] ASC
-))
+BEGIN
+	CREATE TABLE [Catalogue].[Databases](
+		[ServerName] [nvarchar](128) NOT NULL,
+		[DBName] [sysname] NOT NULL,
+		[DatabaseID] [int] NOT NULL,
+		[OwnerName] [sysname] NULL,
+		[CompatibilityLevel] [tinyint] NOT NULL,
+		[CollationName] [sysname] NULL,
+		[RecoveryModelDesc] [nvarchar](60) NULL,
+		[AGName] [sysname] NULL,
+		[FilePaths] [nvarchar](max) NULL,
+		[DatabaseSizeMB] [bigint] NULL,
+		[FirstRecorded] [datetime] NULL,
+		[LastRecorded] [datetime] NULL,
+		[CustomerName] [varchar](50) NULL,
+		[ApplicationName] [varchar](50) NULL,
+		[Notes] [varchar](255) NULL,
+	 CONSTRAINT [PK_Databases] PRIMARY KEY CLUSTERED 
+	(
+		[ServerName] ASC,
+		[DatabaseID] ASC
+	))
+END
+ELSE
+BEGIN
+	EXEC sp_rename 'Catalogue.Databases.database_id', 'DatabaseID'
+	EXEC sp_rename 'Catalogue.Databases.compatibility_level', 'CompatibilityLevel'
+	EXEC sp_rename 'Catalogue.Databases.collation_name', 'CollationName'
+	EXEC sp_rename 'Catalogue.Databases.recovery_model_desc', 'RecoveryModelDesc'
+END
 GO
 
 --create database staging table
@@ -108,22 +123,31 @@ IF NOT EXISTS (	SELECT 1
 				FROM sys.tables
 				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'Databases_Stage')
-CREATE TABLE [Catalogue].[Databases_Stage](
-	[ServerName] [nvarchar](128) NOT NULL,
-	[DBName] [sysname] NOT NULL,
-	[DatabaseID] [int] NOT NULL,
-	[OwnerName] [sysname] NULL,
-	[CompatibilityLevel] [tinyint] NOT NULL,
-	[CollationName] [sysname] NULL,
-	[RecoveryModelDesc] [nvarchar](60) NULL,
-	[AGName] [sysname] NULL,
-	[FilePaths] [nvarchar](max) NULL,
-	[DatabaseSizeMB] [bigint] NULL
- CONSTRAINT [PK_Databases_Stage] PRIMARY KEY CLUSTERED 
-(
-	[ServerName] ASC,
-	[DatabaseID] ASC
-))
+BEGIN
+	CREATE TABLE [Catalogue].[Databases_Stage](
+		[ServerName] [nvarchar](128) NOT NULL,
+		[DBName] [sysname] NOT NULL,
+		[DatabaseID] [int] NOT NULL,
+		[OwnerName] [sysname] NULL,
+		[CompatibilityLevel] [tinyint] NOT NULL,
+		[CollationName] [sysname] NULL,
+		[RecoveryModelDesc] [nvarchar](60) NULL,
+		[AGName] [sysname] NULL,
+		[FilePaths] [nvarchar](max) NULL,
+		[DatabaseSizeMB] [bigint] NULL
+	 CONSTRAINT [PK_Databases_Stage] PRIMARY KEY CLUSTERED 
+	(
+		[ServerName] ASC,
+		[DatabaseID] ASC
+	))
+END
+ELSE
+BEGIN
+	EXEC sp_rename 'Catalogue.Databases_Stage.database_id', 'DatabaseID'
+	EXEC sp_rename 'Catalogue.Databases_Stage.compatibility_level', 'CompatibilityLevel'
+	EXEC sp_rename 'Catalogue.Databases_Stage.collation_name', 'CollationName'
+	EXEC sp_rename 'Catalogue.Databases_Stage.recovery_model_desc', 'RecoveryModelDesc'
+END
 GO
 
 --create job to get database details
@@ -338,21 +362,27 @@ IF NOT EXISTS (	SELECT 1
 				FROM sys.tables
 				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'Logins')
-CREATE TABLE [Catalogue].[Logins](
-	[ServerName] [nvarchar](128) NULL,
-	[LoginName] [sysname] NOT NULL,
-	[SID] [varbinary](85) NULL,
-	[RoleName] [sysname] NULL,
-	[ID] [int] IDENTITY(1,1) NOT NULL,
-	[IsDisabled] [bit] NULL,
-	[Notes] [varchar](255) NULL,
-	[PasswordHash] [varbinary](256) NULL,
-	[FirstRecorded] [datetime] NULL,
-	[LastRecorded] [datetime] NULL,
- CONSTRAINT [PK_Logins] PRIMARY KEY CLUSTERED 
-(
-	[ID] ASC
-))
+BEGIN
+	CREATE TABLE [Catalogue].[Logins](
+		[ServerName] [nvarchar](128) NULL,
+		[LoginName] [sysname] NOT NULL,
+		[SID] [varbinary](85) NULL,
+		[RoleName] [sysname] NULL,
+		[ID] [int] IDENTITY(1,1) NOT NULL,
+		[IsDisabled] [bit] NULL,
+		[Notes] [varchar](255) NULL,
+		[PasswordHash] [varbinary](256) NULL,
+		[FirstRecorded] [datetime] NULL,
+		[LastRecorded] [datetime] NULL,
+	 CONSTRAINT [PK_Logins] PRIMARY KEY CLUSTERED 
+	(
+		[ID] ASC
+	))
+END
+ELSE
+BEGIN	
+	EXEC sp_rename 'Catalogue.Logins.sid', 'SID'
+END
 GO
 
 --create database staging table
@@ -360,18 +390,24 @@ IF NOT EXISTS (	SELECT 1
 				FROM sys.tables
 				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'Logins_Stage')
-CREATE TABLE [Catalogue].[Logins_Stage](
-	[ServerName] [nvarchar](128) NULL,
-	[LoginName] [sysname] NOT NULL,
-	[SID] [varbinary](85) NULL,
-	[RoleName] [sysname] NULL,
-	[ID] [int] IDENTITY(1,1) NOT NULL,
-	[IsDisabled] [bit] NULL,
-	[PasswordHash] [varbinary](256) NULL
- CONSTRAINT [PK_Logins_Stage] PRIMARY KEY CLUSTERED 
-(
-	[ID] ASC
-))
+BEGIN
+	CREATE TABLE [Catalogue].[Logins_Stage](
+		[ServerName] [nvarchar](128) NULL,
+		[LoginName] [sysname] NOT NULL,
+		[SID] [varbinary](85) NULL,
+		[RoleName] [sysname] NULL,
+		[ID] [int] IDENTITY(1,1) NOT NULL,
+		[IsDisabled] [bit] NULL,
+		[PasswordHash] [varbinary](256) NULL
+	 CONSTRAINT [PK_Logins_Stage] PRIMARY KEY CLUSTERED 
+	(
+		[ID] ASC
+	))
+END
+ELSE
+BEGIN
+	EXEC sp_rename 'Catalogue.Logins_Stage.sid', 'SID'
+END
 GO
 
 --create proc to get logins
@@ -461,31 +497,44 @@ IF NOT EXISTS (	SELECT 1
 				FROM sys.tables
 				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'AgentJobs')
-CREATE TABLE [Catalogue].[AgentJobs](
-	[ServerName] [nvarchar](128) NULL,
-	[JobID] [uniqueidentifier] NOT NULL,
-	[JobName] [sysname] NOT NULL,
-	[Enabled] [tinyint] NOT NULL,
-	[Description] [nvarchar](512) NULL,
-	[Category] [sysname] NOT NULL,
-	[DateCreated] [datetime] NOT NULL,
-	[DateModified] [datetime] NOT NULL,
-	[ScheduleEnabled] [int] NOT NULL,
-	[ScheduleName] [sysname] NOT NULL,
-	[ScheduleFrequency] [varchar](8000) NULL,
-	[StepID] [int] NOT NULL,
-	[StepName] [sysname] NOT NULL,
-	[SubSystem] [nvarchar](40) NOT NULL,
-	[Command] [nvarchar](max) NULL,
-	[DatabaseName] [sysname] NULL,
-	[FirstRecorded] [datetime] NULL,
-	[LastRecorded] [datetime] NULL,
-	[ID] [int] IDENTITY(1,1) NOT NULL,
- CONSTRAINT [PK_AgentJobs] PRIMARY KEY CLUSTERED 
-(
-	[ID] ASC
-))
-
+BEGIN
+	CREATE TABLE [Catalogue].[AgentJobs](
+		[ServerName] [nvarchar](128) NULL,
+		[JobID] [uniqueidentifier] NOT NULL,
+		[JobName] [sysname] NOT NULL,
+		[Enabled] [tinyint] NOT NULL,
+		[Description] [nvarchar](512) NULL,
+		[Category] [sysname] NOT NULL,
+		[DateCreated] [datetime] NOT NULL,
+		[DateModified] [datetime] NOT NULL,
+		[ScheduleEnabled] [int] NOT NULL,
+		[ScheduleName] [sysname] NOT NULL,
+		[ScheduleFrequency] [varchar](8000) NULL,
+		[StepID] [int] NOT NULL,
+		[StepName] [sysname] NOT NULL,
+		[SubSystem] [nvarchar](40) NOT NULL,
+		[Command] [nvarchar](max) NULL,
+		[DatabaseName] [sysname] NULL,
+		[FirstRecorded] [datetime] NULL,
+		[LastRecorded] [datetime] NULL,
+		[ID] [int] IDENTITY(1,1) NOT NULL,
+	 CONSTRAINT [PK_AgentJobs] PRIMARY KEY CLUSTERED 
+	(
+		[ID] ASC
+	))
+END
+ELSE
+BEGIN
+	EXEC sp_rename 'Catalogue.AgentJobs.job_id', 'JobID'
+	EXEC sp_rename 'Catalogue.AgentJobs.enabled', 'Enabled'
+	EXEC sp_rename 'Catalogue.AgentJobs.description', 'Description'
+	EXEC sp_rename 'Catalogue.AgentJobs.date_created', 'DateCreated'
+	EXEC sp_rename 'Catalogue.AgentJobs.date_modified', 'DateModified'
+	EXEC sp_rename 'Catalogue.AgentJobs.step_id', 'StepID'
+	EXEC sp_rename 'Catalogue.AgentJobs.step_name', 'StepName'
+	EXEC sp_rename 'Catalogue.AgentJobs.subsystem', 'SubSystem'
+	EXEC sp_rename 'Catalogue.AgentJobs.command', 'Command'
+END
 GO
 
 --create database staging table
@@ -493,28 +542,41 @@ IF NOT EXISTS (	SELECT 1
 				FROM sys.tables
 				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'AgentJobs_Stage')
-CREATE TABLE [Catalogue].[AgentJobs_Stage](
-	[ServerName] [nvarchar](128) NOT NULL,
-	[JobID] [uniqueidentifier] NOT NULL,
-	[JobName] [sysname] NOT NULL,
-	[Enabled] [tinyint] NOT NULL,
-	[Description] [nvarchar](512) NULL,
-	[Category] [sysname] NOT NULL,
-	[DateCreated] [datetime] NOT NULL,
-	[DateModified] [datetime] NOT NULL,
-	[ScheduleEnabled] [int] NOT NULL,
-	[ScheduleName] [sysname] NOT NULL,
-	[ScheduleFrequency] [varchar](8000) NULL,
-	[StepID] [int] NOT NULL,
-	[StepName] [sysname] NOT NULL,
-	[SubSystem] [nvarchar](40) NOT NULL,
-	[Command] [nvarchar](max) NULL,
-	[DatabaseName] [sysname] NULL
- CONSTRAINT [PK_AgentJobs_Stage] PRIMARY KEY CLUSTERED 
-(
-	[JobID],[ServerName],[StepID] ASC
-))
-
+BEGIN
+	CREATE TABLE [Catalogue].[AgentJobs_Stage](
+		[ServerName] [nvarchar](128) NOT NULL,
+		[JobID] [uniqueidentifier] NOT NULL,
+		[JobName] [sysname] NOT NULL,
+		[Enabled] [tinyint] NOT NULL,
+		[Description] [nvarchar](512) NULL,
+		[Category] [sysname] NOT NULL,
+		[DateCreated] [datetime] NOT NULL,
+		[DateModified] [datetime] NOT NULL,
+		[ScheduleEnabled] [int] NOT NULL,
+		[ScheduleName] [sysname] NOT NULL,
+		[ScheduleFrequency] [varchar](8000) NULL,
+		[StepID] [int] NOT NULL,
+		[StepName] [sysname] NOT NULL,
+		[SubSystem] [nvarchar](40) NOT NULL,
+		[Command] [nvarchar](max) NULL,
+		[DatabaseName] [sysname] NULL
+	 CONSTRAINT [PK_AgentJobs_Stage] PRIMARY KEY CLUSTERED 
+	(
+		[JobID],[ServerName],[StepID] ASC
+	))
+END
+ELSE
+BEGIN
+	EXEC sp_rename 'Catalogue.AgentJobs_Stage.job_id', 'JobID'
+	EXEC sp_rename 'Catalogue.AgentJobs_Stage.enabled', 'Enabled'
+	EXEC sp_rename 'Catalogue.AgentJobs_Stage.description', 'Description'
+	EXEC sp_rename 'Catalogue.AgentJobs_Stage.date_created', 'DateCreated'
+	EXEC sp_rename 'Catalogue.AgentJobs_Stage.date_modified', 'DateModified'
+	EXEC sp_rename 'Catalogue.AgentJobs_Stage.step_id', 'StepID'
+	EXEC sp_rename 'Catalogue.AgentJobs_Stage.step_name', 'StepName'
+	EXEC sp_rename 'Catalogue.AgentJobs_Stage.subsystem', 'SubSystem'
+	EXEC sp_rename 'Catalogue.AgentJobs_Stage.command', 'Command'
+END
 GO
 
 IF EXISTS (	SELECT * 
@@ -851,21 +913,27 @@ IF NOT EXISTS (	SELECT 1
 				FROM sys.tables
 				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'Users')
-CREATE TABLE [Catalogue].[Users](
-	[ServerName] [nvarchar](128) NULL,
-	[DBName] [nvarchar](128) NULL,
-	[UserName] [sysname] NOT NULL,
-	[SID] [varbinary](85) NULL,
-	[RoleName] [sysname] NULL,
-	[MappedLoginName] [sysname] NOT NULL,
-	[FirstRecorded] [datetime] NULL,
-	[LastRecorded] [datetime] NULL,
-	[ID] [int] IDENTITY(1,1) NOT NULL,
-	[Notes] [varchar](255) NULL,
- CONSTRAINT [PK_Users] PRIMARY KEY CLUSTERED 
-(
-	[ID] ASC
-))
+BEGIN
+	CREATE TABLE [Catalogue].[Users](
+		[ServerName] [nvarchar](128) NULL,
+		[DBName] [nvarchar](128) NULL,
+		[UserName] [sysname] NOT NULL,
+		[SID] [varbinary](85) NULL,
+		[RoleName] [sysname] NULL,
+		[MappedLoginName] [sysname] NOT NULL,
+		[FirstRecorded] [datetime] NULL,
+		[LastRecorded] [datetime] NULL,
+		[ID] [int] IDENTITY(1,1) NOT NULL,
+		[Notes] [varchar](255) NULL,
+	 CONSTRAINT [PK_Users] PRIMARY KEY CLUSTERED 
+	(
+		[ID] ASC
+	))
+END
+ELSE
+BEGIN
+	EXEC sp_rename 'Catalogue.Users.sid', 'SID'
+END
 GO
 
 --create database staging table
@@ -873,18 +941,24 @@ IF NOT EXISTS (	SELECT 1
 				FROM sys.tables
 				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'Users_Stage')
-CREATE TABLE [Catalogue].[Users_Stage](
-	[ServerName] [nvarchar](128) NULL,
-	[DBName] [nvarchar](128) NULL,
-	[UserName] [sysname] NOT NULL,
-	[SID] [varbinary](85) NULL,
-	[RoleName] [sysname] NULL,
-	[MappedLoginName] [sysname] NOT NULL,
-	[ID] [int] IDENTITY(1,1) NOT NULL
- CONSTRAINT [PK_Users_Stage] PRIMARY KEY CLUSTERED 
-(
-	[ID] ASC
-))
+BEGIN
+	CREATE TABLE [Catalogue].[Users_Stage](
+		[ServerName] [nvarchar](128) NULL,
+		[DBName] [nvarchar](128) NULL,
+		[UserName] [sysname] NOT NULL,
+		[SID] [varbinary](85) NULL,
+		[RoleName] [sysname] NULL,
+		[MappedLoginName] [sysname] NOT NULL,
+		[ID] [int] IDENTITY(1,1) NOT NULL
+	 CONSTRAINT [PK_Users_Stage] PRIMARY KEY CLUSTERED 
+	(
+		[ID] ASC
+	))
+END
+ELSE
+BEGIN
+	EXEC sp_rename 'Catalogue.Users_Stage.sid', 'SID'
+END
 GO
 
 
@@ -1026,28 +1100,37 @@ IF NOT EXISTS (	SELECT 1
 				FROM sys.tables
 				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'ExplicitPermissions')
-CREATE TABLE [Catalogue].[ExplicitPermissions](
-	[Name] [sysname] NOT NULL,
-	[PermissionName] [nvarchar](128) NULL,
-	[StateDesc] [nvarchar](60) NULL,
-	[ServerName] [nvarchar](128) NULL,
-	[DBName] [nvarchar](128) NULL,
-	[MajorObject] [nvarchar](128) NULL,
-	[MinorObject] [nvarchar](128) NULL,
-	[FirstRecorded] [datetime] NULL,
-	[LastRecorded] [datetime] NULL,
-	[ID] [int] IDENTITY(1,1) NOT NULL,
-	[Notes] [varchar](255) NULL,
- CONSTRAINT [PK_ExplicitPermissions] PRIMARY KEY CLUSTERED 
-(
-	[ID] ASC
-))
+BEGIN
+	CREATE TABLE [Catalogue].[ExplicitPermissions](
+		[Name] [sysname] NOT NULL,
+		[PermissionName] [nvarchar](128) NULL,
+		[StateDesc] [nvarchar](60) NULL,
+		[ServerName] [nvarchar](128) NULL,
+		[DBName] [nvarchar](128) NULL,
+		[MajorObject] [nvarchar](128) NULL,
+		[MinorObject] [nvarchar](128) NULL,
+		[FirstRecorded] [datetime] NULL,
+		[LastRecorded] [datetime] NULL,
+		[ID] [int] IDENTITY(1,1) NOT NULL,
+		[Notes] [varchar](255) NULL,
+	 CONSTRAINT [PK_ExplicitPermissions] PRIMARY KEY CLUSTERED 
+	(
+		[ID] ASC
+	))
+END
+ELSE
+BEGIN
+	EXEC sp_rename 'Catalogue.ExplicitPermissions.name', 'Name'
+	EXEC sp_rename 'Catalogue.ExplicitPermissions.permission_name', 'PermissionName'
+	EXEC sp_rename 'Catalogue.ExplicitPermissions.state_desc', 'StateDesc'
+END
 GO
 
 IF NOT EXISTS (	SELECT 1
 				FROM sys.tables
 				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
 				WHERE schemas.name = 'Catalogue' AND tables.name = 'ExplicitPermissions_Stage')
+BEGIN
 CREATE TABLE [Catalogue].[ExplicitPermissions_Stage](
 	[Name] [sysname] NOT NULL,
 	[PermissionName] [nvarchar](128) NULL,
@@ -1061,6 +1144,13 @@ CREATE TABLE [Catalogue].[ExplicitPermissions_Stage](
 (
 	[ID] ASC
 ))
+END
+ELSE
+BEGIN
+	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.name', 'Name'
+	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.permission_name', 'PermissionName'
+	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.state_desc', 'StateDesc'
+END
 GO
 
 
@@ -1275,6 +1365,10 @@ BEGIN
 			('AutoUpdate', '0'),
 			('InstallationScriptPath', '{script path}')
 END
+ELSE
+BEGIN
+	EXEC sp_rename 'Catalogue.configPoSH', 'ConfigPoSH'
+END
 GO
 
 
@@ -1284,3 +1378,449 @@ GO
 
 
 
+--------------------------------------------------------------------------------------------------------------
+------------------Version 0.2 Changes-------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------
+
+--Server Module Enhancements
+
+--alter server table to include new fields
+
+--------------------------------------Catalogue Servers----------------------------------------------------------------
+--change version number in ConfigPoSH to 0.2.0
+
+UPDATE Catalogue.ConfigPoSH 
+SET ParameterValue = '0.2.0'
+WHERE ParameterName = 'CatalogueVersion'
+GO
+
+--add 0.2 columns to Servers_Stage
+
+ALTER TABLE Catalogue.Servers_Stage
+ADD ServerStartTime DATETIME,
+	CostThreshold INT,
+	MaxWorkerThreads INT,
+	[MaxDOP] INT,
+	CPUCount INT,
+	NUMACount INT,
+	PhysicalMemoryMB INT,
+	MaxMemoryMB INT,
+	MinMemoryMB INT,
+	MemoryModel NVARCHAR(128),
+	IsClustered BIT,
+	VMType NVARCHAR(60)
+GO
+
+--add 0.2 columns to Servers
+
+ALTER TABLE Catalogue.[Servers]
+ADD ServerStartTime DATETIME,
+	CostThreshold INT,
+	MaxWorkerThreads INT,
+	[MaxDOP] INT,
+	CPUCount INT,
+	NUMACount INT,
+	PhysicalMemoryMB INT,
+	MaxMemoryMB INT,
+	MinMemoryMB INT,
+	MemoryModel NVARCHAR(128),
+	IsClustered BIT,
+	VMType NVARCHAR(60)
+GO
+
+
+
+--create proc to get server details
+
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'GetServers'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.GetServers
+GO
+
+CREATE PROC Catalogue.GetServers
+AS
+BEGIN
+
+SELECT 
+@@SERVERNAME AS ServerName, 
+SERVERPROPERTY('collation') AS Collation,  --nvarchar(128)
+SERVERPROPERTY('Edition') AS Edition, --nvarchar(128)
+SERVERPROPERTY('ProductVersion') AS VersionNo,
+sqlserver_start_time AS ServerStartTime,
+[cost threshold for parallelism] AS CostThreshold,
+[max worker threads] AS MaxWorkerThreads,
+[max degree of parallelism] AS [MaxDOP],
+cpu_count AS CPUCount,
+numa_node_count AS NUMACount,
+physical_memory_kb / 1024 AS PhysicalMemoryMB,
+[min server memory (MB)] AS MaxMemoryMB,
+[max server memory (MB)] AS MinMemoryMB,
+sql_memory_model_desc AS MemoryModel,
+SERVERPROPERTY('IsClustered') AS IsClustered,
+virtual_machine_type_desc AS VMType
+
+FROM sys.dm_os_sys_info,
+(
+	SELECT [max worker threads],[cost threshold for parallelism],[max degree of parallelism],[min server memory (MB)],[max server memory (MB)]
+	FROM 
+	(SELECT name, value_in_use
+	FROM sys.configurations
+	WHERE name in ('max worker threads','cost threshold for parallelism','max degree of parallelism','min server memory (MB)','max server memory (MB)')) AS Source
+	PIVOT
+	(
+	MAX(value_in_use)
+	FOR name IN ([max worker threads],[cost threshold for parallelism],[max degree of parallelism],[min server memory (MB)],[max server memory (MB)])
+	)AS PivotTable
+) AS config
+END
+GO
+
+--create proc to update server catalogue
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'UpdateServers'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.UpdateServers
+GO
+
+CREATE PROC [Catalogue].[UpdateServers]
+AS
+BEGIN
+--update servers where they are known to the catalogue
+UPDATE Catalogue.Servers 
+SET		ServerName = Servers_Stage.ServerName,
+		Collation = Servers_Stage.Collation,
+		Edition = Servers_Stage.Edition,
+		VersionNo = Servers_Stage.VersionNo,
+		LastRecorded = GETDATE(),
+		ServerStartTime = Servers_Stage.ServerStartTime,
+		CostThreshold = Servers_Stage.CostThreshold,
+		MaxWorkerThreads = Servers_Stage.MaxWorkerThreads,
+		[MaxDOP] = Servers_Stage.[MaxDOP],
+		CPUCount = Servers_Stage.CPUCount,
+		NUMACount = Servers_Stage.NUMACount,
+		PhysicalMemoryMB = Servers_Stage.PhysicalMemoryMB,
+		MaxMemoryMB = Servers_Stage.MaxMemoryMB,
+		MinMemoryMB = Servers_Stage.MinMemoryMB,
+		MemoryModel = Servers_Stage.MemoryModel,
+		IsClustered = Servers_Stage.IsClustered,
+		VMType = Servers_Stage.VMType
+FROM Catalogue.Servers_Stage
+WHERE	Servers.ServerName = Servers_Stage.ServerName
+
+--insert jobs that are unknown to the catlogue
+INSERT INTO Catalogue.Servers
+			([ServerName], 
+			[Collation], 
+			[Edition], 
+			[VersionNo],
+			FirstRecorded,
+			LastRecorded,
+			ServerStartTime,
+			CostThreshold,
+			MaxWorkerThreads,
+			[MaxDOP],
+			CPUCount,
+			NUMACount,
+			PhysicalMemoryMB,
+			MaxMemoryMB,
+			MinMemoryMB,
+			MemoryModel,
+			IsClustered,
+			VMType)
+SELECT	[ServerName], 
+		[Collation], 
+		[Edition], 
+		[VersionNo],
+		GETDATE(),
+		GETDATE(),
+		ServerStartTime,
+		CostThreshold,
+		MaxWorkerThreads,
+		[MaxDOP],
+		CPUCount,
+		NUMACount,
+		PhysicalMemoryMB,
+		MaxMemoryMB,
+		MinMemoryMB,
+		MemoryModel,
+		IsClustered,
+		VMType
+FROM Catalogue.Servers_Stage
+WHERE NOT EXISTS 
+(SELECT 1 FROM Catalogue.Servers
+		WHERE Servers.ServerName = Servers_Stage.ServerName)
+END
+GO
+
+
+
+------------------------------------------------Catalogue Login------------------------------------------------------------------------
+
+--alter tables, include type column
+
+ALTER TABLE Catalogue.Logins_Stage
+ADD LoginType NVARCHAR(60)
+
+ALTER TABLE Catalogue.Logins
+ADD LoginType NVARCHAR(60)
+
+--updates login procedures
+
+--create proc to get logins
+
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'GetLogins'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.GetLogins
+GO
+
+CREATE PROC [Catalogue].GetLogins
+AS
+BEGIN
+
+--get all logins on server
+SELECT	@@SERVERNAME AS ServerName,
+		principals_logins.name AS LoginName, 
+		principals_logins.sid AS sid, 
+		principals_roles.name AS RoleName,
+		NULL,
+		principals_logins.is_disabled AS IsDisabled,
+		LOGINPROPERTY(principals_logins.name, 'PasswordHash') AS PasswordHash,  -- **the varbinary of password hash is erroring in powershell, something to be looked at
+		principals_logins.type_desc AS LoginType
+FROM sys.server_role_members
+RIGHT OUTER JOIN sys.server_principals principals_roles 
+	ON server_role_members.role_principal_id = principals_roles.principal_id
+RIGHT OUTER JOIN sys.server_principals principals_logins 
+	ON server_role_members.member_principal_id = principals_logins.principal_id
+WHERE principals_logins.type IN ('G','S','U') --include only windows groups, windows logins and SQL logins
+ORDER BY principals_logins.name
+
+END
+GO
+
+--update logins
+
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'UpdateLogins'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.UpdateLogins
+GO
+
+CREATE PROC [Catalogue].UpdateLogins
+AS
+BEGIN
+
+--update logins where they are known
+UPDATE	Catalogue.Logins 
+SET		ServerName = [Logins_Stage].ServerName,
+		LoginName = [Logins_Stage].LoginName,
+		SID = [Logins_Stage].SID,
+		RoleName = [Logins_Stage].RoleName,
+		PasswordHash = [Logins_Stage].PasswordHash,
+		LastRecorded = GETDATE(),
+		IsDisabled = [Logins_Stage].IsDisabled,
+		LoginType = [Logins_Stage].LoginType
+FROM	[Catalogue].[Logins_Stage]
+WHERE	Logins.ServerName = [Logins_Stage].ServerName
+		AND Logins.LoginName = [Logins_Stage].LoginName
+
+--insert logins that are unknown to the catlogue
+INSERT INTO Catalogue.Logins
+(ServerName,LoginName,SID,RoleName,FirstRecorded,LastRecorded, IsDisabled, PasswordHash,LoginType)
+SELECT ServerName,
+		LoginName,
+		SID,
+		RoleName,
+		GETDATE(),
+		GETDATE(),
+		IsDisabled,
+		PasswordHash,
+		LoginType
+FROM [Catalogue].[Logins_Stage]
+WHERE NOT EXISTS 
+(SELECT 1 FROM Catalogue.Logins
+		WHERE SID = [Logins_Stage].SID
+		AND Logins.ServerName = [Logins_Stage].ServerName)
+
+END
+GO
+
+------------------------------------------Catalogue AD Groups------------------------------------------------------------------------------
+
+--Create ADGroups Table
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'ADGroups_Stage')
+BEGIN
+	CREATE TABLE [Catalogue].ADGroups_Stage(
+		GroupName SYSNAME NOT NULL,
+		AccountName SYSNAME NOT NULL,
+		AccountType CHAR(8) NOT NULL,
+	 CONSTRAINT [PK_ADGroups_Stage] PRIMARY KEY CLUSTERED 
+	(
+		[GroupName] ASC,
+		[AccountName] ASC
+	))
+END
+
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'ADGroups')
+BEGIN
+	CREATE TABLE [Catalogue].ADGroups(
+		GroupName SYSNAME NOT NULL,
+		AccountName SYSNAME NOT NULL,
+		AccountType SYSNAME NOT NULL,
+		FirstRecorded DATETIME NULL,
+		LastRecorded DATETIME NULL,
+		Notes VARCHAR(255) NULL,
+	 CONSTRAINT [PK_ADGroups] PRIMARY KEY CLUSTERED 
+	(
+		[GroupName] ASC,
+		[AccountName] ASC
+	))
+END
+
+
+--create job to get group details
+
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'GetADGroups'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.GetADGroups
+GO
+
+--Get Proc
+
+CREATE PROC [Catalogue].GetADGroups
+AS
+BEGIN
+
+DECLARE @GroupName SYSNAME
+
+--create temp table to hold results from xp_logininfo
+IF OBJECT_ID('tempdb.dbo.#LoginInfo') IS NOT NULL
+DROP TABLE #LoginInfo
+
+CREATE TABLE #LoginInfo
+(accountname SYSNAME NULL,
+ type CHAR(8) NULL,
+ privilege CHAR(9) NULL,
+ mappedloginname SYSNAME NULL,
+ permissionpath SYSNAME NULL)
+
+--create temp table to hold final results
+IF OBJECT_ID('tempdb.dbo.#FinalResults') IS NOT NULL
+DROP TABLE #FinalResults
+
+CREATE TABLE #FinalResults(
+	GroupName SYSNAME NOT NULL,
+	AccountName SYSNAME NOT NULL,
+	AccountType CHAR(8) NOT NULL)
+ 
+
+--cursor to hold all windows groups
+
+DECLARE GroupsCur CURSOR FAST_FORWARD LOCAL FOR
+	SELECT DISTINCT LoginName
+	FROM Catalogue.Logins
+	WHERE LoginType = 'WINDOWS_GROUP'
+
+OPEN GroupsCur
+
+FETCH NEXT FROM GroupsCur INTO @GroupName
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+	TRUNCATE TABLE #LoginInfo  --truncate work table to prevent data from previous loop being carried through
+
+	DECLARE @SQL VARCHAR(100)
+	SET @SQL = 'EXEC xp_logininfo ''' + @GroupName + ''', ''members'''
+	
+	--populate #LoginInfo
+	BEGIN TRY
+		INSERT INTO #LoginInfo
+		EXEC (@SQL)
+	END TRY
+	BEGIN CATCH --catch if there's an issue evaluating the group for some reason
+		INSERT INTO #LoginInfo (accountname, type)
+		VALUES (@GroupName, '*ERROR*')
+	END CATCH
+
+	--append to final results temp table
+	INSERT INTO #FinalResults (GroupName,AccountName,AccountType)
+	SELECT @GroupName, accountname, type
+	FROM #LoginInfo
+
+	FETCH NEXT FROM GroupsCur INTO @GroupName
+END
+
+SELECT GroupName,AccountName,AccountType
+FROM #FinalResults
+
+END
+GO
+
+
+--update AD groups
+
+
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'UpdateADGroups'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.UpdateADGroups
+GO
+
+
+CREATE PROC Catalogue.UpdateADGroups
+AS
+BEGIN
+
+--update LastRecorded date where the account and group is known to the catalogue
+UPDATE	Catalogue.ADGroups 
+SET		LastRecorded = GETDATE()
+WHERE EXISTS 
+		(SELECT 1 
+		FROM [Catalogue].[ADGroups_Stage]
+		WHERE	ADGroups.GroupName = ADGroups_Stage.GroupName
+				AND ADGroups.AccountName = ADGroups_Stage.AccountName)
+
+--insert ADGroup details where not known to the Catalogue
+INSERT INTO Catalogue.ADGroups(GroupName,AccountName,AccountType,FirstRecorded,LastRecorded,Notes)
+SELECT GroupName,
+		AccountName,
+		AccountType,
+		GETDATE(),
+		GETDATE(),
+		NULL
+FROM [Catalogue].[ADGroups_Stage]
+WHERE NOT EXISTS 
+(SELECT 1 FROM Catalogue.ADGroups
+		WHERE	ADGroups.GroupName = ADGroups_Stage.GroupName
+				AND ADGroups.AccountName = ADGroups_Stage.AccountName)
+
+END
+GO
