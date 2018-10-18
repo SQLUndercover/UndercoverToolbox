@@ -1824,3 +1824,228 @@ WHERE NOT EXISTS
 
 END
 GO
+
+-------------------------------Linked Server Module------------------------------------------------
+
+--Create Linked Server Tables
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'LinkedServers_Stage')
+BEGIN
+	CREATE TABLE Catalogue.LinkedServers_Stage(
+		Server NVARCHAR(128) NOT NULL
+		,LinkedServerName NVARCHAR(128) NOT NULL
+		,DataSource NVARCHAR(4000) NULL
+		,Provider NVARCHAR(128) NULL
+		,Product NVARCHAR(128) NULL
+		,Location NVARCHAR(4000) NULL
+		,ProviderString NVARCHAR(4000) NULL
+		,Catalog NVARCHAR(128) NULL
+		,LocalUser NVARCHAR(128) NULL
+		,Impersonate BIT NOT NULL
+		,RemoteUser NVARCHAR(128) NULL
+		)
+END
+GO
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'LinkedServers_Server')
+BEGIN
+	CREATE TABLE Catalogue.LinkedServers_Server(
+		Server NVARCHAR(128) NOT NULL
+		,LinkedServerName NVARCHAR(128) NOT NULL
+		,DataSource NVARCHAR(4000) NULL
+		,Provider NVARCHAR(128) NULL
+		,Product NVARCHAR(128) NULL
+		,Location NVARCHAR(4000) NULL
+		,ProviderString NVARCHAR(4000) NULL
+		,Catalog NVARCHAR(128) NULL
+		,FirstRecorded DATETIME NULL
+		,LastRecorded DATETIME NULL
+		,Notes VARCHAR(255) NULL
+	 CONSTRAINT [PK_LinkedServer_Server] PRIMARY KEY CLUSTERED 
+	(
+		Server ASC,
+		LinkedServerName ASC
+	))
+END
+GO
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'LinkedServers_Users')
+BEGIN
+	CREATE TABLE Catalogue.LinkedServers_Users(
+		UserID INT IDENTITY(0,1)
+		,Server NVARCHAR(128) NOT NULL
+		,LinkedServerName NVARCHAR(128) NOT NULL
+		,LocalUser NVARCHAR(128) NULL
+		,Impersonate BIT NOT NULL
+		,RemoteUser NVARCHAR(128) NULL
+		,FirstRecorded DATETIME NULL
+		,LastRecorded DATETIME NULL
+		,Notes VARCHAR(255) NULL
+	CONSTRAINT [PK_LinkedServer_Users] PRIMARY KEY CLUSTERED 
+	(
+		UserID ASC
+	),
+	CONSTRAINT [FK_LinkedServer_Server] FOREIGN KEY (Server, LinkedServerName) REFERENCES Catalogue.LinkedServers_Server(Server, LinkedServerName)
+	)
+END
+GO
+--Linked Server Get Procedure
+
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'GetLinkedServers'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.GetLinkedServers
+GO
+
+CREATE PROC Catalogue.GetLinkedServers
+AS
+BEGIN
+
+SELECT	@@SERVERNAME AS Server, 
+		servers.name AS LinkedServerName, 
+		servers.data_source AS DataSource,
+		servers.provider AS Provider, 
+		servers.product AS Product, 
+		servers.location AS Location,
+		servers.provider_string AS ProviderString,
+		servers.catalog AS Catalog,
+		server_principals.name AS LocalUser,
+		linked_logins.uses_self_credential AS Impersonate,
+		linked_logins.remote_name AS RemoteUser
+FROM sys.servers
+JOIN sys.linked_logins ON servers.server_id = linked_logins.server_id
+LEFT OUTER JOIN sys.server_principals ON linked_logins.local_principal_id = server_principals.principal_id
+WHERE is_linked = 1
+
+END
+GO
+
+--Linked Server Update Proc
+
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'UpdateLinkedServers'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.UpdateLinkedServers
+GO
+
+CREATE PROC Catalogue.UpdateLinkedServers
+AS
+BEGIN
+
+--temp table used to prevent duplicate entries from the denormalised stage table
+IF OBJECT_ID('tempdb.dbo.#LinkedServers') IS NOT NULL
+DROP TABLE #LinkedServers
+
+CREATE TABLE #LinkedServers(
+				Server nvarchar(128) NOT NULL
+				,LinkedServerName nvarchar(128) NOT NULL
+				,DataSource nvarchar(4000) NULL
+				,Provider nvarchar(128) NULL
+				,Product nvarchar(128) NULL
+				,Location nvarchar(4000) NULL
+				,ProviderString nvarchar(4000) NULL
+				,Catalog nvarchar(128) NULL)
+
+--populate #LinkedServers 
+INSERT INTO #LinkedServers
+SELECT DISTINCT Server, 
+				LinkedServerName, 
+				DataSource, 
+				Provider, 
+				Product, 
+				Location, 
+				ProviderString, 
+				Catalog
+FROM Catalogue.LinkedServers_Stage
+
+--update servers table where servers are known to the catalogue
+
+UPDATE Catalogue.LinkedServers_Server 
+SET	Server = LinkedServers.Server
+	,LinkedServerName = LinkedServers.LinkedServerName
+	,DataSource = LinkedServers.DataSource
+	,Provider = LinkedServers.Provider
+	,Product = LinkedServers.Product
+	,Location = LinkedServers.Location
+	,ProviderString = LinkedServers.ProviderString
+	,Catalog = LinkedServers.Catalog
+	,LastRecorded = GETDATE()
+FROM #LinkedServers LinkedServers
+WHERE EXISTS
+	(SELECT 1
+	FROM Catalogue.LinkedServers_Server
+	WHERE LinkedServers_Server.Server = LinkedServers.Server
+	AND LinkedServers_Server.LinkedServerName = LinkedServers.LinkedServerName)
+
+--insert into servers table where servers are not known to the catalogue
+
+INSERT INTO Catalogue.LinkedServers_Server(Server ,LinkedServerName,DataSource,Provider,Product,Location,ProviderString,Catalog,FirstRecorded,LastRecorded,Notes)
+SELECT	Server 
+		,LinkedServerName
+		,DataSource
+		,Provider
+		,Product
+		,Location
+		,ProviderString
+		,Catalog
+		,GETDATE()
+		,GETDATE()
+		,NULL
+FROM #LinkedServers LinkedServers
+WHERE NOT EXISTS
+	(SELECT 1
+	FROM Catalogue.LinkedServers_Server
+	WHERE LinkedServers_Server.Server = LinkedServers.Server
+	AND LinkedServers_Server.LinkedServerName = LinkedServers.LinkedServerName)
+
+--update users table where users are known to the catalogue
+
+UPDATE Catalogue.LinkedServers_Users
+SET 	Server = LinkedServers_Stage.Server
+		,LinkedServerName = LinkedServers_Stage.LinkedServerName
+		,LocalUser = LinkedServers_Stage.LocalUser
+		,Impersonate = LinkedServers_Stage.Impersonate
+		,RemoteUser = LinkedServers_Stage.RemoteUser
+		,LastRecorded = GETDATE()
+FROM Catalogue.LinkedServers_Stage
+WHERE EXISTS
+	(SELECT 1
+	FROM Catalogue.LinkedServers_Users
+	WHERE LinkedServers_Users.Server = LinkedServers_Stage.Server
+	AND LinkedServers_Users.LinkedServerName = LinkedServers_Stage.LinkedServerName)
+
+--insert into users table where users are unkown to the catalogue
+
+INSERT INTO Catalogue.LinkedServers_Users (Server,LinkedServerName,LocalUser,Impersonate,RemoteUser,FirstRecorded,LastRecorded,Notes)
+SELECT	Server
+		,LinkedServerName
+		,LocalUser
+		,Impersonate
+		,RemoteUser
+		,GETDATE()
+		,GETDATE()
+		,NULL
+FROM Catalogue.LinkedServers_Stage
+WHERE NOT EXISTS
+	(SELECT 1
+	FROM Catalogue.LinkedServers_Users
+	WHERE LinkedServers_Users.Server = LinkedServers_Stage.Server
+	AND LinkedServers_Users.LinkedServerName = LinkedServers_Stage.LinkedServerName)
+
+END
+GO
