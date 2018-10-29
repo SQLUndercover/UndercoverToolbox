@@ -3178,7 +3178,7 @@ BEGIN
 		ELSE ''1''
 	END AS TableAction, --1 delete, 2 delete with retention, 3 Stage/merge
 	CASE
-		WHEN [PSEnabledModules].[Module] = (''AGDatabases'')
+		WHEN [PSEnabledModules].[Module] IN (''AGDatabases'',''BackupSizesByDay'')
 		THEN ''1''
 		WHEN [PSEnabledModules].[Module] = ''ADHocDatabaseCreations''
 		THEN ''1,1''
