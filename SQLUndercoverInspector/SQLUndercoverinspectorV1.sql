@@ -64,8 +64,8 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 28/09/2018
-Version: 1.2
+Revision date: 19/11/2018
+Version: 1.3
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
 URL: https://github.com/SQLUndercover/UndercoverToolbox/blob/master/SQLUndercoverInspector/SQLUndercoverinspectorV1.sql
@@ -131,7 +131,7 @@ END
 IF @Help = 1
 BEGIN 
 PRINT '
---Inspector V1.2
+--Inspector V1.3
 --Revision date: 27/09/2018
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
@@ -199,7 +199,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 
 			DECLARE @SQLStatement VARCHAR(MAX) 
 			DECLARE @DatabaseFileSizesResult INT
-			DECLARE @Build VARCHAR(6) ='1.2'
+			DECLARE @Build VARCHAR(6) ='1.3'
 			DECLARE @CurrentBuild VARCHAR(6)
 			 
 			
@@ -269,296 +269,6 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			END
 
 
-			IF @InitialSetup = 0
-			
-			BEGIN
-			 --Copy previously recorded data from Inspector data tables into Temporary tables for re insertion
-			 IF OBJECT_ID('Inspector.ADHocDatabaseCreations_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[ADHocDatabaseCreations_Copy];
-
-			 IF OBJECT_ID('Inspector.ADHocDatabaseSupression_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[ADHocDatabaseSupression_Copy];
-			
-			 IF OBJECT_ID('Inspector.AGCheck_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[AGCheck_Copy];
-			
-			 IF OBJECT_ID('Inspector.BackupsCheck_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[BackupsCheck_Copy];
-			
-			 IF OBJECT_ID('Inspector.BackupSizesByDay_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[BackupSizesByDay_Copy];
-			
-			 IF OBJECT_ID('Inspector.DatabaseFiles_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DatabaseFiles_Copy];
-			
-			 IF OBJECT_ID('Inspector.DatabaseFileSizeHistory_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DatabaseFileSizeHistory_Copy];
-			
-			 IF OBJECT_ID('Inspector.DatabaseFileSizes_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DatabaseFileSizes_Copy];
-			
-			 IF OBJECT_ID('Inspector.DatabaseOwnership_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DatabaseOwnership_Copy];
-			
-			 IF OBJECT_ID('Inspector.DatabaseSettings_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DatabaseSettings_Copy];
-			
-			 IF OBJECT_ID('Inspector.DatabaseStates_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DatabaseStates_Copy];
-			
-			 IF OBJECT_ID('Inspector.DriveSpace_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DriveSpace_Copy];
-			
-			 IF OBJECT_ID('Inspector.FailedAgentJobs_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[FailedAgentJobs_Copy];
-			
-			 IF OBJECT_ID('Inspector.JobOwner_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[JobOwner_Copy];
-			
-			 IF OBJECT_ID('Inspector.LoginAttempts_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[LoginAttempts_Copy];
-			
-			 IF OBJECT_ID('Inspector.ReportData_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[ReportData_Copy];
-			
-			 IF OBJECT_ID('Inspector.TopFiveDatabases_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[TopFiveDatabases_Copy];
-
-			 IF OBJECT_ID('Inspector.ServerSettings_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[ServerSettings_Copy];
-
-			 IF OBJECT_ID('Inspector.InstanceStart_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[InstanceStart_Copy];	
-
-			 IF OBJECT_ID('Inspector.InstanceVersion_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[InstanceVersion_Copy];
-			 			 
-			 IF OBJECT_ID('Inspector.SuspectPages_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[SuspectPages_Copy];	
-
-			 IF OBJECT_ID('Inspector.AGDatabases_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[AGDatabases_Copy];
-
-			 IF OBJECT_ID('Inspector.LongRunningTransactions_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[LongRunningTransactions_Copy];
-			 			
-			IF OBJECT_ID('Inspector.ADHocDatabaseCreations') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[ADHocDatabaseCreations_Copy] FROM [Inspector].[ADHocDatabaseCreations] END
-			IF OBJECT_ID('Inspector.ADHocDatabaseSupression') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[ADHocDatabaseSupression_Copy] FROM [Inspector].[ADHocDatabaseSupression] END
-			IF OBJECT_ID('Inspector.AGCheck') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[AGCheck_Copy] FROM [Inspector].[AGCheck] END
-			 
-			IF OBJECT_ID('Inspector.BackupsCheck') IS NOT NULL 
-			BEGIN
-				--New columns for 1.2 for Inspector.BackupsCheck
-				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'primary_replica' AND [object_id] = OBJECT_ID(N'Inspector.BackupsCheck'))
-				BEGIN
-					ALTER TABLE [Inspector].[BackupsCheck] ADD [primary_replica] NVARCHAR(128) NULL;
-				END
-
-				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'backup_preference' AND [object_id] = OBJECT_ID(N'Inspector.BackupsCheck'))
-				BEGIN
-					ALTER TABLE [Inspector].[BackupsCheck] ADD [backup_preference] NVARCHAR(128) NULL;
-				END
-			END
-
-			--Do not preserve Backups check data if Inspector version is less than 1.2 as the NULLs for new columns will break the report logic
-			IF (CAST(@CurrentBuild AS DECIMAL(4,1))) < 1.2
-			BEGIN
-				IF OBJECT_ID('Inspector.BackupsCheck') IS NOT NULL
-				BEGIN SELECT * INTO [Inspector].[BackupsCheck_Copy] FROM [Inspector].[BackupsCheck] END
-			END
-
-			IF OBJECT_ID('Inspector.BackupSizesByDay') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[BackupSizesByDay_Copy] FROM [Inspector].[BackupSizesByDay] END
-			IF OBJECT_ID('Inspector.DatabaseFiles') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DatabaseFiles_Copy] FROM [Inspector].[DatabaseFiles] END
-			IF OBJECT_ID('Inspector.DatabaseFileSizeHistory') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DatabaseFileSizeHistory_Copy] FROM [Inspector].[DatabaseFileSizeHistory] END
-			IF OBJECT_ID('Inspector.DatabaseFileSizes') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DatabaseFileSizes_Copy] FROM [Inspector].[DatabaseFileSizes] END
-			IF OBJECT_ID('Inspector.DatabaseOwnership') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DatabaseOwnership_Copy] FROM [Inspector].[DatabaseOwnership] END
-			IF OBJECT_ID('Inspector.DatabaseSettings') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DatabaseSettings_Copy] FROM [Inspector].[DatabaseSettings] END
-			IF OBJECT_ID('Inspector.DatabaseStates') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DatabaseStates_Copy] FROM [Inspector].[DatabaseStates] END
-			IF OBJECT_ID('Inspector.DriveSpace') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DriveSpace_Copy] FROM [Inspector].[DriveSpace] END
-			IF OBJECT_ID('Inspector.FailedAgentJobs') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[FailedAgentJobs_Copy] FROM [Inspector].[FailedAgentJobs] END
-			IF OBJECT_ID('Inspector.JobOwner') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[JobOwner_Copy] FROM [Inspector].[JobOwner] END
-			IF OBJECT_ID('Inspector.LoginAttempts') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[LoginAttempts_Copy] FROM [Inspector].[LoginAttempts] END
-
-
-			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Summary' AND [object_id] = OBJECT_ID(N'Inspector.ReportData'))
-			BEGIN
-				--New column for 1.2 for Inspector.ReportData
-				ALTER TABLE [Inspector].[ReportData] ADD [Summary] VARCHAR(60) NULL;
-			END
-
-			IF OBJECT_ID('Inspector.ReportData') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[ReportData_Copy] FROM [Inspector].[ReportData] END
-
-			IF OBJECT_ID('Inspector.TopFiveDatabases') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[TopFiveDatabases_Copy] FROM [Inspector].[TopFiveDatabases] END
-			IF OBJECT_ID('Inspector.ServerSettings') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[ServerSettings_Copy] FROM [Inspector].[ServerSettings] END
-			IF OBJECT_ID('Inspector.InstanceStart') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[InstanceStart_Copy] FROM [Inspector].[InstanceStart] END			
-			IF OBJECT_ID('Inspector.SuspectPages') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[SuspectPages_Copy]  FROM [Inspector].[SuspectPages] END	 			
-			IF OBJECT_ID('Inspector.AGDatabases') IS NOT NULL 
-				BEGIN SELECT [Servername], [Log_Date], [LastUpdated], [Databasename], [Is_AG], [Is_AGJoined] INTO [Inspector].[AGDatabases_Copy] FROM [Inspector].[AGDatabases] END	
-			IF OBJECT_ID('Inspector.LongRunningTransactions') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[LongRunningTransactions_Copy] FROM [Inspector].[LongRunningTransactions] END	
-			IF OBJECT_ID('Inspector.InstanceVersion') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[InstanceVersion_Copy] FROM [Inspector].[InstanceVersion] END			
-		
-			
-			--Copy existing settings from Inspector Settings tables into Temporary tables for re insertion
-			 IF OBJECT_ID('Inspector.CurrentServers_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[CurrentServers_Copy];
-			
-			 IF OBJECT_ID('Inspector.EmailRecipients_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[EmailRecipients_Copy];
-			
-			 IF OBJECT_ID('Inspector.Modules_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[Modules_Copy];
-			
-			 IF OBJECT_ID('Inspector.Settings_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[Settings_Copy];
-			
-			 IF OBJECT_ID('Inspector.EmailConfig_Copy') IS NOT NULL
-			 DROP TABLE [Inspector].[EmailConfig_Copy];
-			
-			--New Setting for 1.2 - Powershell banner.
-			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'PSEmailBannerURL')
-			BEGIN
-				INSERT INTO [Inspector].[Settings] ([Description],[Value])
-				VALUES ('PSEmailBannerURL','http://bit.ly/PSInspectorEmailBanner');
-			END
-
-			--New Setting for 1.2 - Is Linked Server being used.
-			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'LinkedServername')
-			BEGIN
-				INSERT INTO [Inspector].[Settings] ([Description],[Value])
-				VALUES ('LinkedServername',@LinkedServernameParam);
-			END
-			ELSE 
-				BEGIN
-					UPDATE [Inspector].[Settings] 
-					SET [Value] = @LinkedServernameParam
-					WHERE [Description] = 'LinkedServername'
-				END
-
-			--New URL for standard email banner
-			IF (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = 'EmailBannerURL') = 'https://i2.wp.com/sqlundercover.files.wordpress.com/2017/11/inspector_whitehandle.png?ssl=1&w=450'
-			BEGIN
-				UPDATE [Inspector].[Settings] 
-				SET [Value] = 'http://bit.ly/InspectorEmailBanner'
-				WHERE [Description] = 'EmailBannerURL';
-			END
-
-			IF OBJECT_ID('Inspector.Settings') IS NOT NULL 
-			 BEGIN 
-			 SELECT * 
-			 INTO [Inspector].[Settings_Copy]  
-			 FROM [Inspector].[Settings] 
-			 END
-
-			 IF OBJECT_ID('Inspector.EmailRecipients') IS NOT NULL 
-			 BEGIN 
-			 SELECT * 
-			 INTO [Inspector].[EmailRecipients_Copy]  
-			 FROM [Inspector].[EmailRecipients] 
-			 END
-
-			IF OBJECT_ID('Inspector.CurrentServers') IS NOT NULL 
-			 BEGIN 
-				SELECT * 
-				INTO [Inspector].[CurrentServers_Copy]  
-				FROM [Inspector].[CurrentServers]; 
-			 END
-
-			
-			IF OBJECT_ID('Inspector.Modules') IS NOT NULL 
-			BEGIN 
-
-				--New columns for V1.2 for Inspector.Modules
-				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'ServerSettings' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
-				BEGIN
-					ALTER TABLE [Inspector].[Modules] ADD [ServerSettings] BIT NULL;
-				END
-
-				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'SuspectPages' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
-				BEGIN
-					ALTER TABLE [Inspector].[Modules] ADD [SuspectPages] BIT NULL;
-				END
-
-				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'AGDatabases' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
-				BEGIN
-					ALTER TABLE [Inspector].[Modules] ADD [AGDatabases] BIT NULL;
-				END
-
-				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'LongRunningTransactions' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
-				BEGIN
-					ALTER TABLE [Inspector].[Modules] ADD [LongRunningTransactions] BIT NULL;
-				END
-
-				IF (SELECT CAST([Value] AS DECIMAL(4,1)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild') < 1.2
-				BEGIN 
-					IF EXISTS(SELECT 1 FROM sys.columns WHERE name = N'ServerSettings' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
-					BEGIN
-						EXEC sp_executesql N'UPDATE [Inspector].[Modules] SET [ServerSettings] = CASE WHEN ModuleConfig_Desc = ''Default'' THEN 1 ELSE 0 END;';	
-					END
-
-					IF EXISTS(SELECT 1 FROM sys.columns WHERE name = N'SuspectPages' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
-					BEGIN
-						EXEC sp_executesql N'UPDATE [Inspector].[Modules] SET [SuspectPages] = CASE WHEN ModuleConfig_Desc = ''Default'' THEN 1 ELSE 0 END;';				
-					END
-
-					IF EXISTS(SELECT 1 FROM sys.columns WHERE name = N'AGDatabases' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
-					BEGIN
-						EXEC sp_executesql N'UPDATE [Inspector].[Modules] SET [AGDatabases] = CASE WHEN ModuleConfig_Desc = ''Default'' THEN 1 ELSE 0 END;';
-					END
-
-					IF EXISTS(SELECT 1 FROM sys.columns WHERE name = N'LongRunningTransactions' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
-					BEGIN
-						EXEC sp_executesql N'UPDATE [Inspector].[Modules] SET [LongRunningTransactions] = CASE WHEN ModuleConfig_Desc = ''Default'' THEN 1 ELSE 0 END;';
-					END
-				END
-			END
-
-			IF OBJECT_ID('Inspector.Modules') IS NOT NULL 
-			BEGIN
-				SELECT * 
-				INTO [Inspector].[Modules_Copy]  
-				FROM [Inspector].[Modules];
-			END
-	
-			IF OBJECT_ID('Inspector.EmailConfig') IS NOT NULL
-			 BEGIN 
-				SELECT * 
-				INTO [Inspector].[EmailConfig_Copy] 
-				FROM [Inspector].[EmailConfig];
-			 END
-			
-			END
-
-			--Drop Constraints
-			IF OBJECT_ID('Inspector.FK_ModuleConfig_Email') IS NOT NULL
-			ALTER TABLE [Inspector].[EmailConfig] DROP CONSTRAINT FK_ModuleConfig_Email;
-			
-			IF OBJECT_ID('Inspector.FK_ModuleConfig_Desc') IS NOT NULL
-			ALTER TABLE [Inspector].[CurrentServers] DROP CONSTRAINT FK_ModuleConfig_Desc;
-			
-			IF OBJECT_ID('Inspector.PK_ModuleConfig_Desc') IS NOT NULL
-			ALTER TABLE [Inspector].[Modules] DROP CONSTRAINT PK_ModuleConfig_Desc;
-
 			--Create Inspector Upgrade table if not exists (do not drop)
 			IF OBJECT_ID('Inspector.InspectorUpgradeHistory') IS NULL 
 			CREATE TABLE [Inspector].[InspectorUpgradeHistory](
@@ -569,10 +279,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			SetupCommand VARCHAR(1000) NULL
 			);
 
-			--Drop and recreate all Settings tables
-			IF OBJECT_ID('Inspector.ReportData') IS NOT NULL 
-			DROP TABLE [Inspector].[ReportData];
 			
+			IF OBJECT_ID('Inspector.ReportData') IS NULL 
 			CREATE TABLE [Inspector].[ReportData](
 				[ID] INT IDENTITY(1,1),
 				[ReportDate] DATETIME NOT NULL,
@@ -581,28 +289,35 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[Summary] VARCHAR(60) NULL
 			);
 
-			CREATE NONCLUSTERED INDEX [IX_ReportDate] ON [Inspector].[ReportData]
-			(ReportDate ASC);
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Summary' AND [object_id] = OBJECT_ID(N'Inspector.ReportData'))
+			BEGIN
+				--New column for 1.2 for Inspector.ReportData
+				ALTER TABLE [Inspector].[ReportData] ADD [Summary] VARCHAR(60) NULL;
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.ReportData') AND name='IX_ReportDate')
+			BEGIN
+				CREATE NONCLUSTERED INDEX [IX_ReportDate] ON [Inspector].[ReportData]
+				(ReportDate ASC);
+			END
 			
-			IF OBJECT_ID('Inspector.Settings') IS NOT NULL 
-			DROP TABLE [Inspector].[Settings];
-			
-			CREATE TABLE [Inspector].[Settings] 
-			(
-			[ID] INT IDENTITY(1,1),
-			[Description] VARCHAR(100),
-			[Value] VARCHAR(255)
-			);
-			
-			ALTER TABLE [Inspector].[Settings]
-			ADD CONSTRAINT UC_Description UNIQUE (Description);
-			
-			ALTER TABLE [Inspector].[Settings] 
-			ADD CONSTRAINT [DF_Settings_Value]  DEFAULT (NULL) FOR [Value];
-			
-			IF OBJECT_ID('Inspector.Modules') IS NOT NULL
-			DROP TABLE [Inspector].[Modules];
-			
+			IF OBJECT_ID('Inspector.Settings') IS NULL 	
+			BEGIN
+				CREATE TABLE [Inspector].[Settings] 
+				(
+				[ID] INT IDENTITY(1,1),
+				[Description] VARCHAR(100),
+				[Value] VARCHAR(255)
+				);
+				
+				ALTER TABLE [Inspector].[Settings]
+				ADD CONSTRAINT UC_Description UNIQUE (Description);
+				
+				ALTER TABLE [Inspector].[Settings] 
+				ADD CONSTRAINT [DF_Settings_Value]  DEFAULT (NULL) FOR [Value];
+			END
+
+			IF OBJECT_ID('Inspector.Modules') IS NULL
 			CREATE TABLE [Inspector].[Modules]
 			(
 			ID INT IDENTITY(1,1),
@@ -629,102 +344,283 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			UseMedianCalculationForDriveSpaceCalc	BIT
 			CONSTRAINT PK_ModuleConfig_Desc PRIMARY KEY (ModuleConfig_Desc)
 			);
-			
-			IF OBJECT_ID('Inspector.PSEnabledModules') IS NOT NULL
-			DROP VIEW [Inspector].[PSEnabledModules];
 
-			EXEC ('CREATE VIEW [Inspector].[PSEnabledModules]
-			AS
-			SELECT [ModuleConfig_Desc],[Module],[Enabled]
-			FROM 
+
+			--If Inspector build is less than V1.2 Column names will be different in the Module table.
+			IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name LIKE'Enable%')
+			BEGIN
+				RAISERROR('Altering column names in table [Inspector].[Modules] as part of the upgrade',0,0) WITH NOWAIT;
+
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableADHocDatabaseCreationCheck')
+				BEGIN 
+					EXEC sp_rename 'Inspector.Modules.EnableADHocDatabaseCreationCheck', 'ADHocDatabaseCreationCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableAGCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableAGCheck', 'AGCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableBackupsCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableBackupsCheck', 'BackupsCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableBackupSizesCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableBackupSizesCheck', 'BackupSizesCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableBackupSpaceCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableBackupSpaceCheck', 'BackupSpaceCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableDatabaseFileCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableDatabaseFileCheck', 'DatabaseFileCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableDatabaseGrowthCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableDatabaseGrowthCheck', 'DatabaseGrowthCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableDatabaseOwnershipCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableDatabaseOwnershipCheck', 'DatabaseOwnershipCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableDatabaseSettings')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableDatabaseSettings', 'DatabaseSettings', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableDatabaseStatesCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableDatabaseStatesCheck', 'DatabaseStatesCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableDriveSpaceCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableDriveSpaceCheck', 'DriveSpaceCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableFailedAgentJobCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableFailedAgentJobCheck', 'FailedAgentJobCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableFailedLoginsCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableFailedLoginsCheck', 'FailedLoginsCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableJobOwnerCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableJobOwnerCheck', 'JobOwnerCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableTopFiveDatabaseSizeCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableTopFiveDatabaseSizeCheck', 'TopFiveDatabaseSizeCheck', 'COLUMN';
+				END
+			END
+
+
+			IF OBJECT_ID('Inspector.ADHocDatabaseCreations') IS NULL
+			CREATE TABLE [Inspector].[ADHocDatabaseCreations]
 			(
-			    SELECT	
-				ModuleConfig_Desc,						
-			    ISNULL(AGCheck,0) AS AGCheck,					
-			    ISNULL(BackupsCheck,0) AS BackupsCheck,					
-			    ISNULL(BackupSizesCheck,0) AS BackupSizesByDay,			
-			    ISNULL(DatabaseGrowthCheck,0) AS DatabaseGrowths,			
-			    ISNULL(DatabaseFileCheck,0) AS DatabaseFiles,			
-			    ISNULL(DatabaseOwnershipCheck,0) AS DatabaseOwnership,		
-			    ISNULL(DatabaseStatesCheck,0) AS DatabaseStates,			
-			    ISNULL(DriveSpaceCheck,0) AS DriveSpace,				
-			    ISNULL(FailedAgentJobCheck,0) AS FailedAgentJobs,			
-			    ISNULL(JobOwnerCheck,0) AS JobOwner,				
-			    ISNULL(FailedLoginsCheck,0) AS LoginAttempts,			
-			    ISNULL(TopFiveDatabaseSizeCheck,0) AS TopFiveDatabases,		
-			    ISNULL(ADHocDatabaseCreationCheck,0) AS ADHocDatabaseCreations,	
-			    ISNULL(DatabaseSettings,0) AS DatabaseSettings,
-			    ISNULL(ServerSettings,0) AS ServerSettings,
-			    ISNULL(SuspectPages,0) AS SuspectPages,
-			    ISNULL(AGDatabases,0) AS AGDatabases,
-			    ISNULL(LongRunningTransactions,0) AS LongRunningTransactions
-			    FROM [Inspector].[Modules]
-			) Modules
-			UNPIVOT
-			([Enabled] FOR Module IN 
-			(AGCheck
-			,BackupsCheck
-			,BackupSizesByDay
-			,DatabaseGrowths
-			,DatabaseFiles
-			,DatabaseOwnership
-			,DatabaseStates
-			,DriveSpace
-			,FailedAgentJobs
-			,JobOwner
-			,LoginAttempts
-			,TopFiveDatabases
-			,ADHocDatabaseCreations
-			,DatabaseSettings
-			,ServerSettings
-			,SuspectPages
-			,AGDatabases
-			,LongRunningTransactions
-			) ) AS [ModulesList]
-			WHERE [Enabled] = 1;');
+			[Servername] NVARCHAR(128) NOT NULL,
+			[Log_Date] DATETIME NULL,
+			[Databasename] NVARCHAR(128) NOT NULL,
+			[Create_Date] DATETIME NULL
+			);
 
-			IF OBJECT_ID('Inspector.PSInspectorTables') IS NOT NULL
-			DROP VIEW [Inspector].[PSInspectorTables];
-
-			EXEC sp_executesql N'
-			CREATE VIEW [Inspector].[PSInspectorTables]
-			AS
-			SELECT Tablename
-			FROM (VALUES
-			(''ADHocDatabaseCreations''),
-			(''ADHocDatabaseSupression''),
-			(''AGCheck''),
-			(''AGDatabases''),
-			(''BackupsCheck''),
-			(''BackupSizesByDay''),
-			(''CurrentServers''),
-			(''DatabaseFiles''),
-			(''DatabaseFileSizeHistory''),
-			(''DatabaseFileSizes''),
-			(''DatabaseOwnership''),
-			(''DatabaseSettings''),
-			(''DatabaseStates''),
-			(''DriveSpace''),
-			(''EmailConfig''),
-			(''EmailRecipients''),
-			(''FailedAgentJobs''),
-			(''InstanceStart''),
-			(''InstanceVersion''),
-			(''JobOwner''),
-			(''LoginAttempts''),
-			(''LongRunningTransactions''),
-			(''Modules''),
-			(''ReportData''),
-			(''ServerSettings''),
-			(''Settings''),
-			(''SuspectPages''),
-			(''TopFiveDatabases'')
-			) InspectorTables (Tablename);'
-
-
-			IF OBJECT_ID('Inspector.EmailRecipients') IS NOT NULL
-			DROP TABLE [Inspector].[EmailRecipients];
 			
+			IF OBJECT_ID('Inspector.ADHocDatabaseSupression') IS NULL
+			CREATE TABLE [Inspector].[ADHocDatabaseSupression]
+			(
+			[Servername] NVARCHAR(128),
+			[Log_Date] DATETIME,
+			[Databasename] NVARCHAR(128),
+			[Suppress] BIT
+			);		
+				
+			
+			IF OBJECT_ID('Inspector.AGCheck') IS NULL
+			CREATE TABLE [Inspector].[AGCheck]
+			(
+			[Servername] NVARCHAR(128) NOT NULL,
+			[Log_Date] DATETIME NOT NULL,
+			[AGname] NVARCHAR(128) NULL,
+			[State] VARCHAR(50) NULL,
+			[ReplicaServername] NVARCHAR(256) NULL,
+			[Suspended] BIT NULL,
+			[SuspendReason] VARCHAR(50) NULL
+			); 
+			
+			 
+			
+			IF OBJECT_ID('Inspector.DatabaseFiles') IS NULL
+			CREATE TABLE [Inspector].[DatabaseFiles]
+			(
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Log_Date] DATETIME  NOT NULL,
+			[Databasename] NVARCHAR(128), 
+			[FileType] VARCHAR(8),
+			[FilePath] NVARCHAR(260)
+			);
+			
+			
+			
+			IF OBJECT_ID('Inspector.DatabaseStates') IS NULL
+			CREATE TABLE [Inspector].[DatabaseStates]
+			(
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Log_Date] DATETIME  NOT NULL,
+			[DatabaseState] VARCHAR(40)  NULL,
+			[Total] INT,
+			[DatabaseNames] VARCHAR(MAX) NULL
+			); 
+			
+			
+			IF OBJECT_ID('Inspector.DriveSpace') IS NULL
+			CREATE TABLE [Inspector].[DriveSpace] 
+			(
+			[Servername] NVARCHAR(128),
+			[Log_Date] DATETIME,
+			[Drive] NVARCHAR(3),
+			[Capacity_GB] DECIMAL(10,2),
+			[AvailableSpace_GB] DECIMAL(10,2)
+			);
+
+			
+			IF OBJECT_ID('Inspector.FailedAgentJobs') IS NULL
+			CREATE TABLE [Inspector].[FailedAgentJobs]
+			(
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Log_Date] DATETIME  NOT NULL,
+			[Jobname] VARCHAR(128)  NULL,
+			[LastStepFailed] TINYINT NULL,
+			[LastFailedDate] DATETIME NULL,
+			[LastError] VARCHAR(260) NULL
+			);
+			
+			
+			IF OBJECT_ID('Inspector.LoginAttempts') IS NULL
+			CREATE TABLE [Inspector].[LoginAttempts]
+			(
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Log_Date] DATETIME  NOT NULL,
+			[Username] VARCHAR(50)  NULL,
+			[Attempts] INT NULL,
+			[LastErrorDate] DATETIME NULL,
+			[LastError] VARCHAR(260) NULL
+			); 
+			
+			
+			
+			IF OBJECT_ID('Inspector.JobOwner') IS NULL
+			CREATE TABLE [Inspector].[JobOwner]
+			(
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Log_Date] DATETIME  NOT NULL,
+			[Job_ID]  UNIQUEIDENTIFIER  NULL,
+			[Jobname] VARCHAR(100) NOT NULL
+			); 
+			
+			
+			
+			IF OBJECT_ID('Inspector.TopFiveDatabases') IS NULL
+			CREATE TABLE [Inspector].[TopFiveDatabases]
+			(
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Log_Date] DATETIME  NOT NULL,
+			[Databasename] NVARCHAR(128)  NULL,
+			[TotalSize_MB] BIGINT
+			); 
+			
+			
+			IF OBJECT_ID('Inspector.BackupsCheck') IS NULL
+			--New columns for 1.2 [primary_replica],[backup_preference]
+			CREATE TABLE [Inspector].[BackupsCheck](
+			[Servername] NVARCHAR (128) NOT NULL,
+			[Log_Date] [datetime] NOT NULL,
+			[Databasename] [nvarchar](128) NULL,
+			[AGname] Nvarchar (128) NULL,
+			[FULL] [datetime] NULL,
+			[DIFF] [datetime] NULL,
+			[LOG] [datetime] NULL,
+			[IsFullRecovery] [bit] NULL,
+			[IsSystemDB] [bit] NULL,
+			[primary_replica] [nvarchar](128) NULL,
+			[backup_preference] [nvarchar](60) NULL
+			);
+			
+			--New columns for 1.2 [primary_replica],[backup_preference]
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.BackupsCheck') AND name ='primary_replica')
+			BEGIN 
+				ALTER TABLE [Inspector].[BackupsCheck] ADD [primary_replica] [nvarchar](128) NULL;
+			END 	
+			
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.BackupsCheck') AND name ='backup_preference')
+			BEGIN 
+				ALTER TABLE [Inspector].[BackupsCheck] ADD [backup_preference] [nvarchar](60) NULL;
+			END 
+			
+			
+			IF OBJECT_ID('Inspector.DatabaseFileSizes') IS NULL
+			--New Column [LastUpdated] for 1.0.1
+			CREATE TABLE [Inspector].[DatabaseFileSizes](
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Database_id] INT NOT NULL,
+			[Database_name] [NVARCHAR](128) NULL,
+			[OriginalDateLogged] [DATETIME] NOT NULL,
+			[OriginalSize_MB] BIGINT NULL,
+			[Type_desc] [NVARCHAR](60) NULL,
+			[File_id] TINYINT NOT NULL,
+			[Filename] [NVARCHAR](260) NULL,
+			[PostGrowthSize_MB] BIGINT NULL,
+			[GrowthRate] [int] NULL,
+			[Is_percent_growth] [BIT] NOT NULL,
+			[NextGrowth] BIGINT  NULL,
+			[LastUpdated] DATETIME NULL	  
+			); 
+
+			--New Column [LastUpdated] for 1.0.1
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DatabaseFileSizes') AND name ='LastUpdated')
+			BEGIN 
+				ALTER TABLE [Inspector].[DatabaseFileSizes] ADD [LastUpdated] DATETIME NULL;
+			END 
+			
+			IF OBJECT_ID('Inspector.DatabaseFileSizeHistory') IS NULL
+			BEGIN
+			CREATE TABLE [Inspector].DatabaseFileSizeHistory
+			(
+			[GrowthID] BIGINT IDENTITY(1,1),
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Database_id] INT NOT NULL,
+			[Database_name] NVARCHAR(128) NOT NULL,
+			[Log_Date] DATETIME NOT NULL,
+			[Type_Desc] NVARCHAR(60) NOT NULL,
+			[File_id] TINYINT NOT NULL,
+			[FileName] NVARCHAR(260) NOT NULL,
+			[PreGrowthSize_MB] BIGINT NOT NULL,
+			[GrowthRate_MB] INT NOT NULL,
+			[GrowthIncrements] INT NOT NULL,
+			[PostGrowthSize_MB] BIGINT NOT NULL
+			);
+			
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.DatabaseFileSizeHistory') AND name='IX_Servername_Includes_Log_Date')
+			BEGIN
+				CREATE NONCLUSTERED INDEX [IX_Servername_Includes_Log_Date] ON [Inspector].[DatabaseFileSizeHistory]
+				([Servername] ASC) INCLUDE ([Log_Date]); 
+			END
+
+			END
+
+			IF OBJECT_ID('Inspector.EmailRecipients') IS NULL		
 			CREATE TABLE [Inspector].[EmailRecipients]
 			(
 			ID INT IDENTITY(1,1),
@@ -733,9 +629,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			CONSTRAINT UC_EmailDescription UNIQUE (Description)
 			); 
 			
-			IF OBJECT_ID('Inspector.CurrentServers') IS NOT NULL 
-			DROP TABLE [Inspector].[CurrentServers];
-			
+			IF OBJECT_ID('Inspector.CurrentServers') IS NULL 
+			BEGIN
 			CREATE TABLE [Inspector].[CurrentServers]
 			(
 			[Servername] [Nvarchar](128) NULL,
@@ -748,10 +643,9 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			ALTER TABLE Inspector.CurrentServers
 			ADD CONSTRAINT FK_ModuleConfig_Desc
 			FOREIGN KEY (ModuleConfig_Desc) REFERENCES Inspector.Modules(ModuleConfig_Desc);
-			
-			IF OBJECT_ID('Inspector.EmailConfig') IS NOT NULL
-			DROP TABLE [Inspector].[EmailConfig];
-			
+			END
+
+			IF OBJECT_ID('Inspector.EmailConfig') IS NULL
 			CREATE TABLE [Inspector].[EmailConfig]
 			(
 			ModuleConfig_Desc VARCHAR(20),
@@ -759,162 +653,133 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			CONSTRAINT FK_ModuleConfig_Email FOREIGN KEY (ModuleConfig_Desc) REFERENCES Inspector.Modules(ModuleConfig_Desc)
 			);
 			
-			
+			IF OBJECT_ID('Inspector.ModuleWarningLevel') IS NULL
+			CREATE TABLE [Inspector].[ModuleWarningLevel]
+			(
+			[ModuleConfig_Desc] VARCHAR(20) NOT NULL,
+			[Module] VARCHAR(50) NOT NULL,
+			[WarningLevel] TINYINT NULL
+			);
 
-			IF @InitialSetup = 0 
+			IF OBJECT_ID('Inspector.ModuleWarnings') IS NULL
 			BEGIN
-			--Insert Preserved Settings from Temporary tables into Inspector Base tables  
-			IF OBJECT_ID('Inspector.Settings_Copy') IS NOT NULL 
-			BEGIN
+			CREATE TABLE [Inspector].[ModuleWarnings]
+			(
+			[WarningLevel] TINYINT NULL,
+			[WarningDesc] VARCHAR(30)
+			);
 			
-				SET IDENTITY_INSERT [Inspector].[Settings] ON
-				INSERT INTO [Inspector].[Settings] ([ID], [Description], [Value]) 
-				SELECT [ID], [Description], [Value]
-				FROM [Inspector].[Settings_Copy] AS PreservedSettings 
-				SET IDENTITY_INSERT [Inspector].[Settings] OFF;
+			--Insert Module warning level descriptions (new feature for V1.3)
+			INSERT INTO [Inspector].[ModuleWarnings] ([WarningLevel],[WarningDesc])
+			VALUES(NULL,'InspectorDefault'),(1,'Red'),(2,'Yellow'),(3,'Information (white)');
 
-				--Insert new settings for V1.2
-				IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'LongRunningTransactionThreshold')
-				BEGIN
-					INSERT INTO [Inspector].[Settings] ([Description],[Value]) 
-					VALUES ('LongRunningTransactionThreshold',CAST(@LongRunningTransactionThreshold AS VARCHAR(8)));
-				END
-
-				IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'ReportDataRetention')
-				BEGIN
-					INSERT INTO [Inspector].[Settings] ([Description],[Value]) 
-					VALUES ('ReportDataRetention','30');
-				END
-					
 			END
 
-			IF OBJECT_ID('Inspector.Modules_Copy') IS NOT NULL
-			BEGIN
-			--Set statement for Inserting/Updating Modules data
-			SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+'
-					INSERT INTO [Inspector].[Modules] 
-					(
-					[ADHocDatabaseCreationCheck],
-					[AGCheck],
-					[BackupsCheck],
-					[BackupSizesCheck],
-					[BackupSpaceCheck],
-					[DatabaseFileCheck],
-					[DatabaseGrowthCheck],
-					[DatabaseOwnershipCheck],
-					[DatabaseSettings],
-					[DatabaseStatesCheck],
-					[DriveSpaceCheck],
-					[FailedAgentJobCheck],
-					[FailedLoginsCheck],
-					[JobOwnerCheck],
-					[TopFiveDatabaseSizeCheck],
-					[ModuleConfig_Desc] ,
-					[UseMedianCalculationForDriveSpaceCalc]
-					)
-					SELECT 
-					PreservedSettings.[EnableADHocDatabaseCreationCheck],
-					PreservedSettings.[EnableAGCheck],
-					PreservedSettings.[EnableBackupsCheck],
-					PreservedSettings.[EnableBackupSizesCheck],
-					PreservedSettings.[EnableBackupSpaceCheck],
-					PreservedSettings.[EnableDatabaseFileCheck],
-					PreservedSettings.[EnableDatabaseGrowthCheck],
-					PreservedSettings.[EnableDatabaseOwnershipCheck],
-					PreservedSettings.[EnableDatabaseSettings],
-					PreservedSettings.[EnableDatabaseStatesCheck],
-					PreservedSettings.[EnableDriveSpaceCheck],
-					PreservedSettings.[EnableFailedAgentJobCheck],
-					PreservedSettings.[EnableFailedLoginsCheck],
-					PreservedSettings.[EnableJobOwnerCheck],
-					PreservedSettings.[EnableTopFiveDatabaseSizeCheck],
-					PreservedSettings.[ModuleConfig_Desc] ,
-					PreservedSettings.[UseMedianCalculationForDriveSpaceCalc]
-					FROM [Inspector].[Modules_Copy] AS PreservedSettings 
-					LEFT JOIN [Inspector].[Modules] AS Config ON Config.ModuleConfig_Desc = PreservedSettings.ModuleConfig_Desc
-					WHERE Config.ModuleConfig_Desc IS NULL;
+			IF OBJECT_ID('Inspector.DatabaseOwnership') IS NULL
+			CREATE TABLE [Inspector].[DatabaseOwnership]
+			 (
+			[Servername] [nvarchar](128) NOT NULL,
+			[Log_Date] DATETIME NULL,
+			[AGname] [nvarchar](128) NULL,
+			[Database_name] [nvarchar](128) NOT NULL,
+			[Owner] [nvarchar](100) NULL
+			);
+			
+			
+			IF OBJECT_ID('Inspector.BackupSizesByDay') IS NULL
+			CREATE TABLE [Inspector].[BackupSizesByDay]
+			(
+			[Servername] [nvarchar](128) NOT NULL,
+			[Log_Date] DATETIME NULL,
+			[DayOfWeek] [VARCHAR](10) NULL,
+			[CastedDate] [DATE] NULL,
+			[TotalSizeInBytes] [BIGINT] NULL
+			);
+			
+			IF OBJECT_ID('Inspector.DatabaseSettings') IS NULL
+			CREATE TABLE [Inspector].[DatabaseSettings](
+			[Servername] [nvarchar](128) NULL,
+			[Log_Date] [datetime] NULL,
+			[Setting] [varchar](50) NULL,
+			[Description] [varchar](100) NULL,
+			[Total] [int] NULL
+			);
+			
+			IF OBJECT_ID('Inspector.ServerSettings') IS NULL
+			CREATE TABLE [Inspector].[ServerSettings](
+			[Servername] NVARCHAR(128) NULL,
+			[Log_Date] DATETIME NULL,
+			[configuration_id] INT NULL,
+			[Setting] NVARCHAR(128) NULL,
+			[value_in_use] INT NULL
+			);
 
-					UPDATE Config
-					SET 
-					[ADHocDatabaseCreationCheck]	= PreservedSettings.[EnableADHocDatabaseCreationCheck],
-					[AGCheck]						= PreservedSettings.[EnableAGCheck],
-					[BackupsCheck]					= PreservedSettings.[EnableBackupsCheck],
-					[BackupSizesCheck]				= PreservedSettings.[EnableBackupSizesCheck],
-					[BackupSpaceCheck]				= PreservedSettings.[EnableBackupSpaceCheck],
-					[DatabaseFileCheck]				= PreservedSettings.[EnableDatabaseFileCheck],
-					[DatabaseGrowthCheck]			= PreservedSettings.[EnableDatabaseGrowthCheck],
-					[DatabaseOwnershipCheck]		= PreservedSettings.[EnableDatabaseOwnershipCheck],
-					[DatabaseSettings]				= PreservedSettings.[EnableDatabaseSettings],
-					[DatabaseStatesCheck]			= PreservedSettings.[EnableDatabaseStatesCheck],
-					[DriveSpaceCheck]				= PreservedSettings.[EnableDriveSpaceCheck],
-					[FailedAgentJobCheck]			= PreservedSettings.[EnableFailedAgentJobCheck],
-					[FailedLoginsCheck]				= PreservedSettings.[EnableFailedLoginsCheck],
-					[JobOwnerCheck]					= PreservedSettings.[EnableJobOwnerCheck],
-					[TopFiveDatabaseSizeCheck]		= PreservedSettings.[EnableTopFiveDatabaseSizeCheck],
-					[ModuleConfig_Desc]					= PreservedSettings.[ModuleConfig_Desc],
-					[UseMedianCalculationForDriveSpaceCalc]	= PreservedSettings.[UseMedianCalculationForDriveSpaceCalc],
-					[ServerSettings]				= PreservedSettings.[ServerSettings],
-					[SuspectPages]					= PreservedSettings.[SuspectPages],
-					[AGDatabases]					= PreservedSettings.[AGDatabases],
-					[LongRunningTransactions]		= PreservedSettings.[LongRunningTransactions]
-					FROM [Inspector].[Modules] AS Config
-					INNER JOIN [Inspector].[Modules_Copy] AS PreservedSettings ON Config.ModuleConfig_Desc = PreservedSettings.ModuleConfig_Desc;'
+			IF OBJECT_ID('Inspector.InstanceStart') IS NULL
+			CREATE TABLE [Inspector].[InstanceStart](
+			Servername NVARCHAR(128),
+			Log_Date DATETIME,
+			InstanceStart DATETIME
+			);
 
-				--If Inspector build is less than V1.2 Column names will be different in the Module table.
-				IF (CAST(@CurrentBuild AS DECIMAL(4,1))) < 1.2
-				BEGIN
-					EXEC(@SQLStatement);
-				END
-				ELSE --V1.2 or higher
-				BEGIN
-					--Remove Enable prefix from column names in @SQLStatement
-					SET @SQLStatement = REPLACE(@SQLStatement,'Enable','')
-					EXEC(@SQLStatement);
-				END
-			END
-			
-			IF OBJECT_ID('Inspector.CurrentServers_Copy') IS NOT NULL
-			BEGIN
-			
-				INSERT INTO [Inspector].[CurrentServers] (Servername,IsActive,ModuleConfig_Desc,TableHeaderColour) 
-				SELECT PreservedSettings.Servername,PreservedSettings.IsActive,PreservedSettings.ModuleConfig_Desc,TableHeaderColour
-				FROM [Inspector].[CurrentServers_Copy] AS PreservedSettings 
-				WHERE NOT EXISTS (SELECT Servername
-									FROM [Inspector].[CurrentServers] AS Config
-									WHERE Config.Servername = PreservedSettings.Servername);
-			
-			END
-			
-			IF OBJECT_ID('Inspector.EmailRecipients_Copy') IS NOT NULL
-			BEGIN
-			
-				UPDATE  Config
-				SET Config.Recipients = PreservedSettings.Recipients
-				FROM [Inspector].[EmailRecipients]  AS Config
-				INNER JOIN [Inspector].[EmailRecipients_Copy] AS PreservedSettings ON Config.Description = PreservedSettings.Description;
-				
-				INSERT INTO [Inspector].[EmailRecipients] (Description,Recipients) 
-				SELECT PreservedSettings.Description,PreservedSettings.Recipients
-				FROM [Inspector].[EmailRecipients_Copy] AS PreservedSettings 
-				LEFT JOIN [Inspector].[EmailRecipients]  AS Config ON Config.Description = PreservedSettings.Description
-				WHERE Config.Description IS NULL;
-			
-			END
-			
-			
-			IF OBJECT_ID('Inspector.EmailConfig_Copy') IS NOT NULL
-			BEGIN
-			
-				INSERT INTO [Inspector].[EmailConfig] (ModuleConfig_Desc,EmailSubject)
-				SELECT [ModuleConfig_Desc],[EmailSubject]
-				FROM [Inspector].[EmailConfig_Copy];
-			
-			END
-			
-			END
 
+			IF OBJECT_ID('Inspector.SuspectPages') IS NULL
+			CREATE TABLE [Inspector].[SuspectPages](
+			[Servername] NVARCHAR(128),
+			[Log_Date] DATETIME,
+			[Databasename] NVARCHAR(128),
+			[file_id] INT,
+			[page_id] BIGINT,	
+			[event_type] INT,
+			[error_count] INT,
+			[last_update_date] DATETIME
+			);
+			
+			IF OBJECT_ID('Inspector.AGDatabases') IS NULL
+			CREATE TABLE [Inspector].[AGDatabases](
+			[ID] INT IDENTITY(1,1),
+			[Servername] NVARCHAR(128) NULL,
+			[Log_Date] DATETIME NULL,
+			[LastUpdated] DATETIME NULL,
+			[Databasename] NVARCHAR(128) NULL,
+			[Is_AG] BIT NULL,
+			[Is_AGJoined] BIT NULL
+			);
+
+			IF OBJECT_ID('Inspector.InstanceVersion') IS NULL
+			CREATE TABLE [Inspector].[InstanceVersion](
+			Servername NVARCHAR(128),
+			PhysicalServername NVARCHAR(128),
+			Log_Date DATETIME,
+			VersionInfo NVARCHAR(128)
+			);
+			
+			IF OBJECT_ID('Inspector.LongRunningTransactions') IS NULL
+			CREATE TABLE [Inspector].[LongRunningTransactions](
+			[Servername] NVARCHAR(128) NULL,
+			[Log_Date] DATETIME NULL,
+			[session_id] INT NULL,
+			[transaction_begin_time] DATETIME NULL,
+			[Duration_DDHHMMSS] VARCHAR(20) NULL,
+			[TransactionState] VARCHAR(20) NULL,
+			[SessionState] NVARCHAR(20) NULL,
+			[login_name] NVARCHAR(128) NULL,
+			[host_name] NVARCHAR(128) NULL,
+			[program_name] NVARCHAR(128) NULL,
+			[Databasename] NVARCHAR(128) NULL
+			);
+
+
+--Populate config
 IF @InitialSetup = 1 
 BEGIN
+--Truncate tables - Settings,Modules,EmailConfig,ModuleWarnings,ModuleWarningLevel,EmailRecipients
+TRUNCATE TABLE [Inspector].[Settings];
+TRUNCATE TABLE [Inspector].[EmailConfig];
+TRUNCATE TABLE [Inspector].[ModuleWarnings];
+TRUNCATE TABLE [Inspector].[ModuleWarningLevel];
+TRUNCATE TABLE [Inspector].[EmailRecipients];
+DELETE FROM [Inspector].[Modules];
+
 --Insert Settings into Inspector Base tables  
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
 INSERT INTO [Inspector].[Settings] ([Description],[Value])
@@ -970,8 +835,11 @@ INSERT INTO [Inspector].[Modules] (ModuleConfig_Desc,AGCheck,BackupsCheck,Backup
 					   ADHocDatabaseCreationCheck,BackupSpaceCheck,DatabaseSettings,ServerSettings,SuspectPages,AGDatabases,LongRunningTransactions,UseMedianCalculationForDriveSpaceCalc)
 VALUES	(''Default'',1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0),(''PeriodicBackupCheck'',0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
         
-INSERT INTO Inspector.EmailConfig (ModuleConfig_Desc,EmailSubject)
+INSERT INTO [Inspector].[EmailConfig] (ModuleConfig_Desc,EmailSubject)
 VALUES (''Default'',''SQLUndercover Inspector check ''),(''PeriodicBackupCheck'',''SQLUndercover Backups Report'');
+
+INSERT INTO [Inspector].[ModuleWarnings] ([WarningLevel],[WarningDesc])
+VALUES(NULL,''InspectorDefault''),(1,''Red''),(2,''Yellow''),(3,''Information (white)'');
 
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
@@ -1007,215 +875,101 @@ EXEC (@SQLStatement);
 
 END
 
+			
+			--Insert new settings for V1.2
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'LongRunningTransactionThreshold')
+			BEGIN
+				INSERT INTO [Inspector].[Settings] ([Description],[Value]) 
+				VALUES ('LongRunningTransactionThreshold',CAST(@LongRunningTransactionThreshold AS VARCHAR(8)));
+			END
 
-			--Drop and create all Inspector Data Tables and Stored Procedures
-			IF OBJECT_ID('Inspector.ADHocDatabaseCreations') IS NOT NULL
-			DROP TABLE [Inspector].[ADHocDatabaseCreations];
-			
-			CREATE TABLE [Inspector].[ADHocDatabaseCreations]
-			(
-			[Servername] NVARCHAR(128) NOT NULL,
-			[Log_Date] DATETIME NULL,
-			[Databasename] NVARCHAR(128) NOT NULL,
-			[Create_Date] DATETIME NULL
-			);
-
-			
-			IF OBJECT_ID('Inspector.ADHocDatabaseSupression') IS NOT NULL
-			DROP TABLE [Inspector].[ADHocDatabaseSupression];
-			
-			CREATE TABLE [Inspector].[ADHocDatabaseSupression]
-			(
-			[Servername] NVARCHAR(128),
-			[Log_Date] DATETIME,
-			[Databasename] NVARCHAR(128),
-			[Suppress] BIT
-			);		
-				
-			
-			IF OBJECT_ID('Inspector.AGCheck') IS NOT NULL
-			DROP TABLE [Inspector].[AGCheck];
-			
-			CREATE TABLE [Inspector].[AGCheck]
-			(
-				[Servername] NVARCHAR(128) NOT NULL,
-				[Log_Date] DATETIME NOT NULL,
-				[AGname] NVARCHAR(128) NULL,
-				[State] VARCHAR(50) NULL,
-				[ReplicaServername] NVARCHAR(256) NULL,
-				[Suspended] BIT NULL,
-				[SuspendReason] VARCHAR(50) NULL
-			); 
-			
-			 
-			
-			IF OBJECT_ID('Inspector.DatabaseFiles') IS NOT NULL
-			DROP TABLE [Inspector].[DatabaseFiles];
-			
-			CREATE TABLE [Inspector].[DatabaseFiles]
-			(
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Log_Date] DATETIME  NOT NULL,
-			[Databasename] NVARCHAR(128), 
-			[FileType] VARCHAR(8),
-			[FilePath] NVARCHAR(260)
-			);
-			
-			
-			
-			IF OBJECT_ID('Inspector.DatabaseStates') IS NOT NULL
-			DROP TABLE [Inspector].[DatabaseStates];
-			
-			CREATE TABLE [Inspector].[DatabaseStates]
-			(
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Log_Date] DATETIME  NOT NULL,
-			[DatabaseState] VARCHAR(40)  NULL,
-			[Total] INT,
-			[DatabaseNames] VARCHAR(MAX) NULL
-			); 
-			
-			
-			IF OBJECT_ID('Inspector.DriveSpaceInfo') IS NOT NULL
-			DROP VIEW [Inspector].[DriveSpaceInfo];
-			
-			IF OBJECT_ID('Inspector.DriveSpace') IS NOT NULL
-			DROP TABLE [Inspector].[DriveSpace];
-			
-			CREATE TABLE [Inspector].[DriveSpace] 
-			(
-			[Servername] NVARCHAR(128),
-			[Log_Date] DATETIME,
-			[Drive] NVARCHAR(3),
-			[Capacity_GB] DECIMAL(10,2),
-			[AvailableSpace_GB] DECIMAL(10,2)
-			);
-
-			
-			IF OBJECT_ID('Inspector.FailedAgentJobs') IS NOT NULL
-			DROP TABLE [Inspector].[FailedAgentJobs]
-			
-			CREATE TABLE [Inspector].[FailedAgentJobs]
-			(
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Log_Date] DATETIME  NOT NULL,
-			[Jobname] VARCHAR(128)  NULL,
-			[LastStepFailed] TINYINT NULL,
-			[LastFailedDate] DATETIME NULL,
-			[LastError] VARCHAR(260) NULL
-			);
-			
-			
-			IF OBJECT_ID('Inspector.LoginAttempts') IS NOT NULL
-			DROP TABLE [Inspector].[LoginAttempts];
-			
-			CREATE TABLE [Inspector].[LoginAttempts]
-			(
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Log_Date] DATETIME  NOT NULL,
-			[Username] VARCHAR(50)  NULL,
-			[Attempts] INT NULL,
-			[LastErrorDate] DATETIME NULL,
-			[LastError] VARCHAR(260) NULL
-			); 
-			
-			
-			
-			IF OBJECT_ID('Inspector.JobOwner') IS NOT NULL
-			DROP TABLE [Inspector].[JobOwner];
-			
-			CREATE TABLE [Inspector].[JobOwner]
-			(
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Log_Date] DATETIME  NOT NULL,
-			[Job_ID]  UNIQUEIDENTIFIER  NULL,
-			[Jobname] VARCHAR(100) NOT NULL
-			); 
-			
-			
-			
-			IF OBJECT_ID('Inspector.TopFiveDatabases') IS NOT NULL
-			DROP TABLE [Inspector].[TopFiveDatabases];
-			
-			CREATE TABLE [Inspector].[TopFiveDatabases]
-			(
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Log_Date] DATETIME  NOT NULL,
-			[Databasename] NVARCHAR(128)  NULL,
-			[TotalSize_MB] BIGINT
-			); 
-			
-			
-			
-			IF OBJECT_ID('Inspector.BackupsCheck') IS NOT NULL
-			DROP TABLE [Inspector].[BackupsCheck];
-			
-			--New columns for 1.2 [primary_replica],[backup_preference]
-			CREATE TABLE [Inspector].[BackupsCheck](
-				[Servername] NVARCHAR (128) NOT NULL,
-				[Log_Date] [datetime] NOT NULL,
-				[Databasename] [nvarchar](128) NULL,
-				[AGname] Nvarchar (128) NULL,
-				[FULL] [datetime] NULL,
-				[DIFF] [datetime] NULL,
-				[LOG] [datetime] NULL,
-				[IsFullRecovery] [bit] NULL,
-				[IsSystemDB] [bit] NULL,
-				[primary_replica] [nvarchar](128) NULL,
-				[backup_preference] [nvarchar](60) NULL
-				);
-			
-			
-			
-			
-			IF OBJECT_ID('Inspector.DatabaseFileSizes') IS NOT NULL
-			DROP TABLE [Inspector].[DatabaseFileSizes];
-			
-			--New Column [LastUpdated] for 1.0.1
-			CREATE TABLE [Inspector].[DatabaseFileSizes](
-				[Servername] NVARCHAR(128)  NOT NULL,
-				[Database_id] INT NOT NULL,
-				[Database_name] [NVARCHAR](128) NULL,
-				[OriginalDateLogged] [DATETIME] NOT NULL,
-				[OriginalSize_MB] BIGINT NULL,
-				[Type_desc] [NVARCHAR](60) NULL,
-				[File_id] TINYINT NOT NULL,
-				[Filename] [NVARCHAR](260) NULL,
-				[PostGrowthSize_MB] BIGINT NULL,
-				[GrowthRate] [int] NULL,
-				[Is_percent_growth] [BIT] NOT NULL,
-				[NextGrowth] BIGINT  NULL,
-				[LastUpdated] DATETIME NULL	  
-
-			); 
-			
-			IF OBJECT_ID('Inspector.DatabaseFileSizeHistory') IS NOT NULL
-			DROP TABLE [Inspector].[DatabaseFileSizeHistory];
-			
-			
-			CREATE TABLE [Inspector].DatabaseFileSizeHistory
-			(
-			[GrowthID] BIGINT IDENTITY(1,1),
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Database_id] INT NOT NULL,
-			[Database_name] NVARCHAR(128) NOT NULL,
-			[Log_Date] DATETIME NOT NULL,
-			[Type_Desc] NVARCHAR(60) NOT NULL,
-			[File_id] TINYINT NOT NULL,
-			[FileName] NVARCHAR(260) NOT NULL,
-			[PreGrowthSize_MB] BIGINT NOT NULL,
-			[GrowthRate_MB] INT NOT NULL,
-			[GrowthIncrements] INT NOT NULL,
-			[PostGrowthSize_MB] BIGINT NOT NULL
-			);
-			
-			CREATE NONCLUSTERED INDEX [IX_Servername_Includes_Log_Date] ON [Inspector].[DatabaseFileSizeHistory]
-			([Servername] ASC) INCLUDE ([Log_Date]); 
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'ReportDataRetention')
+			BEGIN
+				INSERT INTO [Inspector].[Settings] ([Description],[Value]) 
+				VALUES ('ReportDataRetention','30');
+			END
 
 
-			IF OBJECT_ID('Inspector.DatabaseGrowthInfo') IS NOT NULL
-			DROP VIEW [Inspector].[DatabaseGrowthInfo];
+			--New Setting for 1.2 - Powershell banner.
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'PSEmailBannerURL')
+			BEGIN
+				INSERT INTO [Inspector].[Settings] ([Description],[Value])
+				VALUES ('PSEmailBannerURL','http://bit.ly/PSInspectorEmailBanner');
+			END
+
+			--New Setting for 1.2 - Is Linked Server being used.
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'LinkedServername')
+			BEGIN
+				INSERT INTO [Inspector].[Settings] ([Description],[Value])
+				VALUES ('LinkedServername',@LinkedServernameParam);
+			END
+			ELSE 
+				BEGIN
+					UPDATE [Inspector].[Settings] 
+					SET [Value] = @LinkedServernameParam
+					WHERE [Description] = 'LinkedServername'
+				END
+
+			--New URL for standard email banner
+			IF (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = 'EmailBannerURL') = 'https://i2.wp.com/sqlundercover.files.wordpress.com/2017/11/inspector_whitehandle.png?ssl=1&w=450'
+			BEGIN
+				UPDATE [Inspector].[Settings] 
+				SET [Value] = 'http://bit.ly/InspectorEmailBanner'
+				WHERE [Description] = 'EmailBannerURL';
+			END
+
 			
+			IF OBJECT_ID('Inspector.Modules') IS NOT NULL 
+			BEGIN 
+
+				--New columns for V1.2 for Inspector.Modules
+				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'ServerSettings' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
+				BEGIN
+					ALTER TABLE [Inspector].[Modules] ADD [ServerSettings] BIT NULL;
+				END
+
+				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'SuspectPages' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
+				BEGIN
+					ALTER TABLE [Inspector].[Modules] ADD [SuspectPages] BIT NULL;
+				END
+
+				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'AGDatabases' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
+				BEGIN
+					ALTER TABLE [Inspector].[Modules] ADD [AGDatabases] BIT NULL;
+				END
+
+				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'LongRunningTransactions' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
+				BEGIN
+					ALTER TABLE [Inspector].[Modules] ADD [LongRunningTransactions] BIT NULL;
+				END
+
+				IF (SELECT CAST([Value] AS DECIMAL(4,1)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild') < 1.2
+				BEGIN 
+					IF EXISTS(SELECT 1 FROM sys.columns WHERE name = N'ServerSettings' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
+					BEGIN
+						EXEC sp_executesql N'UPDATE [Inspector].[Modules] SET [ServerSettings] = CASE WHEN ModuleConfig_Desc = ''Default'' THEN 1 ELSE 0 END;';	
+					END
+
+					IF EXISTS(SELECT 1 FROM sys.columns WHERE name = N'SuspectPages' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
+					BEGIN
+						EXEC sp_executesql N'UPDATE [Inspector].[Modules] SET [SuspectPages] = CASE WHEN ModuleConfig_Desc = ''Default'' THEN 1 ELSE 0 END;';				
+					END
+
+					IF EXISTS(SELECT 1 FROM sys.columns WHERE name = N'AGDatabases' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
+					BEGIN
+						EXEC sp_executesql N'UPDATE [Inspector].[Modules] SET [AGDatabases] = CASE WHEN ModuleConfig_Desc = ''Default'' THEN 1 ELSE 0 END;';
+					END
+
+					IF EXISTS(SELECT 1 FROM sys.columns WHERE name = N'LongRunningTransactions' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
+					BEGIN
+						EXEC sp_executesql N'UPDATE [Inspector].[Modules] SET [LongRunningTransactions] = CASE WHEN ModuleConfig_Desc = ''Default'' THEN 1 ELSE 0 END;';
+					END
+				END
+			END
+
+			
+			IF OBJECT_ID('Inspector.DatabaseGrowthInfo') IS NULL
+			BEGIN
 			EXEC sp_executesql N'
 			CREATE VIEW [Inspector].[DatabaseGrowthInfo] 
 			AS
@@ -1249,122 +1003,155 @@ END
 			) GrowthInfo
 			INNER JOIN [Inspector].[DatabaseFileSizes] ON [DatabaseFileSizes].[Database_name] = [GrowthInfo].[Database_name] 
 			AND  [DatabaseFileSizes].[Servername] =  [GrowthInfo].[Servername] 
-			AND [DatabaseFileSizes].[Filename] =  [GrowthInfo].[FileName];'
+			AND [DatabaseFileSizes].[Filename] =  [GrowthInfo].[FileName];';
+			END
+
+
+			IF OBJECT_ID('Inspector.DriveSpaceInfo') IS NULL
+			BEGIN
+			EXEC sp_executesql N'CREATE VIEW [Inspector].[DriveSpaceInfo]
+			AS
 			
-			IF OBJECT_ID('Inspector.DatabaseOwnership') IS NOT NULL
-			DROP TABLE [Inspector].[DatabaseOwnership];
+			/*
+			Author: Adrian Buckman
+			Created: 23/08/2018
+			Revised: n/a
+			Description: Show aggregated space used by drive by server, show Average daily,monthly and yearly usage and MIN/MAX Daily Increment variances.
+			*/
 			
-			CREATE TABLE [Inspector].[DatabaseOwnership]
-			    (
-				[Servername] [nvarchar](128) NOT NULL,
-				[Log_Date] DATETIME NULL,
-				[AGname] [nvarchar](128) NULL,
-				[Database_name] [nvarchar](128) NOT NULL,
-				[Owner] [nvarchar](100) NULL
-				);
-			
-			
-			IF OBJECT_ID('Inspector.BackupSizesByDay') IS NOT NULL
-			DROP TABLE [Inspector].[BackupSizesByDay];
-			
-			CREATE TABLE [Inspector].[BackupSizesByDay]
+			SELECT 
+			Servername,
+			Drive,
+			COUNT(*) AS DaysRecorded,
+			CAST(AVG(Delta_GB) AS DECIMAL(8,2)) AS AVG_Daily_Growth_GB,
+			CAST(((AVG(Delta_GB)*365)/12) AS DECIMAL(8,2)) AS AVG_Monthly_Growth_GB,
+			CAST((AVG(Delta_GB)*365) AS DECIMAL(8,2)) AS AVG_Yearly_GB,
+			CAST((MIN(Delta_GB)) AS DECIMAL(8,2)) AS MIN_Daily_Increment_GB,
+			CAST((MAX(Delta_GB)) AS DECIMAL(8,2)) AS MAX_Daily_Increment_GB
+			FROM 
+			(SELECT
+				Servername,
+				Log_Date,
+				Drive,
+				Capacity_GB,
+				AvailableSpace_GB,
+				Used_GB,
+				CASE WHEN Delta_GB < 0 THEN 0 ELSE Delta_GB END AS Delta_GB
+				FROM 
 				(
-				[Servername] [nvarchar](128) NOT NULL,
-				[Log_Date] DATETIME NULL,
-				[DayOfWeek] [VARCHAR](10) NULL,
-				[CastedDate] [DATE] NULL,
-				[TotalSizeInBytes] [BIGINT] NULL
-				);
-			
-			IF OBJECT_ID('Inspector.DatabaseSettings') IS NOT NULL
-			DROP TABLE [Inspector].[DatabaseSettings];
-			
-			CREATE TABLE [Inspector].[DatabaseSettings](
-				[Servername] [nvarchar](128) NULL,
-				[Log_Date] [datetime] NULL,
-				[Setting] [varchar](50) NULL,
-				[Description] [varchar](100) NULL,
-				[Total] [int] NULL
-			);
-			
-			IF OBJECT_ID('Inspector.ServerSettings') IS NOT NULL
-			DROP TABLE [Inspector].[ServerSettings];
-			
-			CREATE TABLE [Inspector].[ServerSettings](
-				[Servername] NVARCHAR(128) NULL,
-				[Log_Date] DATETIME NULL,
-				[configuration_id] INT NULL,
-				[Setting] NVARCHAR(128) NULL,
-				[value_in_use] INT NULL
-			);
+					SELECT 
+					Servername,
+					Log_Date,
+					Drive,
+					Capacity_GB,
+					AvailableSpace_GB,
+					Capacity_GB - AvailableSpace_GB AS Used_GB,
+					--LAG(Capacity_GB - AvailableSpace_GB,1,NULL) OVER (PARTITION BY Servername,Drive ORDER BY Servername ASC, Drive ASC, Log_Date ASC) Prev_used_GB,
+					Capacity_GB - AvailableSpace_GB - LAG(Capacity_GB - AvailableSpace_GB,1,Capacity_GB - AvailableSpace_GB) OVER (PARTITION BY Servername,Drive ORDER BY Servername ASC, Drive ASC, Log_Date ASC) AS Delta_GB
+					FROM [Inspector].[DriveSpace]
+				
+				) AS Derived
+			) AS DriveInfo
+			GROUP BY 
+			Servername,
+			Drive
+			';
 
-			IF OBJECT_ID('Inspector.InstanceStart') IS NOT NULL
-			DROP TABLE [Inspector].[InstanceStart];
+			END
 
-			CREATE TABLE [Inspector].[InstanceStart](
-			Servername NVARCHAR(128),
-			Log_Date DATETIME,
-			InstanceStart DATETIME
-			);
+			--Create Powershell collection objects
+			IF OBJECT_ID('Inspector.PSEnabledModules') IS NULL
+			BEGIN
+			EXEC ('CREATE VIEW [Inspector].[PSEnabledModules]
+			AS
+			SELECT [ModuleConfig_Desc],[Module],[Enabled]
+			FROM 
+			(
+			    SELECT	
+				ModuleConfig_Desc,						
+			    ISNULL(AGCheck,0) AS AGCheck,					
+			    ISNULL(BackupsCheck,0) AS BackupsCheck,					
+			    ISNULL(BackupSizesCheck,0) AS BackupSizesByDay,			
+			    ISNULL(DatabaseGrowthCheck,0) AS DatabaseGrowths,			
+			    ISNULL(DatabaseFileCheck,0) AS DatabaseFiles,			
+			    ISNULL(DatabaseOwnershipCheck,0) AS DatabaseOwnership,		
+			    ISNULL(DatabaseStatesCheck,0) AS DatabaseStates,			
+			    ISNULL(DriveSpaceCheck,0) AS DriveSpace,				
+			    ISNULL(FailedAgentJobCheck,0) AS FailedAgentJobs,			
+			    ISNULL(JobOwnerCheck,0) AS JobOwner,				
+			    ISNULL(FailedLoginsCheck,0) AS LoginAttempts,			
+			    ISNULL(TopFiveDatabaseSizeCheck,0) AS TopFiveDatabases,		
+			    ISNULL(ADHocDatabaseCreationCheck,0) AS ADHocDatabaseCreations,	
+			    ISNULL(DatabaseSettings,0) AS DatabaseSettings,
+			    ISNULL(ServerSettings,0) AS ServerSettings,
+			    ISNULL(SuspectPages,0) AS SuspectPages,
+			    ISNULL(AGDatabases,0) AS AGDatabases,
+			    ISNULL(LongRunningTransactions,0) AS LongRunningTransactions
+			    FROM [Inspector].[Modules]
+			) Modules
+			UNPIVOT
+			([Enabled] FOR Module IN 
+			(AGCheck
+			,BackupsCheck
+			,BackupSizesByDay
+			,DatabaseGrowths
+			,DatabaseFiles
+			,DatabaseOwnership
+			,DatabaseStates
+			,DriveSpace
+			,FailedAgentJobs
+			,JobOwner
+			,LoginAttempts
+			,TopFiveDatabases
+			,ADHocDatabaseCreations
+			,DatabaseSettings
+			,ServerSettings
+			,SuspectPages
+			,AGDatabases
+			,LongRunningTransactions
+			) ) AS [ModulesList]
+			WHERE [Enabled] = 1;');
+			END
 
-
-			IF OBJECT_ID('Inspector.SuspectPages') IS NOT NULL
-			DROP TABLE [Inspector].[SuspectPages];
-
-			CREATE TABLE [Inspector].[SuspectPages](
-			[Servername] NVARCHAR(128),
-			[Log_Date] DATETIME,
-			[Databasename] NVARCHAR(128),
-			[file_id] INT,
-			[page_id] BIGINT,	
-			[event_type] INT,
-			[error_count] INT,
-			[last_update_date] DATETIME
-			);
-			
-			IF OBJECT_ID('Inspector.AGDatabases') IS NOT NULL
-			DROP TABLE [Inspector].[AGDatabases];
-			
-			CREATE TABLE [Inspector].[AGDatabases](
-			[ID] INT IDENTITY(1,1),
-			[Servername] NVARCHAR(128) NULL,
-			[Log_Date] DATETIME NULL,
-			[LastUpdated] DATETIME NULL,
-			[Databasename] NVARCHAR(128) NULL,
-			[Is_AG] BIT NULL,
-			[Is_AGJoined] BIT NULL
-			);
-
-			IF OBJECT_ID('Inspector.InstanceVersion') IS NOT NULL
-			DROP TABLE [Inspector].[InstanceVersion];
-
-			CREATE TABLE [Inspector].[InstanceVersion](
-			Servername NVARCHAR(128),
-			PhysicalServername NVARCHAR(128),
-			Log_Date DATETIME,
-			VersionInfo NVARCHAR(128)
-			);
-			
-			IF OBJECT_ID('Inspector.LongRunningTransactions') IS NOT NULL
-			DROP TABLE [Inspector].[LongRunningTransactions];
-
-			CREATE TABLE [Inspector].[LongRunningTransactions](
-				[Servername] NVARCHAR(128) NULL,
-				[Log_Date] DATETIME NULL,
-				[session_id] INT NULL,
-				[transaction_begin_time] DATETIME NULL,
-				[Duration_DDHHMMSS] VARCHAR(20) NULL,
-				[TransactionState] VARCHAR(20) NULL,
-				[SessionState] NVARCHAR(20) NULL,
-				[login_name] NVARCHAR(128) NULL,
-				[host_name] NVARCHAR(128) NULL,
-				[program_name] NVARCHAR(128) NULL,
-				[Databasename] NVARCHAR(128) NULL
-			);
+			IF OBJECT_ID('Inspector.PSInspectorTables') IS NULL
+			BEGIN
+			EXEC sp_executesql N'
+			CREATE VIEW [Inspector].[PSInspectorTables]
+			AS
+			SELECT Tablename
+			FROM (VALUES
+			(''ADHocDatabaseCreations''),
+			(''ADHocDatabaseSupression''),
+			(''AGCheck''),
+			(''AGDatabases''),
+			(''BackupsCheck''),
+			(''BackupSizesByDay''),
+			(''CurrentServers''),
+			(''DatabaseFiles''),
+			(''DatabaseFileSizeHistory''),
+			(''DatabaseFileSizes''),
+			(''DatabaseOwnership''),
+			(''DatabaseSettings''),
+			(''DatabaseStates''),
+			(''DriveSpace''),
+			(''EmailConfig''),
+			(''EmailRecipients''),
+			(''FailedAgentJobs''),
+			(''InstanceStart''),
+			(''InstanceVersion''),
+			(''JobOwner''),
+			(''LoginAttempts''),
+			(''LongRunningTransactions''),
+			(''Modules''),
+			(''ReportData''),
+			(''ServerSettings''),
+			(''Settings''),
+			(''SuspectPages''),
+			(''TopFiveDatabases'')
+			) InspectorTables (Tablename);'
+			END
 						
-			IF OBJECT_ID('Inspector.PSADHocDatabaseSupressionStage') IS NOT NULL
-			DROP TABLE [Inspector].[PSADHocDatabaseSupressionStage];
-
+			IF OBJECT_ID('Inspector.PSADHocDatabaseSupressionStage') IS NULL
 			CREATE TABLE [Inspector].[PSADHocDatabaseSupressionStage](
 			[Servername] [nvarchar](128) NULL,
 			[Log_Date] [datetime] NULL,
@@ -1372,69 +1159,59 @@ END
 			[Suppress] [bit] NULL
 			);
 			
-			IF OBJECT_ID('Inspector.PSAGDatabasesStage') IS NOT NULL
-			DROP TABLE [Inspector].[PSAGDatabasesStage];
-
+			IF OBJECT_ID('Inspector.PSAGDatabasesStage') IS NULL
 			CREATE TABLE [Inspector].[PSAGDatabasesStage](
-				[ID] [int] IDENTITY(1,1) NOT NULL,
-				[Servername] [nvarchar](128) NULL,
-				[Log_Date] [datetime] NULL,
-				[LastUpdated] [datetime] NULL,
-				[Databasename] [nvarchar](128) NULL,
-				[Is_AG] [bit] NULL,
-				[Is_AGJoined] [bit] NULL
+			[ID] [int] IDENTITY(1,1) NOT NULL,
+			[Servername] [nvarchar](128) NULL,
+			[Log_Date] [datetime] NULL,
+			[LastUpdated] [datetime] NULL,
+			[Databasename] [nvarchar](128) NULL,
+			[Is_AG] [bit] NULL,
+			[Is_AGJoined] [bit] NULL
 			);
 			
-			IF OBJECT_ID('Inspector.PSDatabaseFileSizesStage') IS NOT NULL
-			DROP TABLE [Inspector].[PSDatabaseFileSizesStage];
-						
+			IF OBJECT_ID('Inspector.PSDatabaseFileSizesStage') IS NULL
 			CREATE TABLE [Inspector].[PSDatabaseFileSizesStage](
-				[Servername] [nvarchar](128) NOT NULL,
-				[Database_id] [int] NOT NULL,
-				[Database_name] [nvarchar](128) NULL,
-				[OriginalDateLogged] [datetime] NOT NULL,
-				[OriginalSize_MB] [bigint] NULL,
-				[Type_desc] [nvarchar](60) NULL,
-				[File_id] [tinyint] NOT NULL,
-				[Filename] [nvarchar](260) NULL,
-				[PostGrowthSize_MB] [bigint] NULL,
-				[GrowthRate] [int] NULL,
-				[Is_percent_growth] [bit] NOT NULL,
-				[NextGrowth] [bigint] NULL,
-				[LastUpdated] [datetime] NULL
+			[Servername] [nvarchar](128) NOT NULL,
+			[Database_id] [int] NOT NULL,
+			[Database_name] [nvarchar](128) NULL,
+			[OriginalDateLogged] [datetime] NOT NULL,
+			[OriginalSize_MB] [bigint] NULL,
+			[Type_desc] [nvarchar](60) NULL,
+			[File_id] [tinyint] NOT NULL,
+			[Filename] [nvarchar](260) NULL,
+			[PostGrowthSize_MB] [bigint] NULL,
+			[GrowthRate] [int] NULL,
+			[Is_percent_growth] [bit] NOT NULL,
+			[NextGrowth] [bigint] NULL,
+			[LastUpdated] [datetime] NULL
 			); 
 			
-			IF OBJECT_ID('Inspector.PSDatabaseFileSizeHistoryStage') IS NOT NULL
-			DROP TABLE [Inspector].[PSDatabaseFileSizeHistoryStage];
-						
+			IF OBJECT_ID('Inspector.PSDatabaseFileSizeHistoryStage') IS NULL
 			CREATE TABLE [Inspector].[PSDatabaseFileSizeHistoryStage](
-				[GrowthID] [bigint] NOT NULL,
-				[Servername] [nvarchar](128) NOT NULL,
-				[Database_id] [int] NOT NULL,
-				[Database_name] [nvarchar](128) NOT NULL,
-				[Log_Date] [datetime] NOT NULL,
-				[Type_Desc] [nvarchar](60) NOT NULL,
-				[File_id] [tinyint] NOT NULL,
-				[FileName] [nvarchar](260) NOT NULL,
-				[PreGrowthSize_MB] [bigint] NOT NULL,
-				[GrowthRate_MB] [int] NOT NULL,
-				[GrowthIncrements] [int] NOT NULL,
-				[PostGrowthSize_MB] [bigint] NOT NULL
+			[GrowthID] [bigint] NOT NULL,
+			[Servername] [nvarchar](128) NOT NULL,
+			[Database_id] [int] NOT NULL,
+			[Database_name] [nvarchar](128) NOT NULL,
+			[Log_Date] [datetime] NOT NULL,
+			[Type_Desc] [nvarchar](60) NOT NULL,
+			[File_id] [tinyint] NOT NULL,
+			[FileName] [nvarchar](260) NOT NULL,
+			[PreGrowthSize_MB] [bigint] NOT NULL,
+			[GrowthRate_MB] [int] NOT NULL,
+			[GrowthIncrements] [int] NOT NULL,
+			[PostGrowthSize_MB] [bigint] NOT NULL
 			);
 			
-			IF OBJECT_ID('Inspector.PSADHocDatabaseCreationsStage') IS NOT NULL
-			DROP TABLE [Inspector].[PSADHocDatabaseCreationsStage];
-						
+			IF OBJECT_ID('Inspector.PSADHocDatabaseCreationsStage') IS NULL
 			CREATE TABLE [Inspector].[PSADHocDatabaseCreationsStage](
-				[Servername] [nvarchar](128) NOT NULL,
-				[Log_Date] [datetime] NULL,
-				[Databasename] [nvarchar](128) NOT NULL,
-				[Create_Date] [datetime] NULL
+			[Servername] [nvarchar](128) NOT NULL,
+			[Log_Date] [datetime] NULL,
+			[Databasename] [nvarchar](128) NOT NULL,
+			[Create_Date] [datetime] NULL
 			); 	
 			
-			IF OBJECT_ID('Inspector.PSDriveSpaceStage') IS NOT NULL
-			DROP TABLE [Inspector].[PSDriveSpaceStage];
-
+			IF OBJECT_ID('Inspector.PSDriveSpaceStage') IS NULL
 			CREATE TABLE [Inspector].[PSDriveSpaceStage](
 			[Servername] [nvarchar](128) NULL,
 			[Log_Date] [datetime] NULL,
@@ -1443,7 +1220,8 @@ END
 			[AvailableSpace_GB] [decimal](10, 2) NULL
 			);	 
 		
-								
+
+			--Drop procedures for recreation
 			IF OBJECT_ID('Inspector.ADHocDatabaseCreationsInsert') IS NOT NULL
 			DROP PROCEDURE [Inspector].[ADHocDatabaseCreationsInsert];
 			
@@ -1514,6 +1292,9 @@ END
 
 			IF OBJECT_ID('Inspector.InspectorDataCollection') IS NOT NULL 
 			DROP PROCEDURE [Inspector].[InspectorDataCollection];
+
+			IF OBJECT_ID('Inspector.PopulateModuleWarningLevel') IS NOT NULL 
+			DROP PROCEDURE [Inspector].[PopulateModuleWarningLevel];
 
 			IF OBJECT_ID('Inspector.PSGetColumns') IS NOT NULL
 			DROP PROCEDURE [Inspector].[PSGetColumns];
@@ -1839,55 +1620,64 @@ EXEC(@SQLStatement);
 
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE VIEW [Inspector].[DriveSpaceInfo]
-AS
-
-/*
-Author: Adrian Buckman
-Created: 23/08/2018
-Revised: n/a
-Description: Show aggregated space used by drive by server, show Average daily,monthly and yearly usage and MIN/MAX Daily Increment variances.
-*/
-
-SELECT 
-Servername,
-Drive,
-COUNT(*) AS DaysRecorded,
-CAST(AVG(Delta_GB) AS DECIMAL(8,2)) AS AVG_Daily_Growth_GB,
-CAST(((AVG(Delta_GB)*365)/12) AS DECIMAL(8,2)) AS AVG_Monthly_Growth_GB,
-CAST((AVG(Delta_GB)*365) AS DECIMAL(8,2)) AS AVG_Yearly_GB,
-CAST((MIN(Delta_GB)) AS DECIMAL(8,2)) AS MIN_Daily_Increment_GB,
-CAST((MAX(Delta_GB)) AS DECIMAL(8,2)) AS MAX_Daily_Increment_GB
-FROM 
-(SELECT
-	Servername,
-	Log_Date,
-	Drive,
-	Capacity_GB,
-	AvailableSpace_GB,
-	Used_GB,
-	CASE WHEN Delta_GB < 0 THEN 0 ELSE Delta_GB END AS Delta_GB
+'CREATE PROCEDURE [Inspector].[PopulateModuleWarningLevel] 
+AS 
+BEGIN
+	INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[ModuleWarningLevel] ([ModuleConfig_Desc],[Module])
+	SELECT [ModuleConfig_Desc],[Module]
 	FROM 
 	(
-		SELECT 
-		Servername,
-		Log_Date,
-		Drive,
-		Capacity_GB,
-		AvailableSpace_GB,
-		Capacity_GB - AvailableSpace_GB AS Used_GB,
-		--LAG(Capacity_GB - AvailableSpace_GB,1,NULL) OVER (PARTITION BY Servername,Drive ORDER BY Servername ASC, Drive ASC, Log_Date ASC) Prev_used_GB,
-		Capacity_GB - AvailableSpace_GB - LAG(Capacity_GB - AvailableSpace_GB,1,Capacity_GB - AvailableSpace_GB) OVER (PARTITION BY Servername,Drive ORDER BY Servername ASC, Drive ASC, Log_Date ASC) AS Delta_GB
-		FROM ['+@Databasename+'].[Inspector].[DriveSpace]
-	
-	) AS Derived
-) AS DriveInfo
-GROUP BY 
-Servername,
-Drive
-'
-EXEC(@SQLStatement);
+	    SELECT	
+		ModuleConfig_Desc,						
+	    AGCheck,					
+	    BackupsCheck,					
+	    BackupSizesCheck,		
+	    DatabaseGrowthCheck,		
+	    DatabaseFileCheck,	
+	    DatabaseOwnershipCheck,
+	    DatabaseStatesCheck,	
+	    DriveSpaceCheck,	
+	    FailedAgentJobCheck,		
+	    JobOwnerCheck,
+	    FailedLoginsCheck,	
+	    TopFiveDatabaseSizeCheck,
+	    ADHocDatabaseCreationCheck,
+	    DatabaseSettings,
+	    ServerSettings,
+	    SuspectPages,
+	    AGDatabases,
+	    LongRunningTransactions
+	    FROM [Inspector].[Modules]
+	) Modules
+	UNPIVOT
+	(ModuleConfig_Desc2 FOR Module IN 
+	(AGCheck				
+	,BackupsCheck			
+	,BackupSizesCheck		
+	,DatabaseGrowthCheck	
+	,DatabaseFileCheck	
+	,DatabaseOwnershipCheck
+	,DatabaseStatesCheck	
+	,DriveSpaceCheck
+	,FailedAgentJobCheck	
+	,JobOwnerCheck
+	,FailedLoginsCheck
+	,TopFiveDatabaseSizeCheck
+	,ADHocDatabaseCreationCheck
+	,DatabaseSettings
+	,ServerSettings
+	,SuspectPages
+	,AGDatabases
+	,LongRunningTransactions)
+	) AS [ModulesList]
+	WHERE NOT EXISTS (SELECT 1 
+					FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[ModuleWarningLevel] 
+					WHERE [ModulesList].[ModuleConfig_Desc] = [ModuleWarningLevel].[ModuleConfig_Desc]
+					AND CAST([ModulesList].[Module] AS VARCHAR(50)) = [ModuleWarningLevel].[Module]
+					);
+END'
 
+EXEC(@SQLStatement);
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[FailedAgentJobsInsert]
@@ -3441,7 +3231,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 14/09/2018
+--Revision date: 19/11/2018
 
 SET NOCOUNT ON;
 
@@ -3503,6 +3293,9 @@ DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 	   
 	   
 	   RAISERROR(''ModuleConfig selected for server: %s'',0,0,@ModuleConfig) WITH NOWAIT;
+
+	   RAISERROR(''Checking for missing Warning level/module combinations'',0,0) WITH NOWAIT;
+	   EXEC ['+@Databasename+'].[Inspector].[PopulateModuleWarningLevel];
 
 	   IF @AGCheck = 1 
 	   BEGIN 
@@ -3635,199 +3428,6 @@ END'
 EXEC(@SQLStatement);
 
 
-
-IF @InitialSetup = 0
-BEGIN
---Insert Preserved data into Inspector Data Base tables
-	IF OBJECT_ID('Inspector.ADHocDatabaseCreations_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[ADHocDatabaseCreations] 
-	SELECT * FROM [Inspector].[ADHocDatabaseCreations_Copy];
-
-	IF OBJECT_ID('Inspector.ADHocDatabaseSupression_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[ADHocDatabaseSupression] 
-	SELECT * FROM [Inspector].[ADHocDatabaseSupression_Copy];
-	
-	IF OBJECT_ID('Inspector.AGCheck_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[AGCheck] 
-	SELECT * FROM [Inspector].[AGCheck_Copy];
-	
-	IF OBJECT_ID('Inspector.BackupsCheck_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[BackupsCheck] 
-	SELECT * FROM [Inspector].[BackupsCheck_Copy];
-	
-	IF OBJECT_ID('Inspector.BackupSizesByDay_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[BackupSizesByDay] 
-	SELECT * FROM [Inspector].[BackupSizesByDay_Copy];
-	
-	IF OBJECT_ID('Inspector.DatabaseFiles_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[DatabaseFiles] 
-	SELECT * FROM [Inspector].[DatabaseFiles_Copy];
-	
-	IF OBJECT_ID('Inspector.DatabaseFileSizes_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[DatabaseFileSizes] ([Servername], [Database_id], [Database_name], [OriginalDateLogged], [OriginalSize_MB], [Type_desc], [File_id], [Filename], [PostGrowthSize_MB], [GrowthRate], [Is_percent_growth], [NextGrowth])
-	SELECT [Servername], [Database_id], [Database_name], [OriginalDateLogged], [OriginalSize_MB], [Type_desc], [File_id], [Filename], [PostGrowthSize_MB], [GrowthRate], [Is_percent_growth], [NextGrowth] FROM [Inspector].[DatabaseFileSizes_Copy];
-	
-	IF OBJECT_ID('Inspector.DatabaseOwnership_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[DatabaseOwnership] 
-	SELECT * FROM [Inspector].[DatabaseOwnership_Copy];
-	
-	IF OBJECT_ID('Inspector.DatabaseSettings_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[DatabaseSettings] 
-	SELECT * FROM [Inspector].[DatabaseSettings_Copy];
-	
-	IF OBJECT_ID('Inspector.DatabaseStates_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[DatabaseStates] 
-	SELECT * FROM [Inspector].[DatabaseStates_Copy];
-	
-	IF OBJECT_ID('Inspector.DriveSpace_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[DriveSpace] 
-	SELECT * FROM [Inspector].[DriveSpace_Copy];
-	
-	IF OBJECT_ID('Inspector.FailedAgentJobs_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[FailedAgentJobs] 
-	SELECT * FROM [Inspector].[FailedAgentJobs_Copy];
-	
-	IF OBJECT_ID('Inspector.JobOwner_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[JobOwner] 
-	SELECT * FROM [Inspector].[JobOwner_Copy];
-	
-	IF OBJECT_ID('Inspector.LoginAttempts_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[LoginAttempts] 
-	SELECT * FROM [Inspector].[LoginAttempts_Copy];
-	
-	IF OBJECT_ID('Inspector.ReportData_Copy') IS NOT NULL
-	BEGIN
-	INSERT INTO [Inspector].[ReportData] ([ReportDate],[ModuleConfig],[ReportData],[Summary])
-	SELECT [ReportDate],[ModuleConfig],[ReportData],[Summary] FROM [Inspector].[ReportData_Copy] ORDER BY [ReportDate] ASC;
-	END
-	
-	IF OBJECT_ID('Inspector.TopFiveDatabases_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[TopFiveDatabases] 
-	SELECT * FROM [Inspector].[TopFiveDatabases_Copy];
-	
-	
-	IF OBJECT_ID('Inspector.DatabaseFileSizeHistory_Copy') IS NOT NULL
-	BEGIN
-	SET IDENTITY_INSERT [Inspector].[DatabaseFileSizeHistory] ON 
-	INSERT INTO [Inspector].[DatabaseFileSizeHistory] ([GrowthID],[Database_id],[Database_name],[File_id],[FileName],[GrowthIncrements],[GrowthRate_MB],[Log_Date],[PostGrowthSize_MB],[PreGrowthSize_MB],[Servername],[Type_Desc]) 
-	SELECT [GrowthID],[Database_id],[Database_name],[File_id],[FileName],[GrowthIncrements],[GrowthRate_MB],[Log_Date],[PostGrowthSize_MB],[PreGrowthSize_MB],[Servername],[Type_Desc] 
-	FROM [Inspector].[DatabaseFileSizeHistory_Copy]; 
-	SET IDENTITY_INSERT [Inspector].[DatabaseFileSizeHistory] OFF
-	END
-
-	IF OBJECT_ID('Inspector.ServerSettings_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[ServerSettings] 
-	SELECT * FROM [Inspector].[ServerSettings_Copy];
-
-	IF OBJECT_ID('Inspector.InstanceStart_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[InstanceStart] 
-	SELECT * FROM [Inspector].[InstanceStart_Copy];
-
-	IF OBJECT_ID('Inspector.InstanceVersion_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[InstanceVersion] ([Servername], [PhysicalServername], [Log_Date], [VersionInfo])
-	SELECT [Servername], [PhysicalServername], [Log_Date], [VersionInfo] FROM [Inspector].[InstanceVersion_Copy];
-
-	IF OBJECT_ID('Inspector.SuspectPages_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[SuspectPages] 
-	SELECT * FROM [Inspector].[SuspectPages_Copy];
-
-	IF OBJECT_ID('Inspector.AGDatabases_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[AGDatabases] ([Servername], [Log_Date], [LastUpdated], [Databasename], [Is_AG], [Is_AGJoined])
-	SELECT [Servername], [Log_Date], [LastUpdated], [Databasename], [Is_AG], [Is_AGJoined] FROM [Inspector].[AGDatabases_Copy];
-
-	IF OBJECT_ID('Inspector.LongRunningTransactions_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[LongRunningTransactions] 
-	SELECT * FROM [Inspector].[LongRunningTransactions_Copy];
-
-END
-
-
---Drop Preserved Data/Settings Tables
- IF OBJECT_ID('Inspector.ADHocDatabaseCreations_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[ADHocDatabaseCreations_Copy];
-
- IF OBJECT_ID('Inspector.ADHocDatabaseSupression_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[ADHocDatabaseSupression_Copy];
-
- IF OBJECT_ID('Inspector.AGCheck_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[AGCheck_Copy];
-
- IF OBJECT_ID('Inspector.BackupsCheck_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[BackupsCheck_Copy];
-
- IF OBJECT_ID('Inspector.BackupSizesByDay_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[BackupSizesByDay_Copy];
-
- IF OBJECT_ID('Inspector.CurrentServers_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[CurrentServers_Copy];
-
- IF OBJECT_ID('Inspector.DatabaseFiles_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DatabaseFiles_Copy];
-
- IF OBJECT_ID('Inspector.DatabaseFileSizeHistory_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DatabaseFileSizeHistory_Copy];
-
- IF OBJECT_ID('Inspector.DatabaseFileSizes_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DatabaseFileSizes_Copy];
-
- IF OBJECT_ID('Inspector.DatabaseOwnership_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DatabaseOwnership_Copy];
-
- IF OBJECT_ID('Inspector.DatabaseSettings_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DatabaseSettings_Copy];
-
- IF OBJECT_ID('Inspector.ServerSettings_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[ServerSettings_Copy];
-
- IF OBJECT_ID('Inspector.InstanceStart_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[InstanceStart_Copy];
-
- IF OBJECT_ID('Inspector.InstanceVersion_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[InstanceVersion_Copy];
-
- IF OBJECT_ID('Inspector.SuspectPages_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[SuspectPages_Copy];
-
- IF OBJECT_ID('Inspector.AGDatabases_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[AGDatabases_Copy];
-
- IF OBJECT_ID('Inspector.LongRunningTransactions_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[LongRunningTransactions_Copy];
-
- IF OBJECT_ID('Inspector.DatabaseStates_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DatabaseStates_Copy];
-
- IF OBJECT_ID('Inspector.DriveSpace_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DriveSpace_Copy];
-
- IF OBJECT_ID('Inspector.EmailConfig_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[EmailConfig_Copy];
-
- IF OBJECT_ID('Inspector.EmailRecipients_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[EmailRecipients_Copy];
-
- IF OBJECT_ID('Inspector.FailedAgentJobs_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[FailedAgentJobs_Copy];
-
- IF OBJECT_ID('Inspector.JobOwner_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[JobOwner_Copy];
-
- IF OBJECT_ID('Inspector.LoginAttempts_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[LoginAttempts_Copy];
-
- IF OBJECT_ID('Inspector.Modules_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[Modules_Copy];
-
- IF OBJECT_ID('Inspector.ReportData_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[ReportData_Copy];
-
- IF OBJECT_ID('Inspector.Settings_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[Settings_Copy];
-
- IF OBJECT_ID('Inspector.TopFiveDatabases_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[TopFiveDatabases_Copy];
-
-
 --Create Main Inspector Report Stored Procedure
 SET @SQLStatement = ''
 
@@ -3945,7 +3545,7 @@ DECLARE @AGDatabases	BIT
 DECLARE @LongRunningTransactions BIT
 DECLARE @TotalWarningCount INT = 0
 DECLARE @TotalAdvisoryCount INT = 0
-
+DECLARE @WarningLevel TINYINT
 
 
 
@@ -3986,6 +3586,7 @@ DECLARE @InstanceVersionInfo NVARCHAR(128)
 DECLARE @InstanceUptime INT
 DECLARE @PhysicalServername NVARCHAR(128)
 DECLARE @ReportDataRetention INT = (SELECT ISNULL(NULLIF(CAST([Value] AS INT),''''),30) from ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''ReportDataRetention'')
+DECLARE @CollectionOutOfDate BIT
 
 IF @ModuleDesc IS NULL 
 	BEGIN SET @SubjectText = (SELECT [EmailSubject] FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[EmailConfig] WHERE [ModuleConfig_Desc] = ''Default'') END
@@ -4535,12 +4136,15 @@ END
 
 IF @LongRunningTransactions  = 1
 BEGIN
- 
+
 DECLARE @LongRunningTransactionThreshold VARCHAR(255) = (SELECT CAST([Value] AS INT) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''LongRunningTransactionThreshold'')
 
 DECLARE @BodyLongRunningTransactions VARCHAR(MAX),
 	   @TableHeadLongRunningTransactions VARCHAR(1000),
 	   @CountLongRunningTransactions VARCHAR(5)
+
+SET @CollectionOutOfDate = 0
+SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''LongRunningTransactions'')
 
 --Default value
 IF @LongRunningTransactionThreshold IS NULL 
@@ -4570,9 +4174,14 @@ SET @TableHeadLongRunningTransactions = ''
 
 	   BEGIN
 
-
 		  SET @BodyLongRunningTransactions = (SELECT 
-				@YellowHighlight AS [@bgcolor],
+				CASE @WarningLevel
+					WHEN NULL THEN @YellowHighlight
+					WHEN 1 THEN @RedHighlight
+					WHEN 2 THEN @YellowHighlight
+					WHEN 3 THEN ''#FFFFFF''
+					ELSE ''#FFFFFF''
+				END AS [@bgcolor],
 				[Servername] AS ''td'','''',+
 				[session_id] AS ''td'','''',+
 				CONVERT(VARCHAR(20),[transaction_begin_time],113) AS ''td'','''',+
@@ -4610,15 +4219,15 @@ SET @TableHeadLongRunningTransactions = ''
 				FOR XML PATH(''tr''),ELEMENTS);
 		  END
 
-		  SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadLongRunningTransactions, '''') + ISNULL(@BodyLongRunningTransactions, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+		  --SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadLongRunningTransactions, '''') + ISNULL(@BodyLongRunningTransactions, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 
-		  IF @BodyLongRunningTransactions LIKE ''%''+@YellowHighlight+''%''
-		  BEGIN
-			 --Count Long running transaction Warnings
-			 SET @CountLongRunningTransactions = (LEN(@BodyLongRunningTransactions) - LEN(REPLACE(@BodyLongRunningTransactions,@YellowHighlight, '''')))/LEN(@YellowHighlight)
-			 SELECT @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+@CountLongRunningTransactions+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''        
-			 SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountLongRunningTransactions
-		  END
+		  --IF @BodyLongRunningTransactions LIKE ''%''+@YellowHighlight+''%''
+		  --BEGIN
+			 ----Count Long running transaction Warnings
+			 --SET @CountLongRunningTransactions = (LEN(@BodyLongRunningTransactions) - LEN(REPLACE(@BodyLongRunningTransactions,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			 --SELECT @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+@CountLongRunningTransactions+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''        
+			 --SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountLongRunningTransactions
+		  --END
 
 	END
 	ELSE 
@@ -4626,7 +4235,13 @@ SET @TableHeadLongRunningTransactions = ''
 		
 		   SET @BodyLongRunningTransactions = 
 		   (SELECT 
-		   ''#FFFFFF'' AS [@bgcolor],
+			CASE @WarningLevel
+				WHEN NULL THEN @YellowHighlight
+				WHEN 1 THEN @RedHighlight
+				WHEN 2 THEN @YellowHighlight
+				WHEN 3 THEN ''#FFFFFF''
+				ELSE ''#FFFFFF''
+			END AS [@bgcolor],
 		    @Serverlist AS ''td'','''',+
 			''Data Collection out of date'' AS ''td'','''',+
 			''N/A'' AS ''td'','''', + 
@@ -4638,10 +4253,46 @@ SET @TableHeadLongRunningTransactions = ''
 			''N/A'' AS ''td'','''', + 
 			''N/A'' AS ''td'',''''
 		   FOR XML PATH(''tr''),ELEMENTS);
-		
-		   SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadLongRunningTransactions, '''') + ISNULL(@BodyLongRunningTransactions, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+			
+		   SET @CollectionOutOfDate = 1
+
+		   --SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadLongRunningTransactions, '''') + ISNULL(@BodyLongRunningTransactions, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 		
 		END
+
+SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadLongRunningTransactions, '''') + ISNULL(@BodyLongRunningTransactions, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+
+IF @WarningLevel = 1 
+BEGIN 
+	IF @BodyLongRunningTransactions LIKE ''%''+@RedHighlight+''%''
+	BEGIN
+		--Count Long running transaction Warnings
+		SET @CountLongRunningTransactions = (LEN(@BodyLongRunningTransactions) - LEN(REPLACE(@BodyLongRunningTransactions,@RedHighlight, '''')))/LEN(@RedHighlight)
+		SELECT @AlertHeader = @AlertHeader + 
+		CASE 
+			WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountLongRunningTransactions+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''   
+			WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountLongRunningTransactions+'') Long running transactions <b>(Data collection out of Date)</b></font><p>''  
+		END
+		SET @Importance = ''High'' 
+		SET @TotalWarningCount = @TotalWarningCount + @CountLongRunningTransactions
+	END
+END
+
+--Inspector default warning level
+IF (@WarningLevel = 2 OR @WarningLevel IS NULL)
+BEGIN 
+	IF @BodyLongRunningTransactions LIKE ''%''+@YellowHighlight+''%''
+	BEGIN
+		--Count Long running transaction Warnings
+		SET @CountLongRunningTransactions = (LEN(@BodyLongRunningTransactions) - LEN(REPLACE(@BodyLongRunningTransactions,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+		SELECT @AdvisoryHeader = @AdvisoryHeader + 
+		CASE 
+			WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+@CountLongRunningTransactions+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''        
+			WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+@CountLongRunningTransactions+'') Long running transactions <b>(Data collection out of Date)</b></font><p>''
+		END
+		SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountLongRunningTransactions
+	END
+END
 
 END
 
