@@ -15,7 +15,12 @@ function Invoke-SQLUndercoverInspector {
         [Parameter(Position = 2, ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
         [Alias('File')]
-        [String]$FileName = 'C:\Temp\Inspector.html'
+        [String]$FileName = 'C:\Temp\Inspector.html',
+
+        [Parameter(Position = 3, ValueFromPipelineByPropertyName)]
+        [ValidateNotNullOrEmpty()]
+        [Alias('Module')]
+        [String]$ModuleConfig = 'NULL'
     )
     
     begin {
@@ -25,7 +30,7 @@ function Invoke-SQLUndercoverInspector {
         $InvalidServers = New-Object -TypeName System.Collections.Generic.List[int]
         $ActiveServers = New-Object -TypeName System.Collections.Generic.List[string]
         $Builds = New-Object -TypeName System.Collections.Generic.List[psobject]
-        [string]$ModuleConfig = 'NULL' # SON: Has to be a string NULL or is $null okay?
+        #[string]$ModuleConfig = 'NULL' # SON: Has to be a string NULL or is $null okay?
 
         Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] [$CentralServer] - Checking central server connectivity."
         $CentralConnection = Get-DbaDatabase -SqlInstance $CentralServer -Database $LoggingDb -ErrorAction Stop -WarningAction Stop
