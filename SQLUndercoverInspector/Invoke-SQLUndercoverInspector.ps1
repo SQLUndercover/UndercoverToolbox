@@ -1,7 +1,7 @@
 #requires -Modules dbatools
 # SON: We'll create a .psm1 a .psd1 file and put the above into the $RequiredModules field there.
 
-function Invoke-SQLUndercoverCollection {
+function Invoke-SQLUndercoverInspector {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory, Position = 0, ValueFromPipelineByPropertyName)]
@@ -50,18 +50,22 @@ function Invoke-SQLUndercoverCollection {
                 $InspectorBuildQry = "EXEC [$LoggingDb].[Inspector].[PSGetInspectorBuild];"
             } -Process {
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Getting Inspector build info..."
-                $ConnectionCurrent = Get-DbaDatabase -SqlInstance $_ -Database $LoggingDb -ErrorAction Stop -WarningAction Stop
+                $ConnectionCurrent = Get-DbaDatabase -SqlInstance $_ -Database $LoggingDb -ErrorAction Continue -WarningAction Continue
 
                 if (-not $ConnectionCurrent.Name) {
                     Write-Warning "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Logging database [$LoggingDb] does not exist."
+                    Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Adding server to exclusion list."
                     $InvalidServers.Add($Pos)
                     $Pos++
-                    break
                 }
-
-                Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Adding build for $ConnectionCurrent and $($ConnectionCurrent.Name)."
+                ELSE {
+                Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Adding Inspector build."
                 $Builds.Add($ConnectionCurrent.Query($InspectorBuildQry))
                 $Pos++
+                    IF ($_ -eq $CentralServer) {
+                    $CentralInspectorBuild = $Builds[-1] | Select-Object Build
+                    }
+                }
             }
 
         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Removing invalid servers from ActiveServers array..."
@@ -73,12 +77,11 @@ function Invoke-SQLUndercoverCollection {
                     $ActiveServers = $ActiveServers | Where-Object { $_.Servername -ne $BadServername }
                 }
         }
-
         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Checking minimum build and build comparison..."
         $BuildVersions = $Builds | Measure-Object -Property Build -Maximum -Minimum
-        if ($BuildVersions.Minimum -lt 1.2) {
-            Write-Warning "[Validation] - Inspector builds do not match."
-            $Builds | Where-Object Build -lt 1.2 | Format-Table -Property Servername, Build
+        if ($BuildVersions.Minimum -lt 1.3) {
+            Write-Warning "[Validation] - Inspector builds do not match, Servers with builds less than ($($CentralInspectorBuild.Build)) currently running on central server DB [$CentralServer].[$LoggingDb]"
+            $Builds | Where-Object Build -lt 1.3 | Format-Table -Property Servername, Build
             break
         }
         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [Validation] - Minimum build check ok."
@@ -93,15 +96,16 @@ function Invoke-SQLUndercoverCollection {
 
         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Collecting settings data for syncing between servers..."
         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$CentralServer] - Getting centralised settings..."
-        $SettingsTables = 'Settings', 'CurrentServers', 'EmailRecipients', 'EmailConfig', 'Modules'
-        foreach ($Setting in $SettingsTables) {
+        $SettingsTableQry = "EXEC [$LoggingDb].[Inspector].[PSGetSettingsTables] @SortOrder = 0, @PSCollection = 1;"
+        $SettingsTables = $CentralConnection.Query($SettingsTableQry)
+        foreach ($Setting in $SettingsTables.Tablename) {
             $ColumnNamesQry = "EXEC [$LoggingDb].[Inspector].[PSGetColumns] @Tablename = '$Setting'"
             $ColumnNameResults = $CentralConnection.Query($ColumnNamesQry)
             $ColumnNamesFromTableQry = "SELECT $($ColumnNameResults.Columnnames) FROM [$LoggingDb].[Inspector].[$Setting]"
             Set-Variable -Name "Central$($Setting)" -Value ($CentralConnection.Query($ColumnNamesFromTableQry))
         }
 
-        Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Validating $ModuleConfig..."
+        Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Validating ModuleConfig parameter passed..."
         if ($ModuleConfig -eq 'NULL') {
             Write-Warning '[Validation] - ModuleConfig = NULL (Auto determined)'
         } elseif ($ModuleConfig -notin $CentralModules.ModuleConfig_Desc) {
@@ -133,14 +137,16 @@ function Invoke-SQLUndercoverCollection {
             $ExecutedModules = @()
 
             Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Connecting..."
-            $CurrentConnection = Get-DbaDatabase -SqlInstance $Servername -Database $LoggingDb
+            $ConnectionCurrent = Get-DbaDatabase -SqlInstance $Servername -Database $LoggingDb
 
             if ($Servername -ne $CentralServer) {
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Starting settings sync..."
                 $WriteTableOptions.SqlInstance = $Servername
                 
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Truncating or deleting from Settings table..."
-                $SettingsTables | Sort-Object | ForEach-Object -Process {
+                $SettingsTableQry = "EXEC [$LoggingDb].[Inspector].[PSGetSettingsTables] @SortOrder = 0, @PSCollection = 1;"
+                $SettingsTables = $CentralConnection.Query($SettingsTableQry)
+                $SettingsTables.Tablename | ForEach-Object -Process {
                     $SettingsTableName = $_
                     $WriteTableOptions.Table = $SettingsTableName
 
@@ -151,11 +157,13 @@ function Invoke-SQLUndercoverCollection {
                         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Truncating table [Inspector].[$SettingsTableName]"
                         $TruncateDeleteQry = "TRUNCATE TABLE [$LoggingDb].[Inspector].[$SettingsTableName];"
                     }
-                    $CurrentConnection.Query($TruncateDeleteQry)
+                    $ConnectionCurrent.Query($TruncateDeleteQry)
                 }
 
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Syncing data in settings table in reverse order due to foreign key relationship between CurrentServers and Modules..."
-                $SettingsTables | Sort-Object -Descending | ForEach-Object -Process {
+                $SettingsTableQry = "EXEC [$LoggingDb].[Inspector].[PSGetSettingsTables] @SortOrder = 1;"
+                $SettingsTables = $CentralConnection.Query($SettingsTableQry)
+                $SettingsTables.Tablename | ForEach-Object -Process {
                     $SettingsTableName = $_
                     $WriteTableOptions.Table = $SettingsTableName
 
@@ -167,7 +175,7 @@ function Invoke-SQLUndercoverCollection {
 
             Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Executing [Inspector].[InspectorDataCollection] @ModuleConfig = $($ModuleConfig). @PSCollection = 1"
             $DataCollectionQry = "EXEC [$LoggingDb].[Inspector].[InspectorDataCollection] @ModuleConfig = $ModuleConfig, @PSCollection = 1;"
-            $ExecutedModules = $CurrentConnection.Query($DataCollectionQry)
+            $ExecutedModules = $ConnectionCurrent.Query($DataCollectionQry)
 
             $ExecutedModules = $ExecutedModules |
                 Where-Object { $_.Servername -ne $CentralServer } |
@@ -182,7 +190,7 @@ function Invoke-SQLUndercoverCollection {
                 $Tablename = $Module.Tablename.ToString().split(',')
                 $TableAction = $Module.TableAction.ToString().split(',')
                 $StageTablename = $Module.StageTablename.ToString().split(',')
-                $StageProcname = $Module.StageProcname.ToString()
+                $StageProcname = $Module.StageProcname.ToString().split(',')
                 $InsertAction = $Module.InsertAction.ToString().split(',')
                 $RetentionInDays = $Module.RetentionInDays.ToString().split(',')
                 $Pos = 0
@@ -196,46 +204,70 @@ function Invoke-SQLUndercoverCollection {
                     switch ($TableActionPos) {
                         { $_ -lt 3 } {
                             $WriteTableOptions.Table = $Tablename[$Pos]
-                            Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Delete logged info for server from Central Db."
+                            Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Delete logged info for server from Central Db, [Inspector].[$($Tablename[$Pos])] on [$CentralServer]"
 
                             $DeleteQry = "EXEC sp_executesql N'DELETE FROM [$LoggingDb].[Inspector].[$($Tablename[$Pos])] WHERE [Servername] = @Servername"
                         }
                         { $_ -eq 2 } {
                             Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Append the retention period to the WHERE clause."
-                            $DeleteQry = $DeleteQry + "AND [Log_Date] < DATEADD(DAY, -@Retention, GETDATE())', N'@Servername nvarchar(128), @Retention int', @Servername = '$Servername', @Retention = $($ReetentionInDays[$Pos]);"
+                            $DeleteQry = $DeleteQry + "AND [Log_Date] < DATEADD(DAY, -@Retention, GETDATE())', N'@Servername nvarchar(128), @Retention int', @Servername = '$Servername', @Retention = $($RetentionInDays[$Pos]);"
                         }
                         { $_ -eq 1 } {
-                            Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Delete all data in table for server from..."
+                            Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Append params to statement with no retention"
                             $DeleteQry = $DeleteQry + "', N'@Servername nvarchar(128)', @Servername = '$Servername'"
                         }
                         { $_ -eq 3 } {
+                            if (($($StageTablename[$Pos]) -and $($StageTablename[$Pos]) -ne "N/A")) {
                             $WriteTableOptions.Table = $($StageTablename[$Pos])
                             Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Truncate stage table."
                             $DeleteQry = "TRUNCATE TABLE [$LoggingDb].[Inspector].[$($StageTablename[$Pos])];"
+                            }
                         }
                     }
-                    $CollectedData = $CurrentConnection.Query($DeleteQry)
+
+                    $CentralConnection.Query($DeleteQry)
+
+
+                    [int]$InsertActionPos = $InsertAction[$Pos]
+                        #Retrieve data from local server table
+                        $ColumnNamesQry = "EXEC [$LoggingDB].[Inspector].[PSGetColumns] @Tablename = '$($Tablename[$Pos])'"
+                        $Columnnames = $ConnectionCurrent.Query($ColumnNamesQry) 
+                    switch ($InsertActionPos) {
+                        { $_ -eq 1 } {
+                        #Get all data for the current server
+                        $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Servername = @Servername',N'@Servername NVARCHAR(128)',@Servername = '$Servername'"
+                        }
+                        { $_ -eq 2 } {
+                        #Get data recorded for today only for the current server
+                        $InsertQuery = "EXEC sp_executesql N'DECLARE @Today DATE = CAST(GETDATE() AS DATE); SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Log_Date >= @Today AND Servername = @Servername',N'@Servername NVARCHAR(128)',@Servername = '$Servername'"
+                        }
+                        }
+                    $CollectedData = $ConnectionCurrent.Query($InsertQuery)
 
                     if ($CollectedData) {
                         Write-DbaDataTable @WriteTableOptions -InputObject $CollectedData -KeepNull
                     }
+
+                    if (($($StageProcname[$Pos]) -and $($StageProcname[$Pos]) -ne "N/A")) {
+                    Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Executing staging proc: $($StageProcname[$Pos]) on [$CentralServer]"
+                    $ProcQry = "EXEC [$LoggingDb].[Inspector].[$($StageProcname[$Pos])] @Servername = '$Servername';"
+                    $CentralConnection.Query($ProcQry)
+                    }
+
+                    if ($Servername -ne $CentralServer) {
+                        Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Finished data retrieval loop."
+                    }
+                    
                     $Pos += 1
 
                     Clear-Variable -Name CollectedData, Columnnames, Module
                 }
 
-                if ($StageProcname) {
-                    Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Executing staging proc: $StageProcname on [$CentralServer]"
-                    $ProcQry = "EXEC [$LoggingDb].[Inspector].[$StageProcname] @Servername = '$Servername';"
-                    $CentralConnection.Query($ProcQry)
-                }
-
-                if ($Servername -ne $CentralServer) {
-                    Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Finished data retrieval loop."
-                }
             }
             #endregion
             
+        }
+
             Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$CentralServer] - Executing [Inspector].[SQLUnderCoverInspectorReport] @EmailDistribution 'DBA', @ModuleDesc = $ModuleConfig, @EmailRedWarningsOnly = 0, @Theme = 'Dark', @PSCollection = 1"
             $ReportQry = @"
             EXEC [$LoggingDb].[Inspector].[SQLUnderCoverInspectorReport]
@@ -248,7 +280,6 @@ function Invoke-SQLUndercoverCollection {
             $CentralConnection.Query($ReportQry)
             
             Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$CentralServer] - SQLUndercover Report has completed."
-        }
     }
     end {
         $FinalReportQry = "SELECT TOP (1) ReportData FROM [$LoggingDb].[Inspector].[ReportData] ORDER BY ID DESC;"
