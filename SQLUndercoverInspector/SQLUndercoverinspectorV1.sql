@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 19/11/2018
+Revision date: 13/12/2018
 Version: 1.3
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
@@ -654,12 +654,20 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			);
 			
 			IF OBJECT_ID('Inspector.ModuleWarningLevel') IS NULL
-			CREATE TABLE [Inspector].[ModuleWarningLevel]
-			(
-			[ModuleConfig_Desc] VARCHAR(20) NOT NULL,
-			[Module] VARCHAR(50) NOT NULL,
-			[WarningLevel] TINYINT NULL
-			);
+			BEGIN
+				CREATE TABLE [Inspector].[ModuleWarningLevel]
+				(
+				[ModuleConfig_Desc] VARCHAR(20) NOT NULL,
+				[Module] VARCHAR(50) NOT NULL,
+				[WarningLevel] TINYINT NULL
+				);
+
+				ALTER TABLE [Inspector].[ModuleWarningLevel] ADD CONSTRAINT [UC_ModuleConfig_Desc_Module] UNIQUE CLUSTERED 
+				(
+				[ModuleConfig_Desc] ASC,
+				[Module]
+				);
+			END
 
 			IF OBJECT_ID('Inspector.ModuleWarnings') IS NULL
 			BEGIN
@@ -1138,6 +1146,60 @@ END
 			) ) AS [ModulesList]
 			WHERE [Enabled] = 1;');
 			END
+			ELSE 
+			BEGIN
+			EXEC ('ALTER VIEW [Inspector].[PSEnabledModules]
+			AS
+			SELECT [ModuleConfig_Desc],[Module],[Enabled]
+			FROM 
+			(
+			    SELECT	
+				ModuleConfig_Desc,						
+			    ISNULL(AGCheck,0) AS AGCheck,					
+			    ISNULL(BackupsCheck,0) AS BackupsCheck,					
+			    ISNULL(BackupSizesCheck,0) AS BackupSizesByDay,			
+			    ISNULL(DatabaseGrowthCheck,0) AS DatabaseGrowths,			
+			    ISNULL(DatabaseFileCheck,0) AS DatabaseFiles,			
+			    ISNULL(DatabaseOwnershipCheck,0) AS DatabaseOwnership,		
+			    ISNULL(DatabaseStatesCheck,0) AS DatabaseStates,			
+			    ISNULL(DriveSpaceCheck,0) AS DriveSpace,				
+			    ISNULL(FailedAgentJobCheck,0) AS FailedAgentJobs,			
+			    ISNULL(JobOwnerCheck,0) AS JobOwner,				
+			    ISNULL(FailedLoginsCheck,0) AS LoginAttempts,			
+			    ISNULL(TopFiveDatabaseSizeCheck,0) AS TopFiveDatabases,		
+			    ISNULL(ADHocDatabaseCreationCheck,0) AS ADHocDatabaseCreations,	
+			    ISNULL(DatabaseSettings,0) AS DatabaseSettings,
+			    ISNULL(ServerSettings,0) AS ServerSettings,
+			    ISNULL(SuspectPages,0) AS SuspectPages,
+			    ISNULL(AGDatabases,0) AS AGDatabases,
+			    ISNULL(LongRunningTransactions,0) AS LongRunningTransactions,
+				ISNULL(UnusedLogshipConfig,0) AS UnusedLogshipConfig
+			    FROM [Inspector].[Modules]
+			) Modules
+			UNPIVOT
+			([Enabled] FOR Module IN 
+			(AGCheck
+			,BackupsCheck
+			,BackupSizesByDay
+			,DatabaseGrowths
+			,DatabaseFiles
+			,DatabaseOwnership
+			,DatabaseStates
+			,DriveSpace
+			,FailedAgentJobs
+			,JobOwner
+			,LoginAttempts
+			,TopFiveDatabases
+			,ADHocDatabaseCreations
+			,DatabaseSettings
+			,ServerSettings
+			,SuspectPages
+			,AGDatabases
+			,LongRunningTransactions
+			,UnusedLogshipConfig
+			) ) AS [ModulesList]
+			WHERE [Enabled] = 1;');
+			END
 
 			IF OBJECT_ID('Inspector.PSInspectorTables') IS NULL
 			BEGIN
@@ -1175,6 +1237,47 @@ END
 			(''Settings''),
 			(''SuspectPages''),
 			(''TopFiveDatabases''),
+			(''ModuleWarningLevel''),
+			(''UnusedLogshipConfig'')
+			) InspectorTables (Tablename);'
+			END
+			ELSE 
+			BEGIN 
+			EXEC sp_executesql N'
+			ALTER VIEW [Inspector].[PSInspectorTables]
+			AS
+			SELECT Tablename
+			FROM (VALUES
+			(''ADHocDatabaseCreations''),
+			(''ADHocDatabaseSupression''),
+			(''AGCheck''),
+			(''AGDatabases''),
+			(''BackupsCheck''),
+			(''BackupSizesByDay''),
+			(''CurrentServers''),
+			(''DatabaseFiles''),
+			(''DatabaseFileSizeHistory''),
+			(''DatabaseFileSizes''),
+			(''DatabaseOwnership''),
+			(''DatabaseSettings''),
+			(''DatabaseStates''),
+			(''DriveSpace''),
+			(''EmailConfig''),
+			(''EmailRecipients''),
+			(''FailedAgentJobs''),
+			(''InstanceStart''),
+			(''InstanceVersion''),
+			(''InstanceVersionHistory''),
+			(''JobOwner''),
+			(''LoginAttempts''),
+			(''LongRunningTransactions''),
+			(''Modules''),
+			(''ReportData''),
+			(''ServerSettings''),
+			(''Settings''),
+			(''SuspectPages''),
+			(''TopFiveDatabases''),
+			(''ModuleWarningLevel''),
 			(''UnusedLogshipConfig'')
 			) InspectorTables (Tablename);'
 			END
@@ -1247,6 +1350,15 @@ END
 			[Capacity_GB] [decimal](10, 2) NULL,
 			[AvailableSpace_GB] [decimal](10, 2) NULL
 			);	 
+
+			IF OBJECT_ID('Inspector.PSInstanceVersionHistoryStage') IS NULL
+			CREATE TABLE [Inspector].[PSInstanceVersionHistoryStage](
+			[Servername] NVARCHAR(128) NOT NULL,
+			[Log_Date] DATETIME NOT NULL,
+			[CollectionDatetime] DATETIME NOT NULL,
+			[VersionNo] NVARCHAR(50) NULL,
+			[Edition] NVARCHAR(128) NULL
+			);
 		
 
 			--Drop procedures for recreation
@@ -1350,6 +1462,14 @@ END
 
 			IF OBJECT_ID('Inspector.PSGetDriveSpaceStage') IS NOT NULL
 			DROP PROCEDURE [Inspector].[PSGetDriveSpaceStage];
+
+			IF OBJECT_ID('Inspector.PSGetSettingsTables') IS NOT NULL
+			DROP PROCEDURE [Inspector].[PSGetSettingsTables];
+
+			IF OBJECT_ID('Inspector.PSGetInstanceVersionHistoryStage') IS NOT NULL
+			DROP PROCEDURE [Inspector].[PSGetInstanceVersionHistoryStage];
+			
+			
 			
 
 SET @SQLStatement = 
@@ -3122,11 +3242,26 @@ SELECT
 [ActiveServers].[ModuleConfig_Desc], 
 [NonModuleColection].[Module], 
 [NonModuleColection].[Module]+''Insert'' AS Procedurename, 
-[NonModuleColection].[Module] AS Tablename, 
-NULL AS StageTablename, 
-NULL AS StageProcname, 
-''1'' AS TableAction, 
-''2'' AS InsertAction, 
+CASE 
+	WHEN [NonModuleColection].[Module] = ''InstanceVersion'' THEN ''InstanceVersion,InstanceVersionHistory''
+	ELSE [NonModuleColection].[Module]
+END AS Tablename, 
+CASE 
+	WHEN [NonModuleColection].[Module] = ''InstanceVersion'' THEN ''N/A,PSInstanceVersionHistoryStage''
+	ELSE NULL 
+END AS StageTablename, 
+CASE 
+	WHEN [NonModuleColection].[Module] = ''InstanceVersion'' THEN ''N/A,PSGetInstanceVersionHistoryStage''
+	ELSE NULL 
+END AS StageProcname, 
+CASE 
+	WHEN [NonModuleColection].[Module] = ''InstanceVersion'' THEN ''1,3''
+	ELSE ''1'' 
+END AS TableAction, 
+CASE 
+	WHEN [NonModuleColection].[Module] = ''InstanceVersion'' THEN ''1,1''
+	ELSE ''2'' 
+END	AS InsertAction, 
 NULL AS RetentionInDays
 FROM
 (
@@ -3342,6 +3477,77 @@ WHERE NOT EXISTS (SELECT 1
 				AND PSStage.[File_id] = Base.[File_id]
 				AND Base.Servername = @Servername 
 				AND PSStage.Log_Date = Base.Log_Date)
+
+END'
+
+EXEC(@SQLStatement);
+
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[PSGetInstanceVersionHistoryStage]
+(
+@Servername NVARCHAR(128)
+)
+AS 
+BEGIN 
+--Revision date: 13/12/2018
+
+SET NOCOUNT ON;
+
+--Insert new data for recent collection
+INSERT INTO [Inspector].[InstanceVersionHistory] ([Servername], [Log_Date], [CollectionDatetime], [VersionNo], [Edition])
+SELECT [Servername], [Log_Date], [CollectionDatetime], [VersionNo], [Edition]
+FROM [Inspector].[PSInstanceVersionHistoryStage] Stage
+WHERE Servername = @Servername
+AND NOT EXISTS (SELECT 1 
+				FROM [Inspector].[InstanceVersionHistory] Base
+				WHERE Base.Servername = Stage.Servername
+				AND Base.Log_Date = Stage.Log_Date 
+				);
+
+END'
+
+EXEC(@SQLStatement);
+
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[PSGetSettingsTables]
+(
+@SortOrder BIT, --0 FOR ORDER BY TableOrder ASC , 1 FOR ORDER BY TableOrder DESC
+@PSCollection BIT = 0 --If its a powershell collection ensure that the WarningLevel table is populated
+)
+AS 
+--Revision date: 13/12/2018
+
+BEGIN 
+	IF @SortOrder IS NULL 
+	BEGIN 
+		SET @SortOrder = 0;
+	END
+
+	IF @PSCollection IS NULL 
+	BEGIN 
+		SET @PSCollection = 0;
+	END
+
+	IF @PSCollection = 1
+	BEGIN 
+		EXEC [Inspector].[PopulateModuleWarningLevel];
+	END
+
+	IF @SortOrder = 0 
+	BEGIN 
+		SELECT Tablename 
+		FROM (VALUES(1,''Settings''),(2,''CurrentServers''), (3,''EmailRecipients''), (4,''EmailConfig''), (5,''Modules''),(6,''ModuleWarningLevel'')) SettingsTables(TableOrder,Tablename)
+		ORDER BY TableOrder ASC;
+	END
+
+	IF @SortOrder = 1 
+	BEGIN 
+		SELECT Tablename 
+		FROM (VALUES(1,''Settings''),(2,''CurrentServers''), (3,''EmailRecipients''), (4,''EmailConfig''), (5,''Modules''),(6,''ModuleWarningLevel'')) SettingsTables(TableOrder,Tablename)
+		ORDER BY TableOrder DESC;
+	END
 
 END'
 
@@ -3627,7 +3833,7 @@ AND data_source IN (
 				INNER JOIN master.sys.availability_groups Groups ON States.group_id = Groups.group_id
 				WHERE primary_replica = @@Servername)
 				)
-OR @@SERVERNAME = (SELECT data_source FROM SYS.SERVERS 
+OR @@SERVERNAME = (SELECT data_source FROM sys.servers 
 WHERE name ='''+REPLACE(REPLACE(REPLACE(@LinkedServername,'[',''),']',''),'.','')+''')
 
 '
