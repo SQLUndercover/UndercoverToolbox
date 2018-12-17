@@ -206,8 +206,8 @@ function Invoke-SQLUndercoverInspector {
                     $WriteTableOptions.Table = $SettingsTableName
 
                     if ($SettingsTableName -eq 'Modules') {
-                        Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Deleting from table [Inspector].[$SettingsTableName]"
-                        $TruncateDeleteQry = "DELETE FROM [$LoggingDb].[Inspector].[$SettingsTableName];"
+                        Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Deleting from table [Inspector].[$SettingsTableName] and reseeding the identity column"
+                        $TruncateDeleteQry = "DBCC CHECKIDENT ('Inspector.$SettingsTableName', RESEED, 0); DELETE FROM [$LoggingDb].[Inspector].[$SettingsTableName];" 
                     } else {
                         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Truncating table [Inspector].[$SettingsTableName]"
                         $TruncateDeleteQry = "TRUNCATE TABLE [$LoggingDb].[Inspector].[$SettingsTableName];"
