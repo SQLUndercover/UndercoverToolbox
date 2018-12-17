@@ -2049,3 +2049,187 @@ WHERE NOT EXISTS
 
 END
 GO
+
+
+-------------------------------DB Table Server Module------------------------------------------------
+
+--Create 'Table' Tables
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Tables_Stage')
+BEGIN
+	CREATE TABLE Catalogue.Tables_Stage(
+		ServerName NVARCHAR(128) NOT NULL,
+		DatabaseName NVARCHAR(128) NOT NULL,
+		SchemaName SYSNAME NOT NULL,
+		TableName SYSNAME NOT NULL,
+		Columns XML
+		)
+END
+GO
+
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Tables')
+BEGIN
+	CREATE TABLE Catalogue.Tables(
+		ID INT IDENTITY (1,1)
+		,ServerName NVARCHAR(128) NOT NULL
+		,DatabaseName NVARCHAR(128) NOT NULL
+		,SchemaName SYSNAME NOT NULL
+		,TableName SYSNAME NOT NULL
+		,Columns XML
+		,FirstRecorded DATETIME NULL
+		,LastRecorded DATETIME NULL
+		,Notes VARCHAR(255) NULL
+	 CONSTRAINT [PK_Tables] PRIMARY KEY CLUSTERED
+	 (ID ASC))
+END
+GO
+
+
+-- Tables 'GET' Procedure 
+
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'GetTables'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.GetTables
+GO
+
+CREATE PROC Catalogue.GetTables
+AS
+BEGIN
+	
+	IF OBJECT_ID('tempdb.dbo.#Tables') IS NOT NULL
+	DROP TABLE #Tables
+
+	CREATE TABLE #Tables
+		(ServerName NVARCHAR(128) NOT NULL,
+		DatabaseName NVARCHAR(128) NOT NULL,
+		SchemaName SYSNAME NOT NULL,
+		TableName SYSNAME NOT NULL,
+		Columns XML
+		)
+
+	DECLARE @DBName SYSNAME
+
+	--cursor to hold database
+	DECLARE DBCur CURSOR FAST_FORWARD LOCAL FOR
+	SELECT name 
+	FROM sys.databases
+
+	DECLARE @cmd NVARCHAR(2000)
+
+	OPEN DBCur
+
+	FETCH NEXT FROM DBCur INTO @DBName
+
+	WHILE @@FETCH_STATUS = 0
+	BEGIN
+
+		SET @cmd = N'USE ' + QUOTENAME(@DBName) + N';
+			SELECT	@@SERVERNAME AS NameServer,
+			DB_NAME() AS DatabaseName, 
+			schemas.name AS SchemaName, 
+			tables.name AS TableName,
+			CAST((
+				SELECT columns.name AS ColName,
+				types.name AS DataType, 
+				columns.max_length AS Length, 
+				columns.is_nullable AS IsNullable,
+				columns.is_identity AS IsIdentity,
+				columns.is_computed AS IsComputed
+				FROM sys.columns
+				JOIN sys.types ON columns.user_type_id = types.user_type_id
+				WHERE columns.object_id = tables.object_id		
+				FOR XML RAW
+			) AS XML) Cols
+			FROM sys.tables
+			JOIN sys.schemas ON tables.schema_id = schemas.schema_id'
+	
+	INSERT INTO #Tables
+	EXEC sp_executesql @cmd
+
+	FETCH NEXT FROM DBCur INTO @DBName
+
+	END
+
+	SELECT	ServerName
+			,DatabaseName
+			,SchemaName
+			,TableName
+			,Columns
+	FROM #Tables
+
+END
+GO
+
+--Tables Update Proc
+
+IF EXISTS (	SELECT * 
+			FROM sys.objects 
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.name = 'UpdateTables'
+			AND schemas.name = 'Catalogue'
+			AND type = 'P')
+DROP PROC Catalogue.UpdateTables
+GO
+
+CREATE PROC [Catalogue].[UpdateTables]
+AS
+
+BEGIN
+
+--update tables where they are known to the catalogue
+UPDATE Catalogue.Tables 
+SET		ServerName = Tables_Stage.ServerName
+		,DatabaseName = Tables_Stage.DatabaseName
+		,SchemaName = Tables_Stage.SchemaName
+		,TableName = Tables_Stage.TableName
+		,Columns = Tables_Stage.Columns
+		,LastRecorded = GETDATE()
+FROM	Catalogue.Tables_Stage
+WHERE	Tables.ServerName = Tables_Stage.ServerName
+		AND Tables.SchemaName = Tables_Stage.SchemaName
+		AND Tables.TableName = Tables_Stage.TableName
+		AND Tables.DatabaseName = Tables_Stage.DatabaseName
+
+
+
+--insert tables that are unknown to the catlogue
+INSERT INTO Catalogue.Tables
+(ServerName,DatabaseName,SchemaName,TableName,Columns,FirstRecorded,LastRecorded)
+SELECT ServerName,
+		DatabaseName,
+		SchemaName,
+		TableName,
+		Columns,
+		GETDATE(),
+		GETDATE()
+FROM Catalogue.Tables_Stage
+WHERE NOT EXISTS 
+(SELECT 1 FROM Catalogue.Tables
+WHERE	Tables.ServerName = Tables_Stage.ServerName
+		AND Tables.SchemaName = Tables_Stage.SchemaName
+		AND Tables.TableName = Tables_Stage.TableName
+		AND Tables.DatabaseName = Tables_Stage.DatabaseName)
+
+END
+
+
+GO
+
+-------------------------------------------------------------------------------------------------------
+------------------------------update modules table with 0.2 modules------------------------------------
+-------------------------------------------------------------------------------------------------------
+
+INSERT INTO Catalogue.ConfigModules ([ModuleName], [GetProcName], [UpdateProcName], [StageTableName], [MainTableName], [Active])
+VALUES	('ADGroups','GetADGroups','UpdateADGroups','ADGroups_Stage','ADGroups',	1),
+		('LinkedServers','GetLinkedServers','UpdateLinkedServers','LinkedServers_Stage','LinkedServers_Servers,LinkedServers_Users',1),
+		('Tables','GetTables','UpdateTables','Tables_Stage','Tables',1)
