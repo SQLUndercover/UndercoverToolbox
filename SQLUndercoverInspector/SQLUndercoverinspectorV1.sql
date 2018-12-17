@@ -3510,15 +3510,18 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[PSGetSettingsTables]
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+CREATE PROCEDURE [Inspector].[PSGetSettingsTables]
 (
 @SortOrder BIT, --0 FOR ORDER BY TableOrder ASC , 1 FOR ORDER BY TableOrder DESC
 @PSCollection BIT = 0 --If its a powershell collection ensure that the WarningLevel table is populated
 )
 AS 
---Revision date: 13/12/2018
+--Revision date: 17/12/2018
 
+--Config for Powershell collection use only
+--TruncateTable - 0 Delete contents, 1 Truncate table
+--ReseedTable - 0 do not reseed identity, 1 reseed identity
 BEGIN 
 	IF @SortOrder IS NULL 
 	BEGIN 
@@ -3537,21 +3540,22 @@ BEGIN
 
 	IF @SortOrder = 0 
 	BEGIN 
-		SELECT Tablename 
-		FROM (VALUES(1,''Settings''),(2,''CurrentServers''), (3,''EmailRecipients''), (4,''EmailConfig''), (5,''Modules''),(6,''ModuleWarningLevel'')) SettingsTables(TableOrder,Tablename)
+		SELECT Tablename,TruncateTable,ReseedTable 
+		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0), (5,''Modules'',0,1),(6,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder ASC;
 	END
 
 	IF @SortOrder = 1 
 	BEGIN 
-		SELECT Tablename 
-		FROM (VALUES(1,''Settings''),(2,''CurrentServers''), (3,''EmailRecipients''), (4,''EmailConfig''), (5,''Modules''),(6,''ModuleWarningLevel'')) SettingsTables(TableOrder,Tablename)
+		SELECT Tablename,TruncateTable,ReseedTable 
+		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0), (5,''Modules'',0,1),(6,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder DESC;
 	END
 
 END'
 
 EXEC(@SQLStatement);
+
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[InspectorDataCollection]
