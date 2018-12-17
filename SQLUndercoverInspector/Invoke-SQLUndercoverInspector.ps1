@@ -25,7 +25,7 @@ function Invoke-SQLUndercoverInspector {
     
     begin {
         
-        Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] Initialising default values and parameters..."
+        Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] Initialising default values and parameters..." 
         [int]$Pos = 0
         $InstallStatus = New-Object -TypeName System.Collections.Generic.List[int]
         $InvalidServers = New-Object -TypeName System.Collections.Generic.List[int]
@@ -74,9 +74,7 @@ function Invoke-SQLUndercoverInspector {
     process {
         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Processing active servers..."
         $ActiveServers.Servername |
-            ForEach-Object -Begin {
-
-            } -Process {
+            ForEach-Object -Process {
 
                 $InstallStatus[0] = 0  
                      
