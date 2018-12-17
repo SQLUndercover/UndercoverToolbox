@@ -64,8 +64,8 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 28/09/2018
-Version: 1.2
+Revision date: 13/12/2018
+Version: 1.3
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
 URL: https://github.com/SQLUndercover/UndercoverToolbox/blob/master/SQLUndercoverInspector/SQLUndercoverinspectorV1.sql
@@ -131,7 +131,7 @@ END
 IF @Help = 1
 BEGIN 
 PRINT '
---Inspector V1.2
+--Inspector V1.3
 --Revision date: 27/09/2018
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
@@ -199,7 +199,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 
 			DECLARE @SQLStatement VARCHAR(MAX) 
 			DECLARE @DatabaseFileSizesResult INT
-			DECLARE @Build VARCHAR(6) ='1.2'
+			DECLARE @Build VARCHAR(6) ='1.3'
 			DECLARE @CurrentBuild VARCHAR(6)
 			 
 			
@@ -269,130 +269,25 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			END
 
 
-			IF @InitialSetup = 0
-			
-			BEGIN
-			 --Copy previously recorded data from Inspector data tables into Temporary tables for re insertion
-			 IF OBJECT_ID('Inspector.ADHocDatabaseCreations_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[ADHocDatabaseCreations_Copy];
+			--Create Inspector Upgrade table if not exists (do not drop)
+			IF OBJECT_ID('Inspector.InspectorUpgradeHistory') IS NULL 
+			CREATE TABLE [Inspector].[InspectorUpgradeHistory](
+			Log_Date DATETIME,
+			PreserveData BIT NULL,
+			CurrentBuild DECIMAL(4,1) NULL,
+			TargetBuild DECIMAL(4,1) NULL,
+			SetupCommand VARCHAR(1000) NULL
+			);
 
-			 IF OBJECT_ID('Inspector.ADHocDatabaseSupression_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[ADHocDatabaseSupression_Copy];
 			
-			 IF OBJECT_ID('Inspector.AGCheck_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[AGCheck_Copy];
-			
-			 IF OBJECT_ID('Inspector.BackupsCheck_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[BackupsCheck_Copy];
-			
-			 IF OBJECT_ID('Inspector.BackupSizesByDay_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[BackupSizesByDay_Copy];
-			
-			 IF OBJECT_ID('Inspector.DatabaseFiles_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DatabaseFiles_Copy];
-			
-			 IF OBJECT_ID('Inspector.DatabaseFileSizeHistory_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DatabaseFileSizeHistory_Copy];
-			
-			 IF OBJECT_ID('Inspector.DatabaseFileSizes_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DatabaseFileSizes_Copy];
-			
-			 IF OBJECT_ID('Inspector.DatabaseOwnership_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DatabaseOwnership_Copy];
-			
-			 IF OBJECT_ID('Inspector.DatabaseSettings_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DatabaseSettings_Copy];
-			
-			 IF OBJECT_ID('Inspector.DatabaseStates_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DatabaseStates_Copy];
-			
-			 IF OBJECT_ID('Inspector.DriveSpace_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[DriveSpace_Copy];
-			
-			 IF OBJECT_ID('Inspector.FailedAgentJobs_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[FailedAgentJobs_Copy];
-			
-			 IF OBJECT_ID('Inspector.JobOwner_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[JobOwner_Copy];
-			
-			 IF OBJECT_ID('Inspector.LoginAttempts_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[LoginAttempts_Copy];
-			
-			 IF OBJECT_ID('Inspector.ReportData_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[ReportData_Copy];
-			
-			 IF OBJECT_ID('Inspector.TopFiveDatabases_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[TopFiveDatabases_Copy];
-
-			 IF OBJECT_ID('Inspector.ServerSettings_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[ServerSettings_Copy];
-
-			 IF OBJECT_ID('Inspector.InstanceStart_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[InstanceStart_Copy];	
-
-			 IF OBJECT_ID('Inspector.InstanceVersion_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[InstanceVersion_Copy];
-			 			 
-			 IF OBJECT_ID('Inspector.SuspectPages_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[SuspectPages_Copy];	
-
-			 IF OBJECT_ID('Inspector.AGDatabases_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[AGDatabases_Copy];
-
-			 IF OBJECT_ID('Inspector.LongRunningTransactions_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[LongRunningTransactions_Copy];
-			 			
-			IF OBJECT_ID('Inspector.ADHocDatabaseCreations') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[ADHocDatabaseCreations_Copy] FROM [Inspector].[ADHocDatabaseCreations] END
-			IF OBJECT_ID('Inspector.ADHocDatabaseSupression') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[ADHocDatabaseSupression_Copy] FROM [Inspector].[ADHocDatabaseSupression] END
-			IF OBJECT_ID('Inspector.AGCheck') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[AGCheck_Copy] FROM [Inspector].[AGCheck] END
-			 
-			IF OBJECT_ID('Inspector.BackupsCheck') IS NOT NULL 
-			BEGIN
-				--New columns for 1.2 for Inspector.BackupsCheck
-				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'primary_replica' AND [object_id] = OBJECT_ID(N'Inspector.BackupsCheck'))
-				BEGIN
-					ALTER TABLE [Inspector].[BackupsCheck] ADD [primary_replica] NVARCHAR(128) NULL;
-				END
-
-				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'backup_preference' AND [object_id] = OBJECT_ID(N'Inspector.BackupsCheck'))
-				BEGIN
-					ALTER TABLE [Inspector].[BackupsCheck] ADD [backup_preference] NVARCHAR(128) NULL;
-				END
-			END
-
-			--Do not preserve Backups check data if Inspector version is less than 1.2 as the NULLs for new columns will break the report logic
-			IF (CAST(@CurrentBuild AS DECIMAL(4,1))) < 1.2
-			BEGIN
-				IF OBJECT_ID('Inspector.BackupsCheck') IS NOT NULL
-				BEGIN SELECT * INTO [Inspector].[BackupsCheck_Copy] FROM [Inspector].[BackupsCheck] END
-			END
-
-			IF OBJECT_ID('Inspector.BackupSizesByDay') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[BackupSizesByDay_Copy] FROM [Inspector].[BackupSizesByDay] END
-			IF OBJECT_ID('Inspector.DatabaseFiles') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DatabaseFiles_Copy] FROM [Inspector].[DatabaseFiles] END
-			IF OBJECT_ID('Inspector.DatabaseFileSizeHistory') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DatabaseFileSizeHistory_Copy] FROM [Inspector].[DatabaseFileSizeHistory] END
-			IF OBJECT_ID('Inspector.DatabaseFileSizes') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DatabaseFileSizes_Copy] FROM [Inspector].[DatabaseFileSizes] END
-			IF OBJECT_ID('Inspector.DatabaseOwnership') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DatabaseOwnership_Copy] FROM [Inspector].[DatabaseOwnership] END
-			IF OBJECT_ID('Inspector.DatabaseSettings') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DatabaseSettings_Copy] FROM [Inspector].[DatabaseSettings] END
-			IF OBJECT_ID('Inspector.DatabaseStates') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DatabaseStates_Copy] FROM [Inspector].[DatabaseStates] END
-			IF OBJECT_ID('Inspector.DriveSpace') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[DriveSpace_Copy] FROM [Inspector].[DriveSpace] END
-			IF OBJECT_ID('Inspector.FailedAgentJobs') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[FailedAgentJobs_Copy] FROM [Inspector].[FailedAgentJobs] END
-			IF OBJECT_ID('Inspector.JobOwner') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[JobOwner_Copy] FROM [Inspector].[JobOwner] END
-			IF OBJECT_ID('Inspector.LoginAttempts') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[LoginAttempts_Copy] FROM [Inspector].[LoginAttempts] END
-
+			IF OBJECT_ID('Inspector.ReportData') IS NULL 
+			CREATE TABLE [Inspector].[ReportData](
+				[ID] INT IDENTITY(1,1),
+				[ReportDate] DATETIME NOT NULL,
+				[ModuleConfig] VARCHAR(20),
+				[ReportData] VARCHAR(MAX) NULL,
+				[Summary] VARCHAR(60) NULL
+			);
 
 			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Summary' AND [object_id] = OBJECT_ID(N'Inspector.ReportData'))
 			BEGIN
@@ -400,41 +295,519 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				ALTER TABLE [Inspector].[ReportData] ADD [Summary] VARCHAR(60) NULL;
 			END
 
-			IF OBJECT_ID('Inspector.ReportData') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[ReportData_Copy] FROM [Inspector].[ReportData] END
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.ReportData') AND name='IX_ReportDate')
+			BEGIN
+				CREATE NONCLUSTERED INDEX [IX_ReportDate] ON [Inspector].[ReportData]
+				(ReportDate ASC);
+			END
+			
+			IF OBJECT_ID('Inspector.Settings') IS NULL 	
+			BEGIN
+				CREATE TABLE [Inspector].[Settings] 
+				(
+				[ID] INT IDENTITY(1,1),
+				[Description] VARCHAR(100),
+				[Value] VARCHAR(255)
+				);
+				
+				ALTER TABLE [Inspector].[Settings]
+				ADD CONSTRAINT UC_Description UNIQUE (Description);
+				
+				ALTER TABLE [Inspector].[Settings] 
+				ADD CONSTRAINT [DF_Settings_Value]  DEFAULT (NULL) FOR [Value];
+			END
 
-			IF OBJECT_ID('Inspector.TopFiveDatabases') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[TopFiveDatabases_Copy] FROM [Inspector].[TopFiveDatabases] END
-			IF OBJECT_ID('Inspector.ServerSettings') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[ServerSettings_Copy] FROM [Inspector].[ServerSettings] END
-			IF OBJECT_ID('Inspector.InstanceStart') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[InstanceStart_Copy] FROM [Inspector].[InstanceStart] END			
-			IF OBJECT_ID('Inspector.SuspectPages') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[SuspectPages_Copy]  FROM [Inspector].[SuspectPages] END	 			
-			IF OBJECT_ID('Inspector.AGDatabases') IS NOT NULL 
-				BEGIN SELECT [Servername], [Log_Date], [LastUpdated], [Databasename], [Is_AG], [Is_AGJoined] INTO [Inspector].[AGDatabases_Copy] FROM [Inspector].[AGDatabases] END	
-			IF OBJECT_ID('Inspector.LongRunningTransactions') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[LongRunningTransactions_Copy] FROM [Inspector].[LongRunningTransactions] END	
-			IF OBJECT_ID('Inspector.InstanceVersion') IS NOT NULL 
-				BEGIN SELECT * INTO [Inspector].[InstanceVersion_Copy] FROM [Inspector].[InstanceVersion] END			
-		
+			IF OBJECT_ID('Inspector.Modules') IS NULL
+			CREATE TABLE [Inspector].[Modules]
+			(
+			ID INT IDENTITY(1,1),
+			ModuleConfig_Desc VARCHAR(20) NOT NULL,
+			AGCheck	BIT,
+			BackupsCheck	BIT,
+			BackupSizesCheck	BIT,
+			DatabaseGrowthCheck	BIT,
+			DatabaseFileCheck	BIT,
+			DatabaseOwnershipCheck	BIT,
+			DatabaseStatesCheck	BIT,
+			DriveSpaceCheck	BIT,
+			FailedAgentJobCheck	BIT,
+			JobOwnerCheck	BIT,
+			FailedLoginsCheck	BIT,
+			TopFiveDatabaseSizeCheck	BIT,
+			ADHocDatabaseCreationCheck	BIT,
+			BackupSpaceCheck	BIT,
+			DatabaseSettings	BIT,
+			ServerSettings	BIT,
+			SuspectPages	BIT,
+			AGDatabases	BIT,
+			LongRunningTransactions BIT,
+			UseMedianCalculationForDriveSpaceCalc	BIT
+			CONSTRAINT PK_ModuleConfig_Desc PRIMARY KEY (ModuleConfig_Desc)
+			);
+
+
+			--If Inspector build is less than V1.2 Column names will be different in the Module table.
+			IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name LIKE'Enable%')
+			BEGIN
+				RAISERROR('Altering column names in table [Inspector].[Modules] as part of the upgrade',0,0) WITH NOWAIT;
+
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableADHocDatabaseCreationCheck')
+				BEGIN 
+					EXEC sp_rename 'Inspector.Modules.EnableADHocDatabaseCreationCheck', 'ADHocDatabaseCreationCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableAGCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableAGCheck', 'AGCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableBackupsCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableBackupsCheck', 'BackupsCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableBackupSizesCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableBackupSizesCheck', 'BackupSizesCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableBackupSpaceCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableBackupSpaceCheck', 'BackupSpaceCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableDatabaseFileCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableDatabaseFileCheck', 'DatabaseFileCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableDatabaseGrowthCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableDatabaseGrowthCheck', 'DatabaseGrowthCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableDatabaseOwnershipCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableDatabaseOwnershipCheck', 'DatabaseOwnershipCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableDatabaseSettings')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableDatabaseSettings', 'DatabaseSettings', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableDatabaseStatesCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableDatabaseStatesCheck', 'DatabaseStatesCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableDriveSpaceCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableDriveSpaceCheck', 'DriveSpaceCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableFailedAgentJobCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableFailedAgentJobCheck', 'FailedAgentJobCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableFailedLoginsCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableFailedLoginsCheck', 'FailedLoginsCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableJobOwnerCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableJobOwnerCheck', 'JobOwnerCheck', 'COLUMN';
+				END
+				
+				IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND name ='EnableTopFiveDatabaseSizeCheck')
+				BEGIN
+					EXEC sp_rename 'Inspector.Modules.EnableTopFiveDatabaseSizeCheck', 'TopFiveDatabaseSizeCheck', 'COLUMN';
+				END
+			END
+
+
+			IF OBJECT_ID('Inspector.ADHocDatabaseCreations') IS NULL
+			CREATE TABLE [Inspector].[ADHocDatabaseCreations]
+			(
+			[Servername] NVARCHAR(128) NOT NULL,
+			[Log_Date] DATETIME NULL,
+			[Databasename] NVARCHAR(128) NOT NULL,
+			[Create_Date] DATETIME NULL
+			);
+
 			
-			--Copy existing settings from Inspector Settings tables into Temporary tables for re insertion
-			 IF OBJECT_ID('Inspector.CurrentServers_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[CurrentServers_Copy];
+			IF OBJECT_ID('Inspector.ADHocDatabaseSupression') IS NULL
+			CREATE TABLE [Inspector].[ADHocDatabaseSupression]
+			(
+			[Servername] NVARCHAR(128),
+			[Log_Date] DATETIME,
+			[Databasename] NVARCHAR(128),
+			[Suppress] BIT
+			);		
+				
 			
-			 IF OBJECT_ID('Inspector.EmailRecipients_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[EmailRecipients_Copy];
+			IF OBJECT_ID('Inspector.AGCheck') IS NULL
+			CREATE TABLE [Inspector].[AGCheck]
+			(
+			[Servername] NVARCHAR(128) NOT NULL,
+			[Log_Date] DATETIME NOT NULL,
+			[AGname] NVARCHAR(128) NULL,
+			[State] VARCHAR(50) NULL,
+			[ReplicaServername] NVARCHAR(256) NULL,
+			[Suspended] BIT NULL,
+			[SuspendReason] VARCHAR(50) NULL
+			); 
 			
-			 IF OBJECT_ID('Inspector.Modules_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[Modules_Copy];
+			 
 			
-			 IF OBJECT_ID('Inspector.Settings_Copy') IS NOT NULL 
-			 DROP TABLE [Inspector].[Settings_Copy];
+			IF OBJECT_ID('Inspector.DatabaseFiles') IS NULL
+			CREATE TABLE [Inspector].[DatabaseFiles]
+			(
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Log_Date] DATETIME  NOT NULL,
+			[Databasename] NVARCHAR(128), 
+			[FileType] VARCHAR(8),
+			[FilePath] NVARCHAR(260)
+			);
 			
-			 IF OBJECT_ID('Inspector.EmailConfig_Copy') IS NOT NULL
-			 DROP TABLE [Inspector].[EmailConfig_Copy];
 			
+			
+			IF OBJECT_ID('Inspector.DatabaseStates') IS NULL
+			CREATE TABLE [Inspector].[DatabaseStates]
+			(
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Log_Date] DATETIME  NOT NULL,
+			[DatabaseState] VARCHAR(40)  NULL,
+			[Total] INT,
+			[DatabaseNames] VARCHAR(MAX) NULL
+			); 
+			
+			
+			IF OBJECT_ID('Inspector.DriveSpace') IS NULL
+			CREATE TABLE [Inspector].[DriveSpace] 
+			(
+			[Servername] NVARCHAR(128),
+			[Log_Date] DATETIME,
+			[Drive] NVARCHAR(3),
+			[Capacity_GB] DECIMAL(10,2),
+			[AvailableSpace_GB] DECIMAL(10,2)
+			);
+
+			
+			IF OBJECT_ID('Inspector.FailedAgentJobs') IS NULL
+			CREATE TABLE [Inspector].[FailedAgentJobs]
+			(
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Log_Date] DATETIME  NOT NULL,
+			[Jobname] VARCHAR(128)  NULL,
+			[LastStepFailed] TINYINT NULL,
+			[LastFailedDate] DATETIME NULL,
+			[LastError] VARCHAR(260) NULL
+			);
+			
+			
+			IF OBJECT_ID('Inspector.LoginAttempts') IS NULL
+			CREATE TABLE [Inspector].[LoginAttempts]
+			(
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Log_Date] DATETIME  NOT NULL,
+			[Username] VARCHAR(50)  NULL,
+			[Attempts] INT NULL,
+			[LastErrorDate] DATETIME NULL,
+			[LastError] VARCHAR(260) NULL
+			); 
+			
+			
+			
+			IF OBJECT_ID('Inspector.JobOwner') IS NULL
+			CREATE TABLE [Inspector].[JobOwner]
+			(
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Log_Date] DATETIME  NOT NULL,
+			[Job_ID]  UNIQUEIDENTIFIER  NULL,
+			[Jobname] VARCHAR(100) NOT NULL
+			); 
+			
+			
+			
+			IF OBJECT_ID('Inspector.TopFiveDatabases') IS NULL
+			CREATE TABLE [Inspector].[TopFiveDatabases]
+			(
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Log_Date] DATETIME  NOT NULL,
+			[Databasename] NVARCHAR(128)  NULL,
+			[TotalSize_MB] BIGINT
+			); 
+			
+			
+			IF OBJECT_ID('Inspector.BackupsCheck') IS NULL
+			--New columns for 1.2 [primary_replica],[backup_preference]
+			CREATE TABLE [Inspector].[BackupsCheck](
+			[Servername] NVARCHAR (128) NOT NULL,
+			[Log_Date] [datetime] NOT NULL,
+			[Databasename] [nvarchar](128) NULL,
+			[AGname] Nvarchar (128) NULL,
+			[FULL] [datetime] NULL,
+			[DIFF] [datetime] NULL,
+			[LOG] [datetime] NULL,
+			[IsFullRecovery] [bit] NULL,
+			[IsSystemDB] [bit] NULL,
+			[primary_replica] [nvarchar](128) NULL,
+			[backup_preference] [nvarchar](60) NULL
+			);
+			
+			--New columns for 1.2 [primary_replica],[backup_preference]
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.BackupsCheck') AND name ='primary_replica')
+			BEGIN 
+				ALTER TABLE [Inspector].[BackupsCheck] ADD [primary_replica] [nvarchar](128) NULL;
+			END 	
+			
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.BackupsCheck') AND name ='backup_preference')
+			BEGIN 
+				ALTER TABLE [Inspector].[BackupsCheck] ADD [backup_preference] [nvarchar](60) NULL;
+			END 
+			
+			
+			IF OBJECT_ID('Inspector.DatabaseFileSizes') IS NULL
+			--New Column [LastUpdated] for 1.0.1
+			CREATE TABLE [Inspector].[DatabaseFileSizes](
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Database_id] INT NOT NULL,
+			[Database_name] [NVARCHAR](128) NULL,
+			[OriginalDateLogged] [DATETIME] NOT NULL,
+			[OriginalSize_MB] BIGINT NULL,
+			[Type_desc] [NVARCHAR](60) NULL,
+			[File_id] TINYINT NOT NULL,
+			[Filename] [NVARCHAR](260) NULL,
+			[PostGrowthSize_MB] BIGINT NULL,
+			[GrowthRate] [int] NULL,
+			[Is_percent_growth] [BIT] NOT NULL,
+			[NextGrowth] BIGINT  NULL,
+			[LastUpdated] DATETIME NULL	  
+			); 
+
+			--New Column [LastUpdated] for 1.0.1
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DatabaseFileSizes') AND name ='LastUpdated')
+			BEGIN 
+				ALTER TABLE [Inspector].[DatabaseFileSizes] ADD [LastUpdated] DATETIME NULL;
+			END 
+			
+			IF OBJECT_ID('Inspector.DatabaseFileSizeHistory') IS NULL
+			BEGIN
+			CREATE TABLE [Inspector].DatabaseFileSizeHistory
+			(
+			[GrowthID] BIGINT IDENTITY(1,1),
+			[Servername] NVARCHAR(128)  NOT NULL,
+			[Database_id] INT NOT NULL,
+			[Database_name] NVARCHAR(128) NOT NULL,
+			[Log_Date] DATETIME NOT NULL,
+			[Type_Desc] NVARCHAR(60) NOT NULL,
+			[File_id] TINYINT NOT NULL,
+			[FileName] NVARCHAR(260) NOT NULL,
+			[PreGrowthSize_MB] BIGINT NOT NULL,
+			[GrowthRate_MB] INT NOT NULL,
+			[GrowthIncrements] INT NOT NULL,
+			[PostGrowthSize_MB] BIGINT NOT NULL
+			);
+			
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.DatabaseFileSizeHistory') AND name='IX_Servername_Includes_Log_Date')
+			BEGIN
+				CREATE NONCLUSTERED INDEX [IX_Servername_Includes_Log_Date] ON [Inspector].[DatabaseFileSizeHistory]
+				([Servername] ASC) INCLUDE ([Log_Date]); 
+			END
+
+			END
+
+			IF OBJECT_ID('Inspector.EmailRecipients') IS NULL		
+			CREATE TABLE [Inspector].[EmailRecipients]
+			(
+			ID INT IDENTITY(1,1),
+			Description VARCHAR(50) NOT NULL,
+			Recipients VARCHAR(1000) DEFAULT NULL
+			CONSTRAINT UC_EmailDescription UNIQUE (Description)
+			); 
+			
+			IF OBJECT_ID('Inspector.CurrentServers') IS NULL 
+			BEGIN
+			CREATE TABLE [Inspector].[CurrentServers]
+			(
+			[Servername] [Nvarchar](128) NULL,
+			[IsActive] BIT,
+			[ModuleConfig_Desc] VARCHAR(20),
+			TableHeaderColour VARCHAR(7)
+			CONSTRAINT UC_Servername UNIQUE (Servername)
+			); 
+			
+			ALTER TABLE Inspector.CurrentServers
+			ADD CONSTRAINT FK_ModuleConfig_Desc
+			FOREIGN KEY (ModuleConfig_Desc) REFERENCES Inspector.Modules(ModuleConfig_Desc);
+			END
+
+			IF OBJECT_ID('Inspector.EmailConfig') IS NULL
+			CREATE TABLE [Inspector].[EmailConfig]
+			(
+			ModuleConfig_Desc VARCHAR(20),
+			EmailSubject VARCHAR(100) DEFAULT NULL,
+			CONSTRAINT FK_ModuleConfig_Email FOREIGN KEY (ModuleConfig_Desc) REFERENCES Inspector.Modules(ModuleConfig_Desc)
+			);
+			
+			IF OBJECT_ID('Inspector.ModuleWarningLevel') IS NULL
+			BEGIN
+				CREATE TABLE [Inspector].[ModuleWarningLevel]
+				(
+				[ModuleConfig_Desc] VARCHAR(20) NOT NULL,
+				[Module] VARCHAR(50) NOT NULL,
+				[WarningLevel] TINYINT NULL
+				);
+
+				ALTER TABLE [Inspector].[ModuleWarningLevel] ADD CONSTRAINT [UC_ModuleConfig_Desc_Module] UNIQUE CLUSTERED 
+				(
+				[ModuleConfig_Desc] ASC,
+				[Module]
+				);
+			END
+
+			IF OBJECT_ID('Inspector.ModuleWarnings') IS NULL
+			BEGIN
+			CREATE TABLE [Inspector].[ModuleWarnings]
+			(
+			[WarningLevel] TINYINT NULL,
+			[WarningDesc] VARCHAR(30)
+			);
+			
+			--Insert Module warning level descriptions (new feature for V1.3)
+			INSERT INTO [Inspector].[ModuleWarnings] ([WarningLevel],[WarningDesc])
+			VALUES(NULL,'InspectorDefault'),(1,'Red'),(2,'Yellow'),(3,'Information (white)');
+
+			END
+
+			IF OBJECT_ID('Inspector.DatabaseOwnership') IS NULL
+			CREATE TABLE [Inspector].[DatabaseOwnership]
+			 (
+			[Servername] [nvarchar](128) NOT NULL,
+			[Log_Date] DATETIME NULL,
+			[AGname] [nvarchar](128) NULL,
+			[Database_name] [nvarchar](128) NOT NULL,
+			[Owner] [nvarchar](100) NULL
+			);
+			
+			
+			IF OBJECT_ID('Inspector.BackupSizesByDay') IS NULL
+			CREATE TABLE [Inspector].[BackupSizesByDay]
+			(
+			[Servername] [nvarchar](128) NOT NULL,
+			[Log_Date] DATETIME NULL,
+			[DayOfWeek] [VARCHAR](10) NULL,
+			[CastedDate] [DATE] NULL,
+			[TotalSizeInBytes] [BIGINT] NULL
+			);
+			
+			IF OBJECT_ID('Inspector.DatabaseSettings') IS NULL
+			CREATE TABLE [Inspector].[DatabaseSettings](
+			[Servername] [nvarchar](128) NULL,
+			[Log_Date] [datetime] NULL,
+			[Setting] [varchar](50) NULL,
+			[Description] [varchar](100) NULL,
+			[Total] [int] NULL
+			);
+			
+			IF OBJECT_ID('Inspector.ServerSettings') IS NULL
+			CREATE TABLE [Inspector].[ServerSettings](
+			[Servername] NVARCHAR(128) NULL,
+			[Log_Date] DATETIME NULL,
+			[configuration_id] INT NULL,
+			[Setting] NVARCHAR(128) NULL,
+			[value_in_use] INT NULL
+			);
+
+			IF OBJECT_ID('Inspector.InstanceStart') IS NULL
+			CREATE TABLE [Inspector].[InstanceStart](
+			Servername NVARCHAR(128),
+			Log_Date DATETIME,
+			InstanceStart DATETIME
+			);
+
+
+			IF OBJECT_ID('Inspector.SuspectPages') IS NULL
+			CREATE TABLE [Inspector].[SuspectPages](
+			[Servername] NVARCHAR(128),
+			[Log_Date] DATETIME,
+			[Databasename] NVARCHAR(128),
+			[file_id] INT,
+			[page_id] BIGINT,	
+			[event_type] INT,
+			[error_count] INT,
+			[last_update_date] DATETIME
+			);
+			
+			IF OBJECT_ID('Inspector.AGDatabases') IS NULL
+			CREATE TABLE [Inspector].[AGDatabases](
+			[ID] INT IDENTITY(1,1),
+			[Servername] NVARCHAR(128) NULL,
+			[Log_Date] DATETIME NULL,
+			[LastUpdated] DATETIME NULL,
+			[Databasename] NVARCHAR(128) NULL,
+			[Is_AG] BIT NULL,
+			[Is_AGJoined] BIT NULL
+			);
+
+			IF OBJECT_ID('Inspector.InstanceVersion') IS NULL
+			CREATE TABLE [Inspector].[InstanceVersion](
+			Servername NVARCHAR(128),
+			PhysicalServername NVARCHAR(128),
+			Log_Date DATETIME,
+			VersionInfo NVARCHAR(128)
+			);
+			
+			IF OBJECT_ID('Inspector.LongRunningTransactions') IS NULL
+			CREATE TABLE [Inspector].[LongRunningTransactions](
+			[Servername] NVARCHAR(128) NULL,
+			[Log_Date] DATETIME NULL,
+			[session_id] INT NULL,
+			[transaction_begin_time] DATETIME NULL,
+			[Duration_DDHHMMSS] VARCHAR(20) NULL,
+			[TransactionState] VARCHAR(20) NULL,
+			[SessionState] NVARCHAR(20) NULL,
+			[login_name] NVARCHAR(128) NULL,
+			[host_name] NVARCHAR(128) NULL,
+			[program_name] NVARCHAR(128) NULL,
+			[Databasename] NVARCHAR(128) NULL
+			);
+
+			IF OBJECT_ID('Inspector.InstanceVersionHistory') IS NULL
+			CREATE TABLE [Inspector].[InstanceVersionHistory](
+			[Servername] NVARCHAR(128) NOT NULL,
+			[Log_Date] DATETIME NOT NULL,
+			[CollectionDatetime] DATETIME NOT NULL,
+			[VersionNo] NVARCHAR(50) NULL,
+			[Edition] NVARCHAR(128) NULL
+			);
+
+			IF OBJECT_ID('Inspector.UnusedLogshipConfig') IS NULL
+			CREATE TABLE [Inspector].[UnusedLogshipConfig] (
+			Servername NVARCHAR(128),
+			Log_Date DATETIME,
+			Databasename NVARCHAR(128),
+			Databasestate NVARCHAR(128)
+			);
+
+
+			--Insert new settings for V1.2
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'LongRunningTransactionThreshold')
+			BEGIN
+				INSERT INTO [Inspector].[Settings] ([Description],[Value]) 
+				VALUES ('LongRunningTransactionThreshold',CAST(@LongRunningTransactionThreshold AS VARCHAR(8)));
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'ReportDataRetention')
+			BEGIN
+				INSERT INTO [Inspector].[Settings] ([Description],[Value]) 
+				VALUES ('ReportDataRetention','30');
+			END
+
+
 			--New Setting for 1.2 - Powershell banner.
 			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'PSEmailBannerURL')
 			BEGIN
@@ -462,27 +835,6 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				SET [Value] = 'http://bit.ly/InspectorEmailBanner'
 				WHERE [Description] = 'EmailBannerURL';
 			END
-
-			IF OBJECT_ID('Inspector.Settings') IS NOT NULL 
-			 BEGIN 
-			 SELECT * 
-			 INTO [Inspector].[Settings_Copy]  
-			 FROM [Inspector].[Settings] 
-			 END
-
-			 IF OBJECT_ID('Inspector.EmailRecipients') IS NOT NULL 
-			 BEGIN 
-			 SELECT * 
-			 INTO [Inspector].[EmailRecipients_Copy]  
-			 FROM [Inspector].[EmailRecipients] 
-			 END
-
-			IF OBJECT_ID('Inspector.CurrentServers') IS NOT NULL 
-			 BEGIN 
-				SELECT * 
-				INTO [Inspector].[CurrentServers_Copy]  
-				FROM [Inspector].[CurrentServers]; 
-			 END
 
 			
 			IF OBJECT_ID('Inspector.Modules') IS NOT NULL 
@@ -533,388 +885,24 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				END
 			END
 
-			IF OBJECT_ID('Inspector.Modules') IS NOT NULL 
+			--New columns for V1.3 for Inspector.Modules
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'UnusedLogshipConfig' AND [object_id] = OBJECT_ID(N'Inspector.Modules'))
 			BEGIN
-				SELECT * 
-				INTO [Inspector].[Modules_Copy]  
-				FROM [Inspector].[Modules];
-			END
-	
-			IF OBJECT_ID('Inspector.EmailConfig') IS NOT NULL
-			 BEGIN 
-				SELECT * 
-				INTO [Inspector].[EmailConfig_Copy] 
-				FROM [Inspector].[EmailConfig];
-			 END
-			
+				ALTER TABLE [Inspector].[Modules] ADD [UnusedLogshipConfig] BIT NULL;
+				EXEC sp_executesql N'UPDATE [Inspector].[Modules] SET [UnusedLogshipConfig] = CASE WHEN ModuleConfig_Desc = ''Default'' THEN 1 ELSE 0 END;';	
 			END
 
-			--Drop Constraints
-			IF OBJECT_ID('Inspector.FK_ModuleConfig_Email') IS NOT NULL
-			ALTER TABLE [Inspector].[EmailConfig] DROP CONSTRAINT FK_ModuleConfig_Email;
-			
-			IF OBJECT_ID('Inspector.FK_ModuleConfig_Desc') IS NOT NULL
-			ALTER TABLE [Inspector].[CurrentServers] DROP CONSTRAINT FK_ModuleConfig_Desc;
-			
-			IF OBJECT_ID('Inspector.PK_ModuleConfig_Desc') IS NOT NULL
-			ALTER TABLE [Inspector].[Modules] DROP CONSTRAINT PK_ModuleConfig_Desc;
-
-			--Create Inspector Upgrade table if not exists (do not drop)
-			IF OBJECT_ID('Inspector.InspectorUpgradeHistory') IS NULL 
-			CREATE TABLE [Inspector].[InspectorUpgradeHistory](
-			Log_Date DATETIME,
-			PreserveData BIT NULL,
-			CurrentBuild DECIMAL(4,1) NULL,
-			TargetBuild DECIMAL(4,1) NULL,
-			SetupCommand VARCHAR(1000) NULL
-			);
-
-			--Drop and recreate all Settings tables
-			IF OBJECT_ID('Inspector.ReportData') IS NOT NULL 
-			DROP TABLE [Inspector].[ReportData];
-			
-			CREATE TABLE [Inspector].[ReportData](
-				[ID] INT IDENTITY(1,1),
-				[ReportDate] DATETIME NOT NULL,
-				[ModuleConfig] VARCHAR(20),
-				[ReportData] VARCHAR(MAX) NULL,
-				[Summary] VARCHAR(60) NULL
-			);
-
-			CREATE NONCLUSTERED INDEX [IX_ReportDate] ON [Inspector].[ReportData]
-			(ReportDate ASC);
-			
-			IF OBJECT_ID('Inspector.Settings') IS NOT NULL 
-			DROP TABLE [Inspector].[Settings];
-			
-			CREATE TABLE [Inspector].[Settings] 
-			(
-			[ID] INT IDENTITY(1,1),
-			[Description] VARCHAR(100),
-			[Value] VARCHAR(255)
-			);
-			
-			ALTER TABLE [Inspector].[Settings]
-			ADD CONSTRAINT UC_Description UNIQUE (Description);
-			
-			ALTER TABLE [Inspector].[Settings] 
-			ADD CONSTRAINT [DF_Settings_Value]  DEFAULT (NULL) FOR [Value];
-			
-			IF OBJECT_ID('Inspector.Modules') IS NOT NULL
-			DROP TABLE [Inspector].[Modules];
-			
-			CREATE TABLE [Inspector].[Modules]
-			(
-			ID INT IDENTITY(1,1),
-			ModuleConfig_Desc	VARCHAR(20) NOT NULL,
-			AGCheck	BIT,
-			BackupsCheck	BIT,
-			BackupSizesCheck	BIT,
-			DatabaseGrowthCheck	BIT,
-			DatabaseFileCheck	BIT,
-			DatabaseOwnershipCheck	BIT,
-			DatabaseStatesCheck	BIT,
-			DriveSpaceCheck	BIT,
-			FailedAgentJobCheck	BIT,
-			JobOwnerCheck	BIT,
-			FailedLoginsCheck	BIT,
-			TopFiveDatabaseSizeCheck	BIT,
-			ADHocDatabaseCreationCheck	BIT,
-			BackupSpaceCheck	BIT,
-			DatabaseSettings	BIT,
-			ServerSettings	BIT,
-			SuspectPages	BIT,
-			AGDatabases	BIT,
-			LongRunningTransactions BIT,
-			UseMedianCalculationForDriveSpaceCalc	BIT
-			CONSTRAINT PK_ModuleConfig_Desc PRIMARY KEY (ModuleConfig_Desc)
-			);
-			
-			IF OBJECT_ID('Inspector.PSEnabledModules') IS NOT NULL
-			DROP VIEW [Inspector].[PSEnabledModules];
-
-			EXEC ('CREATE VIEW [Inspector].[PSEnabledModules]
-			AS
-			SELECT [ModuleConfig_Desc],[Module],[Enabled]
-			FROM 
-			(
-			    SELECT	
-				ModuleConfig_Desc,						
-			    ISNULL(AGCheck,0) AS AGCheck,					
-			    ISNULL(BackupsCheck,0) AS BackupsCheck,					
-			    ISNULL(BackupSizesCheck,0) AS BackupSizesByDay,			
-			    ISNULL(DatabaseGrowthCheck,0) AS DatabaseGrowths,			
-			    ISNULL(DatabaseFileCheck,0) AS DatabaseFiles,			
-			    ISNULL(DatabaseOwnershipCheck,0) AS DatabaseOwnership,		
-			    ISNULL(DatabaseStatesCheck,0) AS DatabaseStates,			
-			    ISNULL(DriveSpaceCheck,0) AS DriveSpace,				
-			    ISNULL(FailedAgentJobCheck,0) AS FailedAgentJobs,			
-			    ISNULL(JobOwnerCheck,0) AS JobOwner,				
-			    ISNULL(FailedLoginsCheck,0) AS LoginAttempts,			
-			    ISNULL(TopFiveDatabaseSizeCheck,0) AS TopFiveDatabases,		
-			    ISNULL(ADHocDatabaseCreationCheck,0) AS ADHocDatabaseCreations,	
-			    ISNULL(DatabaseSettings,0) AS DatabaseSettings,
-			    ISNULL(ServerSettings,0) AS ServerSettings,
-			    ISNULL(SuspectPages,0) AS SuspectPages,
-			    ISNULL(AGDatabases,0) AS AGDatabases,
-			    ISNULL(LongRunningTransactions,0) AS LongRunningTransactions
-			    FROM [Inspector].[Modules]
-			) Modules
-			UNPIVOT
-			([Enabled] FOR Module IN 
-			(AGCheck
-			,BackupsCheck
-			,BackupSizesByDay
-			,DatabaseGrowths
-			,DatabaseFiles
-			,DatabaseOwnership
-			,DatabaseStates
-			,DriveSpace
-			,FailedAgentJobs
-			,JobOwner
-			,LoginAttempts
-			,TopFiveDatabases
-			,ADHocDatabaseCreations
-			,DatabaseSettings
-			,ServerSettings
-			,SuspectPages
-			,AGDatabases
-			,LongRunningTransactions
-			) ) AS [ModulesList]
-			WHERE [Enabled] = 1;');
-
-			IF OBJECT_ID('Inspector.PSInspectorTables') IS NOT NULL
-			DROP VIEW [Inspector].[PSInspectorTables];
-
-			EXEC sp_executesql N'
-			CREATE VIEW [Inspector].[PSInspectorTables]
-			AS
-			SELECT Tablename
-			FROM (VALUES
-			(''ADHocDatabaseCreations''),
-			(''ADHocDatabaseSupression''),
-			(''AGCheck''),
-			(''AGDatabases''),
-			(''BackupsCheck''),
-			(''BackupSizesByDay''),
-			(''CurrentServers''),
-			(''DatabaseFiles''),
-			(''DatabaseFileSizeHistory''),
-			(''DatabaseFileSizes''),
-			(''DatabaseOwnership''),
-			(''DatabaseSettings''),
-			(''DatabaseStates''),
-			(''DriveSpace''),
-			(''EmailConfig''),
-			(''EmailRecipients''),
-			(''FailedAgentJobs''),
-			(''InstanceStart''),
-			(''InstanceVersion''),
-			(''JobOwner''),
-			(''LoginAttempts''),
-			(''LongRunningTransactions''),
-			(''Modules''),
-			(''ReportData''),
-			(''ServerSettings''),
-			(''Settings''),
-			(''SuspectPages''),
-			(''TopFiveDatabases'')
-			) InspectorTables (Tablename);'
-
-
-			IF OBJECT_ID('Inspector.EmailRecipients') IS NOT NULL
-			DROP TABLE [Inspector].[EmailRecipients];
-			
-			CREATE TABLE [Inspector].[EmailRecipients]
-			(
-			ID INT IDENTITY(1,1),
-			Description VARCHAR(50) NOT NULL,
-			Recipients VARCHAR(1000) DEFAULT NULL
-			CONSTRAINT UC_EmailDescription UNIQUE (Description)
-			); 
-			
-			IF OBJECT_ID('Inspector.CurrentServers') IS NOT NULL 
-			DROP TABLE [Inspector].[CurrentServers];
-			
-			CREATE TABLE [Inspector].[CurrentServers]
-			(
-			[Servername] [Nvarchar](128) NULL,
-			[IsActive] BIT,
-			[ModuleConfig_Desc] VARCHAR(20),
-			TableHeaderColour VARCHAR(7)
-			CONSTRAINT UC_Servername UNIQUE (Servername)
-			); 
-			
-			ALTER TABLE Inspector.CurrentServers
-			ADD CONSTRAINT FK_ModuleConfig_Desc
-			FOREIGN KEY (ModuleConfig_Desc) REFERENCES Inspector.Modules(ModuleConfig_Desc);
-			
-			IF OBJECT_ID('Inspector.EmailConfig') IS NOT NULL
-			DROP TABLE [Inspector].[EmailConfig];
-			
-			CREATE TABLE [Inspector].[EmailConfig]
-			(
-			ModuleConfig_Desc VARCHAR(20),
-			EmailSubject VARCHAR(100) DEFAULT NULL,
-			CONSTRAINT FK_ModuleConfig_Email FOREIGN KEY (ModuleConfig_Desc) REFERENCES Inspector.Modules(ModuleConfig_Desc)
-			);
-			
-			
-
-			IF @InitialSetup = 0 
-			BEGIN
-			--Insert Preserved Settings from Temporary tables into Inspector Base tables  
-			IF OBJECT_ID('Inspector.Settings_Copy') IS NOT NULL 
-			BEGIN
-			
-				SET IDENTITY_INSERT [Inspector].[Settings] ON
-				INSERT INTO [Inspector].[Settings] ([ID], [Description], [Value]) 
-				SELECT [ID], [Description], [Value]
-				FROM [Inspector].[Settings_Copy] AS PreservedSettings 
-				SET IDENTITY_INSERT [Inspector].[Settings] OFF;
-
-				--Insert new settings for V1.2
-				IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'LongRunningTransactionThreshold')
-				BEGIN
-					INSERT INTO [Inspector].[Settings] ([Description],[Value]) 
-					VALUES ('LongRunningTransactionThreshold',CAST(@LongRunningTransactionThreshold AS VARCHAR(8)));
-				END
-
-				IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'ReportDataRetention')
-				BEGIN
-					INSERT INTO [Inspector].[Settings] ([Description],[Value]) 
-					VALUES ('ReportDataRetention','30');
-				END
-					
-			END
-
-			IF OBJECT_ID('Inspector.Modules_Copy') IS NOT NULL
-			BEGIN
-			--Set statement for Inserting/Updating Modules data
-			SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+'
-					INSERT INTO [Inspector].[Modules] 
-					(
-					[ADHocDatabaseCreationCheck],
-					[AGCheck],
-					[BackupsCheck],
-					[BackupSizesCheck],
-					[BackupSpaceCheck],
-					[DatabaseFileCheck],
-					[DatabaseGrowthCheck],
-					[DatabaseOwnershipCheck],
-					[DatabaseSettings],
-					[DatabaseStatesCheck],
-					[DriveSpaceCheck],
-					[FailedAgentJobCheck],
-					[FailedLoginsCheck],
-					[JobOwnerCheck],
-					[TopFiveDatabaseSizeCheck],
-					[ModuleConfig_Desc] ,
-					[UseMedianCalculationForDriveSpaceCalc]
-					)
-					SELECT 
-					PreservedSettings.[EnableADHocDatabaseCreationCheck],
-					PreservedSettings.[EnableAGCheck],
-					PreservedSettings.[EnableBackupsCheck],
-					PreservedSettings.[EnableBackupSizesCheck],
-					PreservedSettings.[EnableBackupSpaceCheck],
-					PreservedSettings.[EnableDatabaseFileCheck],
-					PreservedSettings.[EnableDatabaseGrowthCheck],
-					PreservedSettings.[EnableDatabaseOwnershipCheck],
-					PreservedSettings.[EnableDatabaseSettings],
-					PreservedSettings.[EnableDatabaseStatesCheck],
-					PreservedSettings.[EnableDriveSpaceCheck],
-					PreservedSettings.[EnableFailedAgentJobCheck],
-					PreservedSettings.[EnableFailedLoginsCheck],
-					PreservedSettings.[EnableJobOwnerCheck],
-					PreservedSettings.[EnableTopFiveDatabaseSizeCheck],
-					PreservedSettings.[ModuleConfig_Desc] ,
-					PreservedSettings.[UseMedianCalculationForDriveSpaceCalc]
-					FROM [Inspector].[Modules_Copy] AS PreservedSettings 
-					LEFT JOIN [Inspector].[Modules] AS Config ON Config.ModuleConfig_Desc = PreservedSettings.ModuleConfig_Desc
-					WHERE Config.ModuleConfig_Desc IS NULL;
-
-					UPDATE Config
-					SET 
-					[ADHocDatabaseCreationCheck]	= PreservedSettings.[EnableADHocDatabaseCreationCheck],
-					[AGCheck]						= PreservedSettings.[EnableAGCheck],
-					[BackupsCheck]					= PreservedSettings.[EnableBackupsCheck],
-					[BackupSizesCheck]				= PreservedSettings.[EnableBackupSizesCheck],
-					[BackupSpaceCheck]				= PreservedSettings.[EnableBackupSpaceCheck],
-					[DatabaseFileCheck]				= PreservedSettings.[EnableDatabaseFileCheck],
-					[DatabaseGrowthCheck]			= PreservedSettings.[EnableDatabaseGrowthCheck],
-					[DatabaseOwnershipCheck]		= PreservedSettings.[EnableDatabaseOwnershipCheck],
-					[DatabaseSettings]				= PreservedSettings.[EnableDatabaseSettings],
-					[DatabaseStatesCheck]			= PreservedSettings.[EnableDatabaseStatesCheck],
-					[DriveSpaceCheck]				= PreservedSettings.[EnableDriveSpaceCheck],
-					[FailedAgentJobCheck]			= PreservedSettings.[EnableFailedAgentJobCheck],
-					[FailedLoginsCheck]				= PreservedSettings.[EnableFailedLoginsCheck],
-					[JobOwnerCheck]					= PreservedSettings.[EnableJobOwnerCheck],
-					[TopFiveDatabaseSizeCheck]		= PreservedSettings.[EnableTopFiveDatabaseSizeCheck],
-					[ModuleConfig_Desc]					= PreservedSettings.[ModuleConfig_Desc],
-					[UseMedianCalculationForDriveSpaceCalc]	= PreservedSettings.[UseMedianCalculationForDriveSpaceCalc],
-					[ServerSettings]				= PreservedSettings.[ServerSettings],
-					[SuspectPages]					= PreservedSettings.[SuspectPages],
-					[AGDatabases]					= PreservedSettings.[AGDatabases],
-					[LongRunningTransactions]		= PreservedSettings.[LongRunningTransactions]
-					FROM [Inspector].[Modules] AS Config
-					INNER JOIN [Inspector].[Modules_Copy] AS PreservedSettings ON Config.ModuleConfig_Desc = PreservedSettings.ModuleConfig_Desc;'
-
-				--If Inspector build is less than V1.2 Column names will be different in the Module table.
-				IF (CAST(@CurrentBuild AS DECIMAL(4,1))) < 1.2
-				BEGIN
-					EXEC(@SQLStatement);
-				END
-				ELSE --V1.2 or higher
-				BEGIN
-					--Remove Enable prefix from column names in @SQLStatement
-					SET @SQLStatement = REPLACE(@SQLStatement,'Enable','')
-					EXEC(@SQLStatement);
-				END
-			END
-			
-			IF OBJECT_ID('Inspector.CurrentServers_Copy') IS NOT NULL
-			BEGIN
-			
-				INSERT INTO [Inspector].[CurrentServers] (Servername,IsActive,ModuleConfig_Desc,TableHeaderColour) 
-				SELECT PreservedSettings.Servername,PreservedSettings.IsActive,PreservedSettings.ModuleConfig_Desc,TableHeaderColour
-				FROM [Inspector].[CurrentServers_Copy] AS PreservedSettings 
-				WHERE NOT EXISTS (SELECT Servername
-									FROM [Inspector].[CurrentServers] AS Config
-									WHERE Config.Servername = PreservedSettings.Servername);
-			
-			END
-			
-			IF OBJECT_ID('Inspector.EmailRecipients_Copy') IS NOT NULL
-			BEGIN
-			
-				UPDATE  Config
-				SET Config.Recipients = PreservedSettings.Recipients
-				FROM [Inspector].[EmailRecipients]  AS Config
-				INNER JOIN [Inspector].[EmailRecipients_Copy] AS PreservedSettings ON Config.Description = PreservedSettings.Description;
-				
-				INSERT INTO [Inspector].[EmailRecipients] (Description,Recipients) 
-				SELECT PreservedSettings.Description,PreservedSettings.Recipients
-				FROM [Inspector].[EmailRecipients_Copy] AS PreservedSettings 
-				LEFT JOIN [Inspector].[EmailRecipients]  AS Config ON Config.Description = PreservedSettings.Description
-				WHERE Config.Description IS NULL;
-			
-			END
-			
-			
-			IF OBJECT_ID('Inspector.EmailConfig_Copy') IS NOT NULL
-			BEGIN
-			
-				INSERT INTO [Inspector].[EmailConfig] (ModuleConfig_Desc,EmailSubject)
-				SELECT [ModuleConfig_Desc],[EmailSubject]
-				FROM [Inspector].[EmailConfig_Copy];
-			
-			END
-			
-			END
-
+--Populate config
 IF @InitialSetup = 1 
 BEGIN
+--Truncate tables - Settings,Modules,EmailConfig,ModuleWarnings,ModuleWarningLevel,EmailRecipients
+TRUNCATE TABLE [Inspector].[Settings];
+TRUNCATE TABLE [Inspector].[EmailConfig];
+TRUNCATE TABLE [Inspector].[ModuleWarnings];
+TRUNCATE TABLE [Inspector].[ModuleWarningLevel];
+TRUNCATE TABLE [Inspector].[EmailRecipients];
+DELETE FROM [Inspector].[Modules];
+
 --Insert Settings into Inspector Base tables  
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
 INSERT INTO [Inspector].[Settings] ([Description],[Value])
@@ -967,11 +955,14 @@ VALUES	(''InspectorBuild'','''+@Build+'''),
 
 INSERT INTO [Inspector].[Modules] (ModuleConfig_Desc,AGCheck,BackupsCheck,BackupSizesCheck,DatabaseGrowthCheck,DatabaseFileCheck,DatabaseOwnershipCheck,
 					   DatabaseStatesCheck,DriveSpaceCheck,FailedAgentJobCheck,JobOwnerCheck,FailedLoginsCheck,TopFiveDatabaseSizeCheck,
-					   ADHocDatabaseCreationCheck,BackupSpaceCheck,DatabaseSettings,ServerSettings,SuspectPages,AGDatabases,LongRunningTransactions,UseMedianCalculationForDriveSpaceCalc)
-VALUES	(''Default'',1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0),(''PeriodicBackupCheck'',0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+					   ADHocDatabaseCreationCheck,BackupSpaceCheck,DatabaseSettings,ServerSettings,SuspectPages,AGDatabases,LongRunningTransactions,UnusedLogshipConfig,UseMedianCalculationForDriveSpaceCalc)
+VALUES	(''Default'',1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0),(''PeriodicBackupCheck'',0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
         
-INSERT INTO Inspector.EmailConfig (ModuleConfig_Desc,EmailSubject)
+INSERT INTO [Inspector].[EmailConfig] (ModuleConfig_Desc,EmailSubject)
 VALUES (''Default'',''SQLUndercover Inspector check ''),(''PeriodicBackupCheck'',''SQLUndercover Backups Report'');
+
+INSERT INTO [Inspector].[ModuleWarnings] ([WarningLevel],[WarningDesc])
+VALUES(NULL,''InspectorDefault''),(1,''Red''),(2,''Yellow''),(3,''Information (white)'');
 
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
@@ -1007,215 +998,10 @@ EXEC (@SQLStatement);
 
 END
 
-
-			--Drop and create all Inspector Data Tables and Stored Procedures
-			IF OBJECT_ID('Inspector.ADHocDatabaseCreations') IS NOT NULL
-			DROP TABLE [Inspector].[ADHocDatabaseCreations];
 			
-			CREATE TABLE [Inspector].[ADHocDatabaseCreations]
-			(
-			[Servername] NVARCHAR(128) NOT NULL,
-			[Log_Date] DATETIME NULL,
-			[Databasename] NVARCHAR(128) NOT NULL,
-			[Create_Date] DATETIME NULL
-			);
-
-			
-			IF OBJECT_ID('Inspector.ADHocDatabaseSupression') IS NOT NULL
-			DROP TABLE [Inspector].[ADHocDatabaseSupression];
-			
-			CREATE TABLE [Inspector].[ADHocDatabaseSupression]
-			(
-			[Servername] NVARCHAR(128),
-			[Log_Date] DATETIME,
-			[Databasename] NVARCHAR(128),
-			[Suppress] BIT
-			);		
-				
-			
-			IF OBJECT_ID('Inspector.AGCheck') IS NOT NULL
-			DROP TABLE [Inspector].[AGCheck];
-			
-			CREATE TABLE [Inspector].[AGCheck]
-			(
-				[Servername] NVARCHAR(128) NOT NULL,
-				[Log_Date] DATETIME NOT NULL,
-				[AGname] NVARCHAR(128) NULL,
-				[State] VARCHAR(50) NULL,
-				[ReplicaServername] NVARCHAR(256) NULL,
-				[Suspended] BIT NULL,
-				[SuspendReason] VARCHAR(50) NULL
-			); 
-			
-			 
-			
-			IF OBJECT_ID('Inspector.DatabaseFiles') IS NOT NULL
-			DROP TABLE [Inspector].[DatabaseFiles];
-			
-			CREATE TABLE [Inspector].[DatabaseFiles]
-			(
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Log_Date] DATETIME  NOT NULL,
-			[Databasename] NVARCHAR(128), 
-			[FileType] VARCHAR(8),
-			[FilePath] NVARCHAR(260)
-			);
-			
-			
-			
-			IF OBJECT_ID('Inspector.DatabaseStates') IS NOT NULL
-			DROP TABLE [Inspector].[DatabaseStates];
-			
-			CREATE TABLE [Inspector].[DatabaseStates]
-			(
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Log_Date] DATETIME  NOT NULL,
-			[DatabaseState] VARCHAR(40)  NULL,
-			[Total] INT,
-			[DatabaseNames] VARCHAR(MAX) NULL
-			); 
-			
-			
-			IF OBJECT_ID('Inspector.DriveSpaceInfo') IS NOT NULL
-			DROP VIEW [Inspector].[DriveSpaceInfo];
-			
-			IF OBJECT_ID('Inspector.DriveSpace') IS NOT NULL
-			DROP TABLE [Inspector].[DriveSpace];
-			
-			CREATE TABLE [Inspector].[DriveSpace] 
-			(
-			[Servername] NVARCHAR(128),
-			[Log_Date] DATETIME,
-			[Drive] NVARCHAR(3),
-			[Capacity_GB] DECIMAL(10,2),
-			[AvailableSpace_GB] DECIMAL(10,2)
-			);
-
-			
-			IF OBJECT_ID('Inspector.FailedAgentJobs') IS NOT NULL
-			DROP TABLE [Inspector].[FailedAgentJobs]
-			
-			CREATE TABLE [Inspector].[FailedAgentJobs]
-			(
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Log_Date] DATETIME  NOT NULL,
-			[Jobname] VARCHAR(128)  NULL,
-			[LastStepFailed] TINYINT NULL,
-			[LastFailedDate] DATETIME NULL,
-			[LastError] VARCHAR(260) NULL
-			);
-			
-			
-			IF OBJECT_ID('Inspector.LoginAttempts') IS NOT NULL
-			DROP TABLE [Inspector].[LoginAttempts];
-			
-			CREATE TABLE [Inspector].[LoginAttempts]
-			(
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Log_Date] DATETIME  NOT NULL,
-			[Username] VARCHAR(50)  NULL,
-			[Attempts] INT NULL,
-			[LastErrorDate] DATETIME NULL,
-			[LastError] VARCHAR(260) NULL
-			); 
-			
-			
-			
-			IF OBJECT_ID('Inspector.JobOwner') IS NOT NULL
-			DROP TABLE [Inspector].[JobOwner];
-			
-			CREATE TABLE [Inspector].[JobOwner]
-			(
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Log_Date] DATETIME  NOT NULL,
-			[Job_ID]  UNIQUEIDENTIFIER  NULL,
-			[Jobname] VARCHAR(100) NOT NULL
-			); 
-			
-			
-			
-			IF OBJECT_ID('Inspector.TopFiveDatabases') IS NOT NULL
-			DROP TABLE [Inspector].[TopFiveDatabases];
-			
-			CREATE TABLE [Inspector].[TopFiveDatabases]
-			(
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Log_Date] DATETIME  NOT NULL,
-			[Databasename] NVARCHAR(128)  NULL,
-			[TotalSize_MB] BIGINT
-			); 
-			
-			
-			
-			IF OBJECT_ID('Inspector.BackupsCheck') IS NOT NULL
-			DROP TABLE [Inspector].[BackupsCheck];
-			
-			--New columns for 1.2 [primary_replica],[backup_preference]
-			CREATE TABLE [Inspector].[BackupsCheck](
-				[Servername] NVARCHAR (128) NOT NULL,
-				[Log_Date] [datetime] NOT NULL,
-				[Databasename] [nvarchar](128) NULL,
-				[AGname] Nvarchar (128) NULL,
-				[FULL] [datetime] NULL,
-				[DIFF] [datetime] NULL,
-				[LOG] [datetime] NULL,
-				[IsFullRecovery] [bit] NULL,
-				[IsSystemDB] [bit] NULL,
-				[primary_replica] [nvarchar](128) NULL,
-				[backup_preference] [nvarchar](60) NULL
-				);
-			
-			
-			
-			
-			IF OBJECT_ID('Inspector.DatabaseFileSizes') IS NOT NULL
-			DROP TABLE [Inspector].[DatabaseFileSizes];
-			
-			--New Column [LastUpdated] for 1.0.1
-			CREATE TABLE [Inspector].[DatabaseFileSizes](
-				[Servername] NVARCHAR(128)  NOT NULL,
-				[Database_id] INT NOT NULL,
-				[Database_name] [NVARCHAR](128) NULL,
-				[OriginalDateLogged] [DATETIME] NOT NULL,
-				[OriginalSize_MB] BIGINT NULL,
-				[Type_desc] [NVARCHAR](60) NULL,
-				[File_id] TINYINT NOT NULL,
-				[Filename] [NVARCHAR](260) NULL,
-				[PostGrowthSize_MB] BIGINT NULL,
-				[GrowthRate] [int] NULL,
-				[Is_percent_growth] [BIT] NOT NULL,
-				[NextGrowth] BIGINT  NULL,
-				[LastUpdated] DATETIME NULL	  
-
-			); 
-			
-			IF OBJECT_ID('Inspector.DatabaseFileSizeHistory') IS NOT NULL
-			DROP TABLE [Inspector].[DatabaseFileSizeHistory];
-			
-			
-			CREATE TABLE [Inspector].DatabaseFileSizeHistory
-			(
-			[GrowthID] BIGINT IDENTITY(1,1),
-			[Servername] NVARCHAR(128)  NOT NULL,
-			[Database_id] INT NOT NULL,
-			[Database_name] NVARCHAR(128) NOT NULL,
-			[Log_Date] DATETIME NOT NULL,
-			[Type_Desc] NVARCHAR(60) NOT NULL,
-			[File_id] TINYINT NOT NULL,
-			[FileName] NVARCHAR(260) NOT NULL,
-			[PreGrowthSize_MB] BIGINT NOT NULL,
-			[GrowthRate_MB] INT NOT NULL,
-			[GrowthIncrements] INT NOT NULL,
-			[PostGrowthSize_MB] BIGINT NOT NULL
-			);
-			
-			CREATE NONCLUSTERED INDEX [IX_Servername_Includes_Log_Date] ON [Inspector].[DatabaseFileSizeHistory]
-			([Servername] ASC) INCLUDE ([Log_Date]); 
-
-
-			IF OBJECT_ID('Inspector.DatabaseGrowthInfo') IS NOT NULL
-			DROP VIEW [Inspector].[DatabaseGrowthInfo];
-			
+	
+			IF OBJECT_ID('Inspector.DatabaseGrowthInfo') IS NULL
+			BEGIN
 			EXEC sp_executesql N'
 			CREATE VIEW [Inspector].[DatabaseGrowthInfo] 
 			AS
@@ -1249,122 +1035,254 @@ END
 			) GrowthInfo
 			INNER JOIN [Inspector].[DatabaseFileSizes] ON [DatabaseFileSizes].[Database_name] = [GrowthInfo].[Database_name] 
 			AND  [DatabaseFileSizes].[Servername] =  [GrowthInfo].[Servername] 
-			AND [DatabaseFileSizes].[Filename] =  [GrowthInfo].[FileName];'
+			AND [DatabaseFileSizes].[Filename] =  [GrowthInfo].[FileName];';
+			END
+
+
+			IF OBJECT_ID('Inspector.DriveSpaceInfo') IS NULL
+			BEGIN
+			EXEC sp_executesql N'CREATE VIEW [Inspector].[DriveSpaceInfo]
+			AS
 			
-			IF OBJECT_ID('Inspector.DatabaseOwnership') IS NOT NULL
-			DROP TABLE [Inspector].[DatabaseOwnership];
+			/*
+			Author: Adrian Buckman
+			Created: 23/08/2018
+			Revised: n/a
+			Description: Show aggregated space used by drive by server, show Average daily,monthly and yearly usage and MIN/MAX Daily Increment variances.
+			*/
 			
-			CREATE TABLE [Inspector].[DatabaseOwnership]
-			    (
-				[Servername] [nvarchar](128) NOT NULL,
-				[Log_Date] DATETIME NULL,
-				[AGname] [nvarchar](128) NULL,
-				[Database_name] [nvarchar](128) NOT NULL,
-				[Owner] [nvarchar](100) NULL
-				);
-			
-			
-			IF OBJECT_ID('Inspector.BackupSizesByDay') IS NOT NULL
-			DROP TABLE [Inspector].[BackupSizesByDay];
-			
-			CREATE TABLE [Inspector].[BackupSizesByDay]
+			SELECT 
+			Servername,
+			Drive,
+			COUNT(*) AS DaysRecorded,
+			CAST(AVG(Delta_GB) AS DECIMAL(8,2)) AS AVG_Daily_Growth_GB,
+			CAST(((AVG(Delta_GB)*365)/12) AS DECIMAL(8,2)) AS AVG_Monthly_Growth_GB,
+			CAST((AVG(Delta_GB)*365) AS DECIMAL(8,2)) AS AVG_Yearly_GB,
+			CAST((MIN(Delta_GB)) AS DECIMAL(8,2)) AS MIN_Daily_Increment_GB,
+			CAST((MAX(Delta_GB)) AS DECIMAL(8,2)) AS MAX_Daily_Increment_GB
+			FROM 
+			(SELECT
+				Servername,
+				Log_Date,
+				Drive,
+				Capacity_GB,
+				AvailableSpace_GB,
+				Used_GB,
+				CASE WHEN Delta_GB < 0 THEN 0 ELSE Delta_GB END AS Delta_GB
+				FROM 
 				(
-				[Servername] [nvarchar](128) NOT NULL,
-				[Log_Date] DATETIME NULL,
-				[DayOfWeek] [VARCHAR](10) NULL,
-				[CastedDate] [DATE] NULL,
-				[TotalSizeInBytes] [BIGINT] NULL
-				);
-			
-			IF OBJECT_ID('Inspector.DatabaseSettings') IS NOT NULL
-			DROP TABLE [Inspector].[DatabaseSettings];
-			
-			CREATE TABLE [Inspector].[DatabaseSettings](
-				[Servername] [nvarchar](128) NULL,
-				[Log_Date] [datetime] NULL,
-				[Setting] [varchar](50) NULL,
-				[Description] [varchar](100) NULL,
-				[Total] [int] NULL
-			);
-			
-			IF OBJECT_ID('Inspector.ServerSettings') IS NOT NULL
-			DROP TABLE [Inspector].[ServerSettings];
-			
-			CREATE TABLE [Inspector].[ServerSettings](
-				[Servername] NVARCHAR(128) NULL,
-				[Log_Date] DATETIME NULL,
-				[configuration_id] INT NULL,
-				[Setting] NVARCHAR(128) NULL,
-				[value_in_use] INT NULL
-			);
+					SELECT 
+					Servername,
+					Log_Date,
+					Drive,
+					Capacity_GB,
+					AvailableSpace_GB,
+					Capacity_GB - AvailableSpace_GB AS Used_GB,
+					--LAG(Capacity_GB - AvailableSpace_GB,1,NULL) OVER (PARTITION BY Servername,Drive ORDER BY Servername ASC, Drive ASC, Log_Date ASC) Prev_used_GB,
+					Capacity_GB - AvailableSpace_GB - LAG(Capacity_GB - AvailableSpace_GB,1,Capacity_GB - AvailableSpace_GB) OVER (PARTITION BY Servername,Drive ORDER BY Servername ASC, Drive ASC, Log_Date ASC) AS Delta_GB
+					FROM [Inspector].[DriveSpace]
+				
+				) AS Derived
+			) AS DriveInfo
+			GROUP BY 
+			Servername,
+			Drive
+			';
 
-			IF OBJECT_ID('Inspector.InstanceStart') IS NOT NULL
-			DROP TABLE [Inspector].[InstanceStart];
+			END
 
-			CREATE TABLE [Inspector].[InstanceStart](
-			Servername NVARCHAR(128),
-			Log_Date DATETIME,
-			InstanceStart DATETIME
-			);
+			--Create Powershell collection objects
+			IF OBJECT_ID('Inspector.PSEnabledModules') IS NULL
+			BEGIN
+			EXEC ('CREATE VIEW [Inspector].[PSEnabledModules]
+			AS
+			SELECT [ModuleConfig_Desc],[Module],[Enabled]
+			FROM 
+			(
+			    SELECT	
+				ModuleConfig_Desc,						
+			    ISNULL(AGCheck,0) AS AGCheck,					
+			    ISNULL(BackupsCheck,0) AS BackupsCheck,					
+			    ISNULL(BackupSizesCheck,0) AS BackupSizesByDay,			
+			    ISNULL(DatabaseGrowthCheck,0) AS DatabaseGrowths,			
+			    ISNULL(DatabaseFileCheck,0) AS DatabaseFiles,			
+			    ISNULL(DatabaseOwnershipCheck,0) AS DatabaseOwnership,		
+			    ISNULL(DatabaseStatesCheck,0) AS DatabaseStates,			
+			    ISNULL(DriveSpaceCheck,0) AS DriveSpace,				
+			    ISNULL(FailedAgentJobCheck,0) AS FailedAgentJobs,			
+			    ISNULL(JobOwnerCheck,0) AS JobOwner,				
+			    ISNULL(FailedLoginsCheck,0) AS LoginAttempts,			
+			    ISNULL(TopFiveDatabaseSizeCheck,0) AS TopFiveDatabases,		
+			    ISNULL(ADHocDatabaseCreationCheck,0) AS ADHocDatabaseCreations,	
+			    ISNULL(DatabaseSettings,0) AS DatabaseSettings,
+			    ISNULL(ServerSettings,0) AS ServerSettings,
+			    ISNULL(SuspectPages,0) AS SuspectPages,
+			    ISNULL(AGDatabases,0) AS AGDatabases,
+			    ISNULL(LongRunningTransactions,0) AS LongRunningTransactions,
+				ISNULL(UnusedLogshipConfig,0) AS UnusedLogshipConfig
+			    FROM [Inspector].[Modules]
+			) Modules
+			UNPIVOT
+			([Enabled] FOR Module IN 
+			(AGCheck
+			,BackupsCheck
+			,BackupSizesByDay
+			,DatabaseGrowths
+			,DatabaseFiles
+			,DatabaseOwnership
+			,DatabaseStates
+			,DriveSpace
+			,FailedAgentJobs
+			,JobOwner
+			,LoginAttempts
+			,TopFiveDatabases
+			,ADHocDatabaseCreations
+			,DatabaseSettings
+			,ServerSettings
+			,SuspectPages
+			,AGDatabases
+			,LongRunningTransactions
+			,UnusedLogshipConfig
+			) ) AS [ModulesList]
+			WHERE [Enabled] = 1;');
+			END
+			ELSE 
+			BEGIN
+			EXEC ('ALTER VIEW [Inspector].[PSEnabledModules]
+			AS
+			SELECT [ModuleConfig_Desc],[Module],[Enabled]
+			FROM 
+			(
+			    SELECT	
+				ModuleConfig_Desc,						
+			    ISNULL(AGCheck,0) AS AGCheck,					
+			    ISNULL(BackupsCheck,0) AS BackupsCheck,					
+			    ISNULL(BackupSizesCheck,0) AS BackupSizesByDay,			
+			    ISNULL(DatabaseGrowthCheck,0) AS DatabaseGrowths,			
+			    ISNULL(DatabaseFileCheck,0) AS DatabaseFiles,			
+			    ISNULL(DatabaseOwnershipCheck,0) AS DatabaseOwnership,		
+			    ISNULL(DatabaseStatesCheck,0) AS DatabaseStates,			
+			    ISNULL(DriveSpaceCheck,0) AS DriveSpace,				
+			    ISNULL(FailedAgentJobCheck,0) AS FailedAgentJobs,			
+			    ISNULL(JobOwnerCheck,0) AS JobOwner,				
+			    ISNULL(FailedLoginsCheck,0) AS LoginAttempts,			
+			    ISNULL(TopFiveDatabaseSizeCheck,0) AS TopFiveDatabases,		
+			    ISNULL(ADHocDatabaseCreationCheck,0) AS ADHocDatabaseCreations,	
+			    ISNULL(DatabaseSettings,0) AS DatabaseSettings,
+			    ISNULL(ServerSettings,0) AS ServerSettings,
+			    ISNULL(SuspectPages,0) AS SuspectPages,
+			    ISNULL(AGDatabases,0) AS AGDatabases,
+			    ISNULL(LongRunningTransactions,0) AS LongRunningTransactions,
+				ISNULL(UnusedLogshipConfig,0) AS UnusedLogshipConfig
+			    FROM [Inspector].[Modules]
+			) Modules
+			UNPIVOT
+			([Enabled] FOR Module IN 
+			(AGCheck
+			,BackupsCheck
+			,BackupSizesByDay
+			,DatabaseGrowths
+			,DatabaseFiles
+			,DatabaseOwnership
+			,DatabaseStates
+			,DriveSpace
+			,FailedAgentJobs
+			,JobOwner
+			,LoginAttempts
+			,TopFiveDatabases
+			,ADHocDatabaseCreations
+			,DatabaseSettings
+			,ServerSettings
+			,SuspectPages
+			,AGDatabases
+			,LongRunningTransactions
+			,UnusedLogshipConfig
+			) ) AS [ModulesList]
+			WHERE [Enabled] = 1;');
+			END
 
-
-			IF OBJECT_ID('Inspector.SuspectPages') IS NOT NULL
-			DROP TABLE [Inspector].[SuspectPages];
-
-			CREATE TABLE [Inspector].[SuspectPages](
-			[Servername] NVARCHAR(128),
-			[Log_Date] DATETIME,
-			[Databasename] NVARCHAR(128),
-			[file_id] INT,
-			[page_id] BIGINT,	
-			[event_type] INT,
-			[error_count] INT,
-			[last_update_date] DATETIME
-			);
-			
-			IF OBJECT_ID('Inspector.AGDatabases') IS NOT NULL
-			DROP TABLE [Inspector].[AGDatabases];
-			
-			CREATE TABLE [Inspector].[AGDatabases](
-			[ID] INT IDENTITY(1,1),
-			[Servername] NVARCHAR(128) NULL,
-			[Log_Date] DATETIME NULL,
-			[LastUpdated] DATETIME NULL,
-			[Databasename] NVARCHAR(128) NULL,
-			[Is_AG] BIT NULL,
-			[Is_AGJoined] BIT NULL
-			);
-
-			IF OBJECT_ID('Inspector.InstanceVersion') IS NOT NULL
-			DROP TABLE [Inspector].[InstanceVersion];
-
-			CREATE TABLE [Inspector].[InstanceVersion](
-			Servername NVARCHAR(128),
-			PhysicalServername NVARCHAR(128),
-			Log_Date DATETIME,
-			VersionInfo NVARCHAR(128)
-			);
-			
-			IF OBJECT_ID('Inspector.LongRunningTransactions') IS NOT NULL
-			DROP TABLE [Inspector].[LongRunningTransactions];
-
-			CREATE TABLE [Inspector].[LongRunningTransactions](
-				[Servername] NVARCHAR(128) NULL,
-				[Log_Date] DATETIME NULL,
-				[session_id] INT NULL,
-				[transaction_begin_time] DATETIME NULL,
-				[Duration_DDHHMMSS] VARCHAR(20) NULL,
-				[TransactionState] VARCHAR(20) NULL,
-				[SessionState] NVARCHAR(20) NULL,
-				[login_name] NVARCHAR(128) NULL,
-				[host_name] NVARCHAR(128) NULL,
-				[program_name] NVARCHAR(128) NULL,
-				[Databasename] NVARCHAR(128) NULL
-			);
+			IF OBJECT_ID('Inspector.PSInspectorTables') IS NULL
+			BEGIN
+			EXEC sp_executesql N'
+			CREATE VIEW [Inspector].[PSInspectorTables]
+			AS
+			SELECT Tablename
+			FROM (VALUES
+			(''ADHocDatabaseCreations''),
+			(''ADHocDatabaseSupression''),
+			(''AGCheck''),
+			(''AGDatabases''),
+			(''BackupsCheck''),
+			(''BackupSizesByDay''),
+			(''CurrentServers''),
+			(''DatabaseFiles''),
+			(''DatabaseFileSizeHistory''),
+			(''DatabaseFileSizes''),
+			(''DatabaseOwnership''),
+			(''DatabaseSettings''),
+			(''DatabaseStates''),
+			(''DriveSpace''),
+			(''EmailConfig''),
+			(''EmailRecipients''),
+			(''FailedAgentJobs''),
+			(''InstanceStart''),
+			(''InstanceVersion''),
+			(''InstanceVersionHistory''),
+			(''JobOwner''),
+			(''LoginAttempts''),
+			(''LongRunningTransactions''),
+			(''Modules''),
+			(''ReportData''),
+			(''ServerSettings''),
+			(''Settings''),
+			(''SuspectPages''),
+			(''TopFiveDatabases''),
+			(''ModuleWarningLevel''),
+			(''UnusedLogshipConfig'')
+			) InspectorTables (Tablename);'
+			END
+			ELSE 
+			BEGIN 
+			EXEC sp_executesql N'
+			ALTER VIEW [Inspector].[PSInspectorTables]
+			AS
+			SELECT Tablename
+			FROM (VALUES
+			(''ADHocDatabaseCreations''),
+			(''ADHocDatabaseSupression''),
+			(''AGCheck''),
+			(''AGDatabases''),
+			(''BackupsCheck''),
+			(''BackupSizesByDay''),
+			(''CurrentServers''),
+			(''DatabaseFiles''),
+			(''DatabaseFileSizeHistory''),
+			(''DatabaseFileSizes''),
+			(''DatabaseOwnership''),
+			(''DatabaseSettings''),
+			(''DatabaseStates''),
+			(''DriveSpace''),
+			(''EmailConfig''),
+			(''EmailRecipients''),
+			(''FailedAgentJobs''),
+			(''InstanceStart''),
+			(''InstanceVersion''),
+			(''InstanceVersionHistory''),
+			(''JobOwner''),
+			(''LoginAttempts''),
+			(''LongRunningTransactions''),
+			(''Modules''),
+			(''ReportData''),
+			(''ServerSettings''),
+			(''Settings''),
+			(''SuspectPages''),
+			(''TopFiveDatabases''),
+			(''ModuleWarningLevel''),
+			(''UnusedLogshipConfig'')
+			) InspectorTables (Tablename);'
+			END
 						
-			IF OBJECT_ID('Inspector.PSADHocDatabaseSupressionStage') IS NOT NULL
-			DROP TABLE [Inspector].[PSADHocDatabaseSupressionStage];
-
+			IF OBJECT_ID('Inspector.PSADHocDatabaseSupressionStage') IS NULL
 			CREATE TABLE [Inspector].[PSADHocDatabaseSupressionStage](
 			[Servername] [nvarchar](128) NULL,
 			[Log_Date] [datetime] NULL,
@@ -1372,69 +1290,59 @@ END
 			[Suppress] [bit] NULL
 			);
 			
-			IF OBJECT_ID('Inspector.PSAGDatabasesStage') IS NOT NULL
-			DROP TABLE [Inspector].[PSAGDatabasesStage];
-
+			IF OBJECT_ID('Inspector.PSAGDatabasesStage') IS NULL
 			CREATE TABLE [Inspector].[PSAGDatabasesStage](
-				[ID] [int] IDENTITY(1,1) NOT NULL,
-				[Servername] [nvarchar](128) NULL,
-				[Log_Date] [datetime] NULL,
-				[LastUpdated] [datetime] NULL,
-				[Databasename] [nvarchar](128) NULL,
-				[Is_AG] [bit] NULL,
-				[Is_AGJoined] [bit] NULL
+			[ID] [int] IDENTITY(1,1) NOT NULL,
+			[Servername] [nvarchar](128) NULL,
+			[Log_Date] [datetime] NULL,
+			[LastUpdated] [datetime] NULL,
+			[Databasename] [nvarchar](128) NULL,
+			[Is_AG] [bit] NULL,
+			[Is_AGJoined] [bit] NULL
 			);
 			
-			IF OBJECT_ID('Inspector.PSDatabaseFileSizesStage') IS NOT NULL
-			DROP TABLE [Inspector].[PSDatabaseFileSizesStage];
-						
+			IF OBJECT_ID('Inspector.PSDatabaseFileSizesStage') IS NULL
 			CREATE TABLE [Inspector].[PSDatabaseFileSizesStage](
-				[Servername] [nvarchar](128) NOT NULL,
-				[Database_id] [int] NOT NULL,
-				[Database_name] [nvarchar](128) NULL,
-				[OriginalDateLogged] [datetime] NOT NULL,
-				[OriginalSize_MB] [bigint] NULL,
-				[Type_desc] [nvarchar](60) NULL,
-				[File_id] [tinyint] NOT NULL,
-				[Filename] [nvarchar](260) NULL,
-				[PostGrowthSize_MB] [bigint] NULL,
-				[GrowthRate] [int] NULL,
-				[Is_percent_growth] [bit] NOT NULL,
-				[NextGrowth] [bigint] NULL,
-				[LastUpdated] [datetime] NULL
+			[Servername] [nvarchar](128) NOT NULL,
+			[Database_id] [int] NOT NULL,
+			[Database_name] [nvarchar](128) NULL,
+			[OriginalDateLogged] [datetime] NOT NULL,
+			[OriginalSize_MB] [bigint] NULL,
+			[Type_desc] [nvarchar](60) NULL,
+			[File_id] [tinyint] NOT NULL,
+			[Filename] [nvarchar](260) NULL,
+			[PostGrowthSize_MB] [bigint] NULL,
+			[GrowthRate] [int] NULL,
+			[Is_percent_growth] [bit] NOT NULL,
+			[NextGrowth] [bigint] NULL,
+			[LastUpdated] [datetime] NULL
 			); 
 			
-			IF OBJECT_ID('Inspector.PSDatabaseFileSizeHistoryStage') IS NOT NULL
-			DROP TABLE [Inspector].[PSDatabaseFileSizeHistoryStage];
-						
+			IF OBJECT_ID('Inspector.PSDatabaseFileSizeHistoryStage') IS NULL
 			CREATE TABLE [Inspector].[PSDatabaseFileSizeHistoryStage](
-				[GrowthID] [bigint] NOT NULL,
-				[Servername] [nvarchar](128) NOT NULL,
-				[Database_id] [int] NOT NULL,
-				[Database_name] [nvarchar](128) NOT NULL,
-				[Log_Date] [datetime] NOT NULL,
-				[Type_Desc] [nvarchar](60) NOT NULL,
-				[File_id] [tinyint] NOT NULL,
-				[FileName] [nvarchar](260) NOT NULL,
-				[PreGrowthSize_MB] [bigint] NOT NULL,
-				[GrowthRate_MB] [int] NOT NULL,
-				[GrowthIncrements] [int] NOT NULL,
-				[PostGrowthSize_MB] [bigint] NOT NULL
+			[GrowthID] [bigint] NOT NULL,
+			[Servername] [nvarchar](128) NOT NULL,
+			[Database_id] [int] NOT NULL,
+			[Database_name] [nvarchar](128) NOT NULL,
+			[Log_Date] [datetime] NOT NULL,
+			[Type_Desc] [nvarchar](60) NOT NULL,
+			[File_id] [tinyint] NOT NULL,
+			[FileName] [nvarchar](260) NOT NULL,
+			[PreGrowthSize_MB] [bigint] NOT NULL,
+			[GrowthRate_MB] [int] NOT NULL,
+			[GrowthIncrements] [int] NOT NULL,
+			[PostGrowthSize_MB] [bigint] NOT NULL
 			);
 			
-			IF OBJECT_ID('Inspector.PSADHocDatabaseCreationsStage') IS NOT NULL
-			DROP TABLE [Inspector].[PSADHocDatabaseCreationsStage];
-						
+			IF OBJECT_ID('Inspector.PSADHocDatabaseCreationsStage') IS NULL
 			CREATE TABLE [Inspector].[PSADHocDatabaseCreationsStage](
-				[Servername] [nvarchar](128) NOT NULL,
-				[Log_Date] [datetime] NULL,
-				[Databasename] [nvarchar](128) NOT NULL,
-				[Create_Date] [datetime] NULL
+			[Servername] [nvarchar](128) NOT NULL,
+			[Log_Date] [datetime] NULL,
+			[Databasename] [nvarchar](128) NOT NULL,
+			[Create_Date] [datetime] NULL
 			); 	
 			
-			IF OBJECT_ID('Inspector.PSDriveSpaceStage') IS NOT NULL
-			DROP TABLE [Inspector].[PSDriveSpaceStage];
-
+			IF OBJECT_ID('Inspector.PSDriveSpaceStage') IS NULL
 			CREATE TABLE [Inspector].[PSDriveSpaceStage](
 			[Servername] [nvarchar](128) NULL,
 			[Log_Date] [datetime] NULL,
@@ -1442,8 +1350,18 @@ END
 			[Capacity_GB] [decimal](10, 2) NULL,
 			[AvailableSpace_GB] [decimal](10, 2) NULL
 			);	 
+
+			IF OBJECT_ID('Inspector.PSInstanceVersionHistoryStage') IS NULL
+			CREATE TABLE [Inspector].[PSInstanceVersionHistoryStage](
+			[Servername] NVARCHAR(128) NOT NULL,
+			[Log_Date] DATETIME NOT NULL,
+			[CollectionDatetime] DATETIME NOT NULL,
+			[VersionNo] NVARCHAR(50) NULL,
+			[Edition] NVARCHAR(128) NULL
+			);
 		
-								
+
+			--Drop procedures for recreation
 			IF OBJECT_ID('Inspector.ADHocDatabaseCreationsInsert') IS NOT NULL
 			DROP PROCEDURE [Inspector].[ADHocDatabaseCreationsInsert];
 			
@@ -1515,6 +1433,12 @@ END
 			IF OBJECT_ID('Inspector.InspectorDataCollection') IS NOT NULL 
 			DROP PROCEDURE [Inspector].[InspectorDataCollection];
 
+			IF OBJECT_ID('Inspector.PopulateModuleWarningLevel') IS NOT NULL 
+			DROP PROCEDURE [Inspector].[PopulateModuleWarningLevel];
+
+			IF OBJECT_ID('Inspector.UnusedLogshipConfigInsert') IS NOT NULL
+			DROP PROCEDURE [Inspector].[UnusedLogshipConfigInsert];
+
 			IF OBJECT_ID('Inspector.PSGetColumns') IS NOT NULL
 			DROP PROCEDURE [Inspector].[PSGetColumns];
 
@@ -1538,8 +1462,15 @@ END
 
 			IF OBJECT_ID('Inspector.PSGetDriveSpaceStage') IS NOT NULL
 			DROP PROCEDURE [Inspector].[PSGetDriveSpaceStage];
-			
 
+			IF OBJECT_ID('Inspector.PSGetSettingsTables') IS NOT NULL
+			DROP PROCEDURE [Inspector].[PSGetSettingsTables];
+
+			IF OBJECT_ID('Inspector.PSGetInstanceVersionHistoryStage') IS NOT NULL
+			DROP PROCEDURE [Inspector].[PSGetInstanceVersionHistoryStage];
+			
+			
+			
 
 SET @SQLStatement = 
 'CREATE PROCEDURE [Inspector].[ADHocDatabaseCreationsInsert]
@@ -1839,55 +1770,65 @@ EXEC(@SQLStatement);
 
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE VIEW [Inspector].[DriveSpaceInfo]
-AS
-
+'CREATE PROCEDURE [Inspector].[PopulateModuleWarningLevel] 
+AS 
+BEGIN
 /*
-Author: Adrian Buckman
-Created: 23/08/2018
-Revised: n/a
-Description: Show aggregated space used by drive by server, show Average daily,monthly and yearly usage and MIN/MAX Daily Increment variances.
+These modules are excluded from warning level control:
+BackupsCheck
+DriveSpace
+TopFiveDatabases
+DatabaseGrowthCheck
+BackupSizesCheck
 */
 
-SELECT 
-Servername,
-Drive,
-COUNT(*) AS DaysRecorded,
-CAST(AVG(Delta_GB) AS DECIMAL(8,2)) AS AVG_Daily_Growth_GB,
-CAST(((AVG(Delta_GB)*365)/12) AS DECIMAL(8,2)) AS AVG_Monthly_Growth_GB,
-CAST((AVG(Delta_GB)*365) AS DECIMAL(8,2)) AS AVG_Yearly_GB,
-CAST((MIN(Delta_GB)) AS DECIMAL(8,2)) AS MIN_Daily_Increment_GB,
-CAST((MAX(Delta_GB)) AS DECIMAL(8,2)) AS MAX_Daily_Increment_GB
-FROM 
-(SELECT
-	Servername,
-	Log_Date,
-	Drive,
-	Capacity_GB,
-	AvailableSpace_GB,
-	Used_GB,
-	CASE WHEN Delta_GB < 0 THEN 0 ELSE Delta_GB END AS Delta_GB
+	INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[ModuleWarningLevel] ([ModuleConfig_Desc],[Module])
+	SELECT [ModuleConfig_Desc],[Module]
 	FROM 
 	(
-		SELECT 
-		Servername,
-		Log_Date,
-		Drive,
-		Capacity_GB,
-		AvailableSpace_GB,
-		Capacity_GB - AvailableSpace_GB AS Used_GB,
-		--LAG(Capacity_GB - AvailableSpace_GB,1,NULL) OVER (PARTITION BY Servername,Drive ORDER BY Servername ASC, Drive ASC, Log_Date ASC) Prev_used_GB,
-		Capacity_GB - AvailableSpace_GB - LAG(Capacity_GB - AvailableSpace_GB,1,Capacity_GB - AvailableSpace_GB) OVER (PARTITION BY Servername,Drive ORDER BY Servername ASC, Drive ASC, Log_Date ASC) AS Delta_GB
-		FROM ['+@Databasename+'].[Inspector].[DriveSpace]
-	
-	) AS Derived
-) AS DriveInfo
-GROUP BY 
-Servername,
-Drive
-'
-EXEC(@SQLStatement);
+	    SELECT	
+		ModuleConfig_Desc,						
+	    AGCheck,													
+	    DatabaseFileCheck,	
+	    DatabaseOwnershipCheck,
+	    DatabaseStatesCheck,	
+	    FailedAgentJobCheck,		
+	    JobOwnerCheck,
+	    FailedLoginsCheck,	
+	    ADHocDatabaseCreationCheck,
+	    DatabaseSettings,
+	    ServerSettings,
+	    SuspectPages,
+	    AGDatabases,
+	    LongRunningTransactions,
+		UnusedLogshipConfig
+	    FROM [Inspector].[Modules]
+	) Modules
+	UNPIVOT
+	(ModuleConfig_Desc2 FOR Module IN 
+	(AGCheck								
+	,DatabaseFileCheck	
+	,DatabaseOwnershipCheck
+	,DatabaseStatesCheck	
+	,FailedAgentJobCheck	
+	,JobOwnerCheck
+	,FailedLoginsCheck
+	,ADHocDatabaseCreationCheck
+	,DatabaseSettings
+	,ServerSettings
+	,SuspectPages
+	,AGDatabases
+	,LongRunningTransactions
+	,UnusedLogshipConfig)
+	) AS [ModulesList]
+	WHERE NOT EXISTS (SELECT 1 
+					FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[ModuleWarningLevel] 
+					WHERE [ModulesList].[ModuleConfig_Desc] = [ModuleWarningLevel].[ModuleConfig_Desc]
+					AND CAST([ModulesList].[Module] AS VARCHAR(50)) = [ModuleWarningLevel].[Module]
+					);
+END'
 
+EXEC(@SQLStatement);
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[FailedAgentJobsInsert]
@@ -2883,8 +2824,6 @@ SELECT
 FROM sys.databases
 WHERE name = ''tempdb''
 
-
-
 END;'
 
 EXEC(@SQLStatement);
@@ -2897,18 +2836,78 @@ AS
 
 BEGIN
 
---Revision date: 20/08/2018
+--Revision date: 21/11/2018
 
 SET NOCOUNT ON;
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 DECLARE @PhysicalServername NVARCHAR(128) = CAST(SERVERPROPERTY(''ComputerNamePhysicalNetBIOS'') AS NVARCHAR(128));
+DECLARE @Version NVARCHAR(20) =  CAST(SERVERPROPERTY(''ProductVersion'') AS NVARCHAR(20));
+DECLARE @Edition NVARCHAR(50) = CAST(SERVERPROPERTY(''Edition'') AS NVARCHAR(50));
+
+--Check for version and/or edition change
+IF EXISTS(SELECT 1 FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[InstanceVersion] WHERE Servername = @Servername)
+BEGIN 
+	--If the major version has changed we only want to advise of that change, if the major version has not changed 
+	--then check for a minor version change and advise of the change.
+
+	INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[InstanceVersionHistory] ([Servername], [Log_Date], [CollectionDatetime], [VersionNo], [Edition])
+	SELECT 
+	@Servername,
+	[Log_Date],
+	GETDATE(),
+	[VersionNo],
+	[Edition]
+	FROM
+	(
+		SELECT 
+		[Log_Date],
+		CASE 
+			WHEN [VersionNo] != @Version
+			THEN CASE 
+					WHEN PARSENAME([VersionNo],4) != PARSENAME(@Version,4) 
+						THEN N''Major Version changed from [''
+						+ PARSENAME([VersionNo],4) 
+						+ N''] to [''
+						+ PARSENAME(@Version,4) 
+						+ N'']''
+					WHEN PARSENAME([VersionNo],2) != PARSENAME(@Version,2) 
+						THEN N''Minor Version changed from [''
+						+ PARSENAME([VersionNo],2) 
+						+ N''] to [''
+						+ PARSENAME(@Version,2)
+						+ N'']''
+				 END
+			ELSE NULL
+		END AS [VersionNo],
+		CASE 
+			WHEN [Edition] != @Edition 
+				THEN N''Edition Changed from [''
+				+ [Edition]
+				+ N''] to [''
+				+ @Edition
+				+ N'']''
+			ELSE NULL
+		END AS [Edition]
+		FROM
+		(--Split Version and Edition into two columns
+			SELECT 
+			[Log_Date],
+			SUBSTRING([VersionInfo],0,CHARINDEX('' - '',[VersionInfo])) AS  VersionNo,
+			SUBSTRING([VersionInfo],CHARINDEX('' - '',[VersionInfo])+3,LEN([VersionInfo])-CHARINDEX('' - '',[VersionInfo])) AS Edition
+			FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[InstanceVersion]
+			WHERE Servername = @Servername
+		) AS LastLoggedVersionInfo
+	) AS VersionCheck
+	WHERE ([VersionNo] IS NOT NULL OR [Edition] IS NOT NULL)
+
+END 
 
 DELETE FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[InstanceVersion]
-WHERE Servername = @Servername
+WHERE Servername = @Servername;
 
 INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[InstanceVersion] ([Servername], [PhysicalServername], [Log_Date], [VersionInfo])
-SELECT @Servername, @PhysicalServername, GETDATE(), CAST(SERVERPROPERTY(''ProductVersion'') AS NVARCHAR(20)) + N'' - '' + CAST(SERVERPROPERTY(''Edition'') AS NVARCHAR(50))
+SELECT @Servername, @PhysicalServername, GETDATE(), @Version + N'' - '' + @Edition
 END;
 '
 EXEC(@SQLStatement);
@@ -3088,6 +3087,42 @@ END
 '
 EXEC(@SQLStatement);
 
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[UnusedLogshipConfigInsert]
+AS
+BEGIN
+
+--Revision date: 30/11/2018
+
+SET NOCOUNT ON;
+
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
+
+DELETE 
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[UnusedLogshipConfig]
+WHERE Servername = @Servername;
+
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[UnusedLogshipConfig] (Servername,Log_Date,Databasename,Databasestate)
+SELECT 
+@Servername,
+GETDATE(),
+LogshippedDBs.secondary_database, 
+CAST(
+CASE 
+	WHEN DBs.state_desc IS NULL THEN ''Database does not exist''
+	ELSE LOWER(DBs.state_desc)
+END AS NVARCHAR(128)
+) AS Databasestate
+FROM msdb.dbo.log_shipping_secondary_databases LogshippedDBs
+LEFT JOIN sys.databases DBs ON LogshippedDBs.secondary_database = DBs.name
+WHERE DBs.name IS NULL OR DBs.state != 1 --Database does not exist or is not in a restoring state
+
+END;
+'
+EXEC(@SQLStatement);
+
+
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[PSGetColumns]
 (
@@ -3207,11 +3242,26 @@ SELECT
 [ActiveServers].[ModuleConfig_Desc], 
 [NonModuleColection].[Module], 
 [NonModuleColection].[Module]+''Insert'' AS Procedurename, 
-[NonModuleColection].[Module] AS Tablename, 
-NULL AS StageTablename, 
-NULL AS StageProcname, 
-''1'' AS TableAction, 
-''2'' AS InsertAction, 
+CASE 
+	WHEN [NonModuleColection].[Module] = ''InstanceVersion'' THEN ''InstanceVersion,InstanceVersionHistory''
+	ELSE [NonModuleColection].[Module]
+END AS Tablename, 
+CASE 
+	WHEN [NonModuleColection].[Module] = ''InstanceVersion'' THEN ''N/A,PSInstanceVersionHistoryStage''
+	ELSE NULL 
+END AS StageTablename, 
+CASE 
+	WHEN [NonModuleColection].[Module] = ''InstanceVersion'' THEN ''N/A,PSGetInstanceVersionHistoryStage''
+	ELSE NULL 
+END AS StageProcname, 
+CASE 
+	WHEN [NonModuleColection].[Module] = ''InstanceVersion'' THEN ''1,3''
+	ELSE ''1'' 
+END AS TableAction, 
+CASE 
+	WHEN [NonModuleColection].[Module] = ''InstanceVersion'' THEN ''1,1''
+	ELSE ''2'' 
+END	AS InsertAction, 
 NULL AS RetentionInDays
 FROM
 (
@@ -3432,6 +3482,81 @@ END'
 
 EXEC(@SQLStatement);
 
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[PSGetInstanceVersionHistoryStage]
+(
+@Servername NVARCHAR(128)
+)
+AS 
+BEGIN 
+--Revision date: 13/12/2018
+
+SET NOCOUNT ON;
+
+--Insert new data for recent collection
+INSERT INTO [Inspector].[InstanceVersionHistory] ([Servername], [Log_Date], [CollectionDatetime], [VersionNo], [Edition])
+SELECT [Servername], [Log_Date], [CollectionDatetime], [VersionNo], [Edition]
+FROM [Inspector].[PSInstanceVersionHistoryStage] Stage
+WHERE Servername = @Servername
+AND NOT EXISTS (SELECT 1 
+				FROM [Inspector].[InstanceVersionHistory] Base
+				WHERE Base.Servername = Stage.Servername
+				AND Base.Log_Date = Stage.Log_Date 
+				);
+
+END'
+
+EXEC(@SQLStatement);
+
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+CREATE PROCEDURE [Inspector].[PSGetSettingsTables]
+(
+@SortOrder BIT, --0 FOR ORDER BY TableOrder ASC , 1 FOR ORDER BY TableOrder DESC
+@PSCollection BIT = 0 --If its a powershell collection ensure that the WarningLevel table is populated
+)
+AS 
+--Revision date: 17/12/2018
+
+--Config for Powershell collection use only
+--TruncateTable - 0 Delete contents, 1 Truncate table
+--ReseedTable - 0 do not reseed identity, 1 reseed identity
+BEGIN 
+	IF @SortOrder IS NULL 
+	BEGIN 
+		SET @SortOrder = 0;
+	END
+
+	IF @PSCollection IS NULL 
+	BEGIN 
+		SET @PSCollection = 0;
+	END
+
+	IF @PSCollection = 1
+	BEGIN 
+		EXEC [Inspector].[PopulateModuleWarningLevel];
+	END
+
+	IF @SortOrder = 0 
+	BEGIN 
+		SELECT Tablename,TruncateTable,ReseedTable 
+		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0), (5,''Modules'',0,1),(6,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		ORDER BY TableOrder ASC;
+	END
+
+	IF @SortOrder = 1 
+	BEGIN 
+		SELECT Tablename,TruncateTable,ReseedTable 
+		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0), (5,''Modules'',0,1),(6,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		ORDER BY TableOrder DESC;
+	END
+
+END'
+
+EXEC(@SQLStatement);
+
+
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[InspectorDataCollection]
 (
@@ -3441,7 +3566,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 14/09/2018
+--Revision date: 30/11/2018
 
 SET NOCOUNT ON;
 
@@ -3462,7 +3587,8 @@ DECLARE @DatabaseSettings	BIT
 DECLARE @ServerSettings	BIT
 DECLARE @SuspectPages	BIT
 DECLARE @AGDatabases	BIT
-DECLARE @LongRunningTransactions	BIT
+DECLARE @LongRunningTransactions BIT
+DECLARE @UnusedLogshipConfig BIT
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
     IF EXISTS (SELECT ModuleConfig_Desc FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Modules] WHERE ModuleConfig_Desc = @ModuleConfig) OR @ModuleConfig IS NULL 
@@ -3497,12 +3623,16 @@ DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 	   @ServerSettings = ISNULL(ServerSettings,0),
 	   @SuspectPages	= ISNULL(SuspectPages,0),
 	   @AGDatabases	= ISNULL(AGDatabases,0),
-	   @LongRunningTransactions	= ISNULL(LongRunningTransactions,0)
+	   @LongRunningTransactions	= ISNULL(LongRunningTransactions,0),
+	   @UnusedLogshipConfig	= ISNULL(UnusedLogshipConfig,0)
 	   FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Modules]
 	   WHERE ModuleConfig_Desc = @ModuleConfig;
 	   
 	   
 	   RAISERROR(''ModuleConfig selected for server: %s'',0,0,@ModuleConfig) WITH NOWAIT;
+
+	   RAISERROR(''Checking for missing Warning level/module combinations'',0,0) WITH NOWAIT;
+	   EXEC ['+@Databasename+'].[Inspector].[PopulateModuleWarningLevel];
 
 	   IF @AGCheck = 1 
 	   BEGIN 
@@ -3612,6 +3742,12 @@ DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 		  EXEC ['+@Databasename+'].[Inspector].[LongRunningTransactionsInsert];		
 	   END
 
+	   IF @UnusedLogshipConfig = 1
+	   BEGIN 
+	      RAISERROR(''Running [UnusedLogshipConfigInsert]'',0,0) WITH NOWAIT;
+		  EXEC ['+@Databasename+'].[Inspector].[UnusedLogshipConfigInsert];		
+	   END
+
 	   RAISERROR(''Running [InstanceStartInsert]'',0,0) WITH NOWAIT;
 	   EXEC ['+@Databasename+'].[Inspector].[InstanceStartInsert]; 	   
 
@@ -3635,208 +3771,15 @@ END'
 EXEC(@SQLStatement);
 
 
-
-IF @InitialSetup = 0
-BEGIN
---Insert Preserved data into Inspector Data Base tables
-	IF OBJECT_ID('Inspector.ADHocDatabaseCreations_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[ADHocDatabaseCreations] 
-	SELECT * FROM [Inspector].[ADHocDatabaseCreations_Copy];
-
-	IF OBJECT_ID('Inspector.ADHocDatabaseSupression_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[ADHocDatabaseSupression] 
-	SELECT * FROM [Inspector].[ADHocDatabaseSupression_Copy];
-	
-	IF OBJECT_ID('Inspector.AGCheck_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[AGCheck] 
-	SELECT * FROM [Inspector].[AGCheck_Copy];
-	
-	IF OBJECT_ID('Inspector.BackupsCheck_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[BackupsCheck] 
-	SELECT * FROM [Inspector].[BackupsCheck_Copy];
-	
-	IF OBJECT_ID('Inspector.BackupSizesByDay_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[BackupSizesByDay] 
-	SELECT * FROM [Inspector].[BackupSizesByDay_Copy];
-	
-	IF OBJECT_ID('Inspector.DatabaseFiles_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[DatabaseFiles] 
-	SELECT * FROM [Inspector].[DatabaseFiles_Copy];
-	
-	IF OBJECT_ID('Inspector.DatabaseFileSizes_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[DatabaseFileSizes] ([Servername], [Database_id], [Database_name], [OriginalDateLogged], [OriginalSize_MB], [Type_desc], [File_id], [Filename], [PostGrowthSize_MB], [GrowthRate], [Is_percent_growth], [NextGrowth])
-	SELECT [Servername], [Database_id], [Database_name], [OriginalDateLogged], [OriginalSize_MB], [Type_desc], [File_id], [Filename], [PostGrowthSize_MB], [GrowthRate], [Is_percent_growth], [NextGrowth] FROM [Inspector].[DatabaseFileSizes_Copy];
-	
-	IF OBJECT_ID('Inspector.DatabaseOwnership_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[DatabaseOwnership] 
-	SELECT * FROM [Inspector].[DatabaseOwnership_Copy];
-	
-	IF OBJECT_ID('Inspector.DatabaseSettings_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[DatabaseSettings] 
-	SELECT * FROM [Inspector].[DatabaseSettings_Copy];
-	
-	IF OBJECT_ID('Inspector.DatabaseStates_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[DatabaseStates] 
-	SELECT * FROM [Inspector].[DatabaseStates_Copy];
-	
-	IF OBJECT_ID('Inspector.DriveSpace_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[DriveSpace] 
-	SELECT * FROM [Inspector].[DriveSpace_Copy];
-	
-	IF OBJECT_ID('Inspector.FailedAgentJobs_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[FailedAgentJobs] 
-	SELECT * FROM [Inspector].[FailedAgentJobs_Copy];
-	
-	IF OBJECT_ID('Inspector.JobOwner_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[JobOwner] 
-	SELECT * FROM [Inspector].[JobOwner_Copy];
-	
-	IF OBJECT_ID('Inspector.LoginAttempts_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[LoginAttempts] 
-	SELECT * FROM [Inspector].[LoginAttempts_Copy];
-	
-	IF OBJECT_ID('Inspector.ReportData_Copy') IS NOT NULL
-	BEGIN
-	INSERT INTO [Inspector].[ReportData] ([ReportDate],[ModuleConfig],[ReportData],[Summary])
-	SELECT [ReportDate],[ModuleConfig],[ReportData],[Summary] FROM [Inspector].[ReportData_Copy] ORDER BY [ReportDate] ASC;
-	END
-	
-	IF OBJECT_ID('Inspector.TopFiveDatabases_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[TopFiveDatabases] 
-	SELECT * FROM [Inspector].[TopFiveDatabases_Copy];
-	
-	
-	IF OBJECT_ID('Inspector.DatabaseFileSizeHistory_Copy') IS NOT NULL
-	BEGIN
-	SET IDENTITY_INSERT [Inspector].[DatabaseFileSizeHistory] ON 
-	INSERT INTO [Inspector].[DatabaseFileSizeHistory] ([GrowthID],[Database_id],[Database_name],[File_id],[FileName],[GrowthIncrements],[GrowthRate_MB],[Log_Date],[PostGrowthSize_MB],[PreGrowthSize_MB],[Servername],[Type_Desc]) 
-	SELECT [GrowthID],[Database_id],[Database_name],[File_id],[FileName],[GrowthIncrements],[GrowthRate_MB],[Log_Date],[PostGrowthSize_MB],[PreGrowthSize_MB],[Servername],[Type_Desc] 
-	FROM [Inspector].[DatabaseFileSizeHistory_Copy]; 
-	SET IDENTITY_INSERT [Inspector].[DatabaseFileSizeHistory] OFF
-	END
-
-	IF OBJECT_ID('Inspector.ServerSettings_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[ServerSettings] 
-	SELECT * FROM [Inspector].[ServerSettings_Copy];
-
-	IF OBJECT_ID('Inspector.InstanceStart_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[InstanceStart] 
-	SELECT * FROM [Inspector].[InstanceStart_Copy];
-
-	IF OBJECT_ID('Inspector.InstanceVersion_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[InstanceVersion] ([Servername], [PhysicalServername], [Log_Date], [VersionInfo])
-	SELECT [Servername], [PhysicalServername], [Log_Date], [VersionInfo] FROM [Inspector].[InstanceVersion_Copy];
-
-	IF OBJECT_ID('Inspector.SuspectPages_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[SuspectPages] 
-	SELECT * FROM [Inspector].[SuspectPages_Copy];
-
-	IF OBJECT_ID('Inspector.AGDatabases_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[AGDatabases] ([Servername], [Log_Date], [LastUpdated], [Databasename], [Is_AG], [Is_AGJoined])
-	SELECT [Servername], [Log_Date], [LastUpdated], [Databasename], [Is_AG], [Is_AGJoined] FROM [Inspector].[AGDatabases_Copy];
-
-	IF OBJECT_ID('Inspector.LongRunningTransactions_Copy') IS NOT NULL
-	INSERT INTO [Inspector].[LongRunningTransactions] 
-	SELECT * FROM [Inspector].[LongRunningTransactions_Copy];
-
-END
-
-
---Drop Preserved Data/Settings Tables
- IF OBJECT_ID('Inspector.ADHocDatabaseCreations_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[ADHocDatabaseCreations_Copy];
-
- IF OBJECT_ID('Inspector.ADHocDatabaseSupression_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[ADHocDatabaseSupression_Copy];
-
- IF OBJECT_ID('Inspector.AGCheck_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[AGCheck_Copy];
-
- IF OBJECT_ID('Inspector.BackupsCheck_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[BackupsCheck_Copy];
-
- IF OBJECT_ID('Inspector.BackupSizesByDay_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[BackupSizesByDay_Copy];
-
- IF OBJECT_ID('Inspector.CurrentServers_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[CurrentServers_Copy];
-
- IF OBJECT_ID('Inspector.DatabaseFiles_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DatabaseFiles_Copy];
-
- IF OBJECT_ID('Inspector.DatabaseFileSizeHistory_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DatabaseFileSizeHistory_Copy];
-
- IF OBJECT_ID('Inspector.DatabaseFileSizes_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DatabaseFileSizes_Copy];
-
- IF OBJECT_ID('Inspector.DatabaseOwnership_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DatabaseOwnership_Copy];
-
- IF OBJECT_ID('Inspector.DatabaseSettings_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DatabaseSettings_Copy];
-
- IF OBJECT_ID('Inspector.ServerSettings_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[ServerSettings_Copy];
-
- IF OBJECT_ID('Inspector.InstanceStart_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[InstanceStart_Copy];
-
- IF OBJECT_ID('Inspector.InstanceVersion_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[InstanceVersion_Copy];
-
- IF OBJECT_ID('Inspector.SuspectPages_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[SuspectPages_Copy];
-
- IF OBJECT_ID('Inspector.AGDatabases_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[AGDatabases_Copy];
-
- IF OBJECT_ID('Inspector.LongRunningTransactions_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[LongRunningTransactions_Copy];
-
- IF OBJECT_ID('Inspector.DatabaseStates_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DatabaseStates_Copy];
-
- IF OBJECT_ID('Inspector.DriveSpace_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[DriveSpace_Copy];
-
- IF OBJECT_ID('Inspector.EmailConfig_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[EmailConfig_Copy];
-
- IF OBJECT_ID('Inspector.EmailRecipients_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[EmailRecipients_Copy];
-
- IF OBJECT_ID('Inspector.FailedAgentJobs_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[FailedAgentJobs_Copy];
-
- IF OBJECT_ID('Inspector.JobOwner_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[JobOwner_Copy];
-
- IF OBJECT_ID('Inspector.LoginAttempts_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[LoginAttempts_Copy];
-
- IF OBJECT_ID('Inspector.Modules_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[Modules_Copy];
-
- IF OBJECT_ID('Inspector.ReportData_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[ReportData_Copy];
-
- IF OBJECT_ID('Inspector.Settings_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[Settings_Copy];
-
- IF OBJECT_ID('Inspector.TopFiveDatabases_Copy') IS NOT NULL 
- DROP TABLE [Inspector].[TopFiveDatabases_Copy];
-
-
 --Create Main Inspector Report Stored Procedure
 SET @SQLStatement = ''
 
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 24/09/2018
+--Revision date: 30/11/2018
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
---V1.2
+--V1.3
 
 
 --Example Execute command
@@ -3850,9 +3793,9 @@ SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+
 *********************************************/
 '
 IF @LinkedServername = ''
-	BEGIN
+BEGIN
 
-	SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ '
+SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ '
 CREATE PROCEDURE [Inspector].[SQLUnderCoverInspectorReport] 
 (
 @EmailDistributionGroup VARCHAR(100),
@@ -3869,10 +3812,9 @@ SET NOCOUNT ON;
 IF EXISTS (SELECT name FROM sys.databases WHERE name = '''+@Databasename+''' AND state = 0)
 
 '
-
-	END
-		ELSE
-		BEGIN
+END
+ELSE
+BEGIN
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ '
 CREATE PROCEDURE [Inspector].[SQLUnderCoverInspectorReport] 
 (
@@ -3895,25 +3837,30 @@ AND data_source IN (
 				INNER JOIN master.sys.availability_groups Groups ON States.group_id = Groups.group_id
 				WHERE primary_replica = @@Servername)
 				)
-OR @@SERVERNAME = (SELECT data_source FROM SYS.SERVERS 
+OR @@SERVERNAME = (SELECT data_source FROM sys.servers 
 WHERE name ='''+REPLACE(REPLACE(REPLACE(@LinkedServername,'[',''),']',''),'.','')+''')
 
 '
-
-		END
+END
 
 
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '') + '
+BEGIN
 
-BEGIN 
+IF EXISTS (SELECT [ID] FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Modules] WHERE ModuleConfig_Desc = @ModuleDesc)
+OR @ModuleDesc IS NULL
+BEGIN
 
- IF EXISTS (SELECT [ID] FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Modules] WHERE ModuleConfig_Desc = @ModuleDesc)
- OR @ModuleDesc IS NULL
+IF OBJECT_ID(''tempdb.dbo.#TrafficLightSummary'') IS NOT NULL
+DROP TABLE #TrafficLightSummary;
 
-	BEGIN	
-		
+CREATE TABLE #TrafficLightSummary
+(
+SummaryHeader VARCHAR(1000),
+WarningPriority TINYINT
+);
+
 DECLARE @ModuleConfig VARCHAR(20) 
-
 DECLARE @FreeSpaceRemainingPercent	INT = (SELECT ISNULL(CAST([Value] AS INT),10) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''FreeSpaceRemainingPercent'')
 DECLARE @DaysUntilDriveFullThreshold	INT = (SELECT ISNULL(CAST([Value] AS INT),56) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''DaysUntilDriveFullThreshold'')
 DECLARE @FullBackupThreshold	INT = (SELECT ISNULL(CAST([Value] AS INT),8) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''FullBackupThreshold'')
@@ -3943,21 +3890,13 @@ DECLARE @ServerSettings	BIT
 DECLARE @SuspectPages	BIT
 DECLARE @AGDatabases	BIT
 DECLARE @LongRunningTransactions BIT
+DECLARE @UnusedLogshipConfig BIT
 DECLARE @TotalWarningCount INT = 0
 DECLARE @TotalAdvisoryCount INT = 0
-
-
-
-
-IF OBJECT_ID(''tempdb.dbo.#TrafficLightSummary'') IS NOT NULL
-DROP TABLE #TrafficLightSummary;
-
-CREATE TABLE #TrafficLightSummary
-(
-SummaryHeader VARCHAR(1000),
-WarningPriority TINYINT
-);
-
+DECLARE @WarningLevel TINYINT
+DECLARE @WaningLevelFontColour VARCHAR(7)
+DECLARE @VersionNo VARCHAR(50)
+DECLARE @Edition VARCHAR(128)
 
 DECLARE @Stack VARCHAR(255) = (SELECT [Value] from ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''SQLUndercoverInspectorEmailSubject'') 
 
@@ -3968,37 +3907,48 @@ DECLARE @EmailHeader VARCHAR(1000) = CASE
 									 END
 DECLARE @SubjectText VARCHAR(255) 
 DECLARE @AlertSubjectText VARCHAR(255) 
-DECLARE @Importance VARCHAR(6) = ''Low''
-DECLARE @EmailBody VARCHAR(MAX) = ''''
-DECLARE @AlertHeader VARCHAR(MAX) = ''''
-DECLARE @AdvisoryHeader VARCHAR(MAX) = ''''
-DECLARE @RecipientsList VARCHAR(1000) = (SELECT Recipients FROM ['+CAST(REPLACE(@Databasename,',',';') AS VARCHAR(128))+'].[Inspector].[EmailRecipients] WHERE [Description] = @EmailDistributionGroup)
-DECLARE @RedHighlight VARCHAR(7)  = ''#F78181'' 
-DECLARE @YellowHighlight VARCHAR(7) = ''#FAFCA4''
-DECLARE @TableTail VARCHAR(65) = ''</table><p><A HREF = "#Warnings">Back to Top</a><p>''
+DECLARE @Importance VARCHAR(6) = ''Low'';
+DECLARE @EmailBody VARCHAR(MAX) = '''';
+DECLARE @AlertHeader VARCHAR(MAX) = '''';
+DECLARE @AdvisoryHeader VARCHAR(MAX) = '''';
+DECLARE @InfoHeader VARCHAR(MAX) = '''';
+DECLARE @RecipientsList VARCHAR(1000) = (SELECT Recipients FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[EmailRecipients] WHERE [Description] = @EmailDistributionGroup)
+DECLARE @RedHighlight VARCHAR(7)  = ''#F78181'' ;
+DECLARE @YellowHighlight VARCHAR(7) = ''#FAFCA4'';
+DECLARE @InfoHighlight VARCHAR(7) = ''#feffff'';
+DECLARE @TableTail VARCHAR(65) = ''</table><p><A HREF = "#Warnings">Back to Top</a><p>'';
 DECLARE @TableHeaderColour VARCHAR(7) 
-DECLARE @ServerSummaryHeader VARCHAR(MAX) = ''<A NAME = "Warnings"></a><b>SQLUndercover Inspector Build: ''+@InspectorBuild+''<div style="text-align: right;"><b>Report date:</b> ''+CONVERT(VARCHAR(17),GETDATE(),113)+''</div><hr><p>Server Summary:</b><br></br>''
+DECLARE @ServerSummaryHeader VARCHAR(MAX) = ''<A NAME = "Warnings"></a><b>SQLUndercover Inspector Build: ''+@InspectorBuild+''<div style="text-align: right;"><b>Report date:</b> ''+CONVERT(VARCHAR(17),GETDATE(),113)+''</div><hr><p>Server Summary:</b><br></br>'';
 DECLARE @ServerSummaryFontColour VARCHAR(30)
-DECLARE @DriveLetterExcludes VARCHAR(10) = (SELECT REPLACE(REPLACE([Value],'':'',''''),''\'','''') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''DriveSpaceDriveLetterExcludes'')
-DECLARE @DisabledModules VARCHAR(1000)
+DECLARE @DriveLetterExcludes VARCHAR(10) = (SELECT REPLACE(REPLACE([Value],'':'',''''),''\'','''') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''DriveSpaceDriveLetterExcludes'');
+DECLARE @DisabledModules VARCHAR(2000)
 DECLARE @InstanceStart DATETIME
 DECLARE @InstanceVersionInfo NVARCHAR(128)
 DECLARE @InstanceUptime INT
 DECLARE @PhysicalServername NVARCHAR(128)
-DECLARE @ReportDataRetention INT = (SELECT ISNULL(NULLIF(CAST([Value] AS INT),''''),30) from ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''ReportDataRetention'')
+DECLARE @ReportDataRetention INT = (SELECT ISNULL(NULLIF(CAST([Value] AS INT),''''),30) from ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''ReportDataRetention'');
+DECLARE @CollectionOutOfDate BIT
 
 IF @ModuleDesc IS NULL 
-	BEGIN SET @SubjectText = (SELECT [EmailSubject] FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[EmailConfig] WHERE [ModuleConfig_Desc] = ''Default'') END
-		ELSE BEGIN SET @SubjectText = (SELECT [EmailSubject] FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[EmailConfig] WHERE [ModuleConfig_Desc] = @ModuleDesc) END
+BEGIN 
+	SET @SubjectText = (SELECT [EmailSubject] FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[EmailConfig] WHERE [ModuleConfig_Desc] = ''Default''); 
+END
+ELSE 
+BEGIN 
+	SET @SubjectText = (SELECT [EmailSubject] FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[EmailConfig] WHERE [ModuleConfig_Desc] = @ModuleDesc); 
+END
 
-IF @SubjectText IS NULL BEGIN SET @SubjectText = ''SQLUndercover Inspector check'' END
+IF @SubjectText IS NULL 
+BEGIN 
+	SET @SubjectText = ''SQLUndercover Inspector check''; 
+END
 
-SET @SubjectText= @SubjectText +'' for [''+ISNULL(@Stack,'''')+'']''
-SET @AlertSubjectText = @SubjectText +'' - WARNINGS FOUND! ''
+SET @SubjectText= @SubjectText +'' for [''+ISNULL(@Stack,'''')+'']'';
+SET @AlertSubjectText = @SubjectText +'' - WARNINGS FOUND! '';
 
 IF @Theme IS NOT NULL BEGIN SET @Theme = UPPER(@Theme) END;
 IF @Theme IS NULL BEGIN SET @Theme = ''DARK'' END;
-IF @Theme NOT IN (''LIGHT'',''DARK'') BEGIN SET @Theme = ''DARK'' END
+IF @Theme NOT IN (''LIGHT'',''DARK'') BEGIN SET @Theme = ''DARK'' END;
 
 
 --Build beginning of the HTML 
@@ -4017,7 +3967,7 @@ td
 <div style="text-align: center;">'' +ISNULL(@EmailHeader,'''')+''</div>
 <BR>
 <BR>
-''
+'';
 	
 
 DECLARE @Serverlist NVARCHAR(128)
@@ -4046,26 +3996,27 @@ SET @PhysicalServername = NULL;
 
 
 SELECT 							
-@AGCheck						= ISNULL(AGCheck,0),					
-@BackupsCheck					= ISNULL(BackupsCheck,0),					
-@BackupSizesCheck				= ISNULL(BackupSizesCheck,0),			
-@DatabaseGrowthCheck			= ISNULL(DatabaseGrowthCheck,0),			
-@DatabaseFileCheck			= ISNULL(DatabaseFileCheck,0),			
-@DatabaseOwnershipCheck		= ISNULL(DatabaseOwnershipCheck,0),		
-@DatabaseStatesCheck			= ISNULL(DatabaseStatesCheck,0),			
-@DriveSpaceCheck				= ISNULL(DriveSpaceCheck,0),				
-@FailedAgentJobCheck			= ISNULL(FailedAgentJobCheck,0),			
-@JobOwnerCheck				= ISNULL(JobOwnerCheck,0),				
-@FailedLoginsCheck			= ISNULL(FailedLoginsCheck,0),			
-@TopFiveDatabaseSizeCheck		= ISNULL(TopFiveDatabaseSizeCheck,0),		
+@AGCheck = ISNULL(AGCheck,0),					
+@BackupsCheck = ISNULL(BackupsCheck,0),					
+@BackupSizesCheck = ISNULL(BackupSizesCheck,0),			
+@DatabaseGrowthCheck = ISNULL(DatabaseGrowthCheck,0),			
+@DatabaseFileCheck = ISNULL(DatabaseFileCheck,0),			
+@DatabaseOwnershipCheck	= ISNULL(DatabaseOwnershipCheck,0),		
+@DatabaseStatesCheck = ISNULL(DatabaseStatesCheck,0),			
+@DriveSpaceCheck = ISNULL(DriveSpaceCheck,0),				
+@FailedAgentJobCheck = ISNULL(FailedAgentJobCheck,0),			
+@JobOwnerCheck = ISNULL(JobOwnerCheck,0),				
+@FailedLoginsCheck = ISNULL(FailedLoginsCheck,0),			
+@TopFiveDatabaseSizeCheck = ISNULL(TopFiveDatabaseSizeCheck,0),		
 @ADHocDatabaseCreationCheck	= ISNULL(ADHocDatabaseCreationCheck,0),					
-@BackupSpaceCheck				= ISNULL(BackupSpaceCheck,0),
-@DatabaseSettings				= ISNULL(DatabaseSettings,0),
-@UseMedian							= ISNULL(UseMedianCalculationForDriveSpaceCalc,0),
-@ServerSettings				= ISNULL(ServerSettings,0),
-@SuspectPages					= ISNULL(SuspectPages,0),
-@AGDatabases					= ISNULL(AGDatabases,0),
-@LongRunningTransactions		= ISNULL(LongRunningTransactions,0)
+@BackupSpaceCheck = ISNULL(BackupSpaceCheck,0),
+@DatabaseSettings = ISNULL(DatabaseSettings,0),
+@UseMedian = ISNULL(UseMedianCalculationForDriveSpaceCalc,0),
+@ServerSettings = ISNULL(ServerSettings,0),
+@SuspectPages = ISNULL(SuspectPages,0),
+@AGDatabases = ISNULL(AGDatabases,0),
+@LongRunningTransactions = ISNULL(LongRunningTransactions,0),
+@UnusedLogshipConfig = ISNULL(UnusedLogshipConfig,0)
 FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Modules]
 WHERE ModuleConfig_Desc = ISNULL(@ModuleDesc,@ModuleConfig)
 
@@ -4093,6 +4044,7 @@ BEGIN
 	ISNULL('' , SuspectPages''+NULLIF(CAST(@SuspectPages AS CHAR(1)),1),'''') +
 	ISNULL('' , AGDatabases''+NULLIF(CAST(@AGDatabases AS CHAR(1)),1),'''') +
 	ISNULL('' , LongRunningTransactions''+NULLIF(CAST(@LongRunningTransactions AS CHAR(1)),1),'''') +
+	ISNULL('' , UnusedLogshipConfig''+NULLIF(CAST(@UnusedLogshipConfig AS CHAR(1)),1),'''')+
 	ISNULL('' , UseMedian''+NULLIF(CAST(@UseMedian AS CHAR(1)),1),''''),''0'',''''),1,3,'''')
 END 
 
@@ -4115,14 +4067,14 @@ ModuleConfig used: <b>''+ISNULL(@ModuleDesc,@ModuleConfig)+ ''</b><BR>
 Disabled Modules: <b>''+@DisabledModules+''</b><BR></p><p></p><BR></BR>''
 
 IF @DriveSpaceCheck = 1 
-	BEGIN
-
-    DECLARE @BodyDriveSpace  VARCHAR(MAX) = '''',
-	@CountDriveSpace VARCHAR(5),
-     @TableHeadDriveSpace VARCHAR(1000) =
-     ''<b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''"></a>Drive space Report (Using ''+CASE WHEN @UseMedian = 1 THEN ''Median based Calculation'' ELSE ''Average based Calculation'' END +''):</b>
-     <br> <table cellpadding=0 cellspacing=0 border=0> 
-     <tr> 
+BEGIN
+--Excluded from Warning level control
+    DECLARE @BodyDriveSpace  VARCHAR(MAX) = ''''
+	DECLARE @CountDriveSpace INT
+    DECLARE @TableHeadDriveSpace VARCHAR(1000) =
+    ''<b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''"></a>Drive space Report (Using ''+CASE WHEN @UseMedian = 1 THEN ''Median based Calculation'' ELSE ''Average based Calculation'' END +''):</b>
+    <br> <table cellpadding=0 cellspacing=0 border=0> 
+    <tr> 
 	<td bgcolor=''+@TableHeaderColour+''><b>Server name</b></font></td>
 	<td bgcolor=''+@TableHeaderColour+''><b>Drive</b></font></td>
 	<td bgcolor=''+@TableHeaderColour+''><b>Total GB</b></font></td>	
@@ -4136,161 +4088,179 @@ IF @DriveSpaceCheck = 1
 	'';
 
 	IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DriveSpace]
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DriveSpace]
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 
-	   BEGIN
+	BEGIN
 
-WITH TotalDriveEntries AS 
-(
---GROUP THE DRIVE LETTERS AND COUNT TOTAL LOGGED ENTRIES (1 entry per day)
-SELECT Servername,Drive,COUNT(Drive) AS TotalEntries
-FROM (
-SELECT Servername,Drive,CAST(Log_Date AS DATE) AS Datelogged
-FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DriveSpace]
-WHERE Servername = @Serverlist
-GROUP BY Servername,Drive,CAST(Log_Date AS DATE)
-) AS X 
-GROUP BY Servername,Drive
-),
-SpaceVariation as (
---CALCULATE THE DIFFERENCE BETWEEN CURRENT FREESPACE AND LAST RECORDED FREE SPACE FOR ALL ENTRIES PER DRIVE
-SELECT Log_Date,DriveSpace.Servername,DriveSpace.Drive,Capacity_GB,(Capacity_GB-AvailableSpace_GB) as UsedSpace_GB,AvailableSpace_GB,
-LAG(Capacity_GB-AvailableSpace_GB,1,Capacity_GB-AvailableSpace_GB) OVER(PARTITION BY DriveSpace.Servername,DriveSpace.Drive ORDER BY DriveSpace.Servername,DriveSpace.Drive,Log_Date) as laggedUsedSpace,
-TotalEntries
-FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DriveSpace] AS DriveSpace
-INNER JOIN TotalDriveEntries ON DriveSpace.Drive = TotalDriveEntries.Drive AND DriveSpace.Servername = TotalDriveEntries.Servername
-),
-ApplyMedianRowNum AS (
-SELECT Log_Date,Servername,Drive,Capacity_GB,(Capacity_GB-AvailableSpace_GB) as UsedSpace_GB,AvailableSpace_GB,
-laggedUsedSpace,ROW_NUMBER() OVER (PARTITION BY [Drive] ORDER BY [Drive],(SELECT(UsedSpace_GB-laggedUsedSpace)) DESC) AS RowNum,
-TotalEntries
-FROM SpaceVariation
-),
-AverageDailyGrowth AS
-(
---TAKE THE DIFFERENCES FROM SpaceVariation CTE AND DIVIDE THIS BY TOTAL ENTRIES PER DRIVE LETTER
-SELECT
-Servername, 
-Drive,
-CASE WHEN SUM(UsedSpace_GB-laggedUsedSpace) <= 0 THEN 0 
-WHEN @UseMedian = 1 THEN (SELECT UsedSpace_GB-laggedUsedSpace FROM ApplyMedianRowNum Median WHERE Median.Drive = SpaceVariation.Drive AND (Median.TotalEntries/2) = Median.RowNum)
-ELSE CAST(SUM((UsedSpace_GB-laggedUsedSpace)/TotalEntries) AS DECIMAL(10,2)) END AS AverageDailyGrowth_GB
-FROM SpaceVariation
-GROUP BY
-Servername,
-Drive
-) 
-SELECT @BodyDriveSpace = @BodyDriveSpace +(
-SELECT CASE 
-WHEN AverageDailyGrowth_GB > 0 
-AND CAST(COALESCE((LastRecordedFreeSpace.AvailableSpace_GB)/NULLIF(AverageDailyGrowth_GB,0),0) AS DECIMAL(20,2)) < @DaysUntilDriveFullThreshold
-THEN @RedHighlight 
-WHEN CAST((LastRecordedFreeSpace.AvailableSpace_GB/LastRecordedFreeSpace.Capacity_GB)*100 AS DECIMAL(10,2)) < @FreeSpaceRemainingPercent 
-AND AverageDailyGrowth.Drive COLLATE DATABASE_DEFAULT NOT IN (SELECT '+CASE WHEN @Compatibility = 0 THEN '[StringElement]+'':\''' ELSE '[value]+'':\''' END+ 
-'FROM '+CASE WHEN @Compatibility = 0 THEN '[master].[dbo].fn_SplitString(@DriveLetterExcludes,'','') DriveLetterExcludes'
+	WITH TotalDriveEntries AS 
+	(
+	--GROUP THE DRIVE LETTERS AND COUNT TOTAL LOGGED ENTRIES (1 entry per day)
+	SELECT Servername,Drive,COUNT(Drive) AS TotalEntries
+	FROM (
+	SELECT Servername,Drive,CAST(Log_Date AS DATE) AS Datelogged
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DriveSpace]
+	WHERE Servername = @Serverlist
+	GROUP BY Servername,Drive,CAST(Log_Date AS DATE)
+	) AS X 
+	GROUP BY Servername,Drive
+	),
+	SpaceVariation as (
+	--CALCULATE THE DIFFERENCE BETWEEN CURRENT FREESPACE AND LAST RECORDED FREE SPACE FOR ALL ENTRIES PER DRIVE
+	SELECT Log_Date,DriveSpace.Servername,DriveSpace.Drive,Capacity_GB,(Capacity_GB-AvailableSpace_GB) as UsedSpace_GB,AvailableSpace_GB,
+	LAG(Capacity_GB-AvailableSpace_GB,1,Capacity_GB-AvailableSpace_GB) OVER(PARTITION BY DriveSpace.Servername,DriveSpace.Drive ORDER BY DriveSpace.Servername,DriveSpace.Drive,Log_Date) as laggedUsedSpace,
+	TotalEntries
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DriveSpace] AS DriveSpace
+	INNER JOIN TotalDriveEntries ON DriveSpace.Drive = TotalDriveEntries.Drive AND DriveSpace.Servername = TotalDriveEntries.Servername
+	),
+	ApplyMedianRowNum AS (
+	SELECT Log_Date,Servername,Drive,Capacity_GB,(Capacity_GB-AvailableSpace_GB) as UsedSpace_GB,AvailableSpace_GB,
+	laggedUsedSpace,ROW_NUMBER() OVER (PARTITION BY [Drive] ORDER BY [Drive],(SELECT(UsedSpace_GB-laggedUsedSpace)) DESC) AS RowNum,
+	TotalEntries
+	FROM SpaceVariation
+	),
+	AverageDailyGrowth AS
+	(
+	--TAKE THE DIFFERENCES FROM SpaceVariation CTE AND DIVIDE THIS BY TOTAL ENTRIES PER DRIVE LETTER
+	SELECT
+	Servername, 
+	Drive,
+	CASE WHEN SUM(UsedSpace_GB-laggedUsedSpace) <= 0 THEN 0 
+	WHEN @UseMedian = 1 THEN (SELECT UsedSpace_GB-laggedUsedSpace FROM ApplyMedianRowNum Median WHERE Median.Drive = SpaceVariation.Drive AND (Median.TotalEntries/2) = Median.RowNum)
+	ELSE CAST(SUM((UsedSpace_GB-laggedUsedSpace)/TotalEntries) AS DECIMAL(10,2)) END AS AverageDailyGrowth_GB
+	FROM SpaceVariation
+	GROUP BY
+	Servername,
+	Drive
+	) 
+	SELECT @BodyDriveSpace = @BodyDriveSpace +(
+	SELECT 
+	CASE 
+		WHEN AverageDailyGrowth_GB > 0 
+		AND CAST(COALESCE((LastRecordedFreeSpace.AvailableSpace_GB)/NULLIF(AverageDailyGrowth_GB,0),0) AS DECIMAL(20,2)) < @DaysUntilDriveFullThreshold
+		THEN @RedHighlight 
+		WHEN CAST((LastRecordedFreeSpace.AvailableSpace_GB/LastRecordedFreeSpace.Capacity_GB)*100 AS DECIMAL(10,2)) < @FreeSpaceRemainingPercent 
+		AND AverageDailyGrowth.Drive COLLATE DATABASE_DEFAULT NOT IN (SELECT '+CASE WHEN @Compatibility = 0 THEN '[StringElement]+'':\''' ELSE '[value]+'':\''' END+ 
+		'FROM '+CASE WHEN @Compatibility = 0 THEN '[master].[dbo].fn_SplitString(@DriveLetterExcludes,'','') DriveLetterExcludes'
 										ELSE 'STRING_SPLIT(@DriveLetterExcludes,'','') DriveLetterExcludes'
 										END+')
-THEN @YellowHighlight
-ELSE ''#FFFFFF'' END AS [@bgcolor], 
-AverageDailyGrowth.Servername AS ''td'','''', + 
-AverageDailyGrowth.Drive AS ''td'','''', + 
-LastRecordedFreeSpace.Capacity_GB AS ''td'','''', + 
-LastRecordedFreeSpace.AvailableSpace_GB AS ''td'','''', + 
-CAST((AvailableSpace_GB/LastRecordedFreeSpace.Capacity_GB)*100 AS DECIMAL(10,2)) AS ''td'','''', + 
-AverageDailyGrowth.AverageDailyGrowth_GB AS ''td'','''', + 
-CASE WHEN AverageDailyGrowth_GB <= 0 
-THEN ''N/A''
-ELSE
-CAST(CAST(COALESCE((LastRecordedFreeSpace.AvailableSpace_GB)/NULLIF(AverageDailyGrowth_GB,0),0) AS DECIMAL(20,2)) AS VARCHAR(10))
-END AS ''td'','''', + 
-TotalDriveEntries.TotalEntries  AS ''td'','''', + 
-STUFF((SELECT TOP 5 '', ['' + DATENAME(WEEKDAY,DATEADD(DAY,-1,SpaceVariation.Log_Date)) + '' '' + CASE WHEN laggedUsedSpace-UsedSpace_GB > 0 THEN ''0''  --DATEADD is used here to display the previous day as the collection date is a day ahead.
-ELSE CAST(ABS(laggedUsedSpace-UsedSpace_GB) AS VARCHAR(10)) END +'' GB]'' FROM SpaceVariation WHERE SpaceVariation.Drive = TotalDriveEntries.Drive AND SpaceVariation.Servername = TotalDriveEntries.Servername ORDER BY SpaceVariation.Log_Date DESC FOR XML PATH('''')),1,1,'''')  AS ''td'','''', +
-FiveDayTotal.SUMFiveDayTotal AS ''td'',''''
-FROM AverageDailyGrowth
-INNER JOIN TotalDriveEntries ON TotalDriveEntries.Drive =  AverageDailyGrowth.Drive AND TotalDriveEntries.Servername =  AverageDailyGrowth.Servername
-CROSS APPLY (SELECT TOP 1 Capacity_GB,AvailableSpace_GB
-			FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DriveSpace] DriveSpace
-			WHERE DriveSpace.Drive = TotalDriveEntries.Drive
-			AND DriveSpace.Servername = TotalDriveEntries.Servername
-			ORDER BY Log_Date DESC) as LastRecordedFreeSpace
-CROSS APPLY (SELECT CAST(AVG(CASE WHEN laggedUsedSpace-UsedSpace_GB > 0 THEN 0  
-			 ELSE ABS(laggedUsedSpace-UsedSpace_GB) END) AS DECIMAL(20,2)) AS SUMFiveDayTotal 
-			 FROM 
-				(SELECT TOP 5 Drive, laggedUsedSpace,UsedSpace_GB
-					FROM SpaceVariation 
-					WHERE SpaceVariation.Drive = TotalDriveEntries.Drive 
-					AND SpaceVariation.Servername = TotalDriveEntries.Servername 
-					ORDER BY SpaceVariation.Log_Date DESC
-				)  AS LastFiveDays 
-			 ) AS FiveDayTotal
-WHERE AverageDailyGrowth.Servername = @Serverlist
-ORDER BY AverageDailyGrowth.Drive ASC
-FOR XML PATH(''tr''),Elements)
+		THEN @YellowHighlight
+		ELSE ''#FFFFFF'' 
+	END AS [@bgcolor], 
+	AverageDailyGrowth.Servername AS ''td'','''', + 
+	AverageDailyGrowth.Drive AS ''td'','''', + 
+	LastRecordedFreeSpace.Capacity_GB AS ''td'','''', + 
+	LastRecordedFreeSpace.AvailableSpace_GB AS ''td'','''', + 
+	CAST((AvailableSpace_GB/LastRecordedFreeSpace.Capacity_GB)*100 AS DECIMAL(10,2)) AS ''td'','''', + 
+	AverageDailyGrowth.AverageDailyGrowth_GB AS ''td'','''', + 
+	CASE WHEN AverageDailyGrowth_GB <= 0 
+	THEN ''N/A''
+	ELSE
+	CAST(CAST(COALESCE((LastRecordedFreeSpace.AvailableSpace_GB)/NULLIF(AverageDailyGrowth_GB,0),0) AS DECIMAL(20,2)) AS VARCHAR(10))
+	END AS ''td'','''', + 
+	TotalDriveEntries.TotalEntries  AS ''td'','''', + 
+	STUFF((SELECT TOP 5 '', ['' + DATENAME(WEEKDAY,DATEADD(DAY,-1,SpaceVariation.Log_Date)) + '' '' + CASE WHEN laggedUsedSpace-UsedSpace_GB > 0 THEN ''0''  --DATEADD is used here to display the previous day as the collection date is a day ahead.
+	ELSE CAST(ABS(laggedUsedSpace-UsedSpace_GB) AS VARCHAR(10)) END +'' GB]'' FROM SpaceVariation WHERE SpaceVariation.Drive = TotalDriveEntries.Drive AND SpaceVariation.Servername = TotalDriveEntries.Servername ORDER BY SpaceVariation.Log_Date DESC FOR XML PATH('''')),1,1,'''')  AS ''td'','''', +
+	FiveDayTotal.SUMFiveDayTotal AS ''td'',''''
+	FROM AverageDailyGrowth
+	INNER JOIN TotalDriveEntries ON TotalDriveEntries.Drive =  AverageDailyGrowth.Drive AND TotalDriveEntries.Servername =  AverageDailyGrowth.Servername
+	CROSS APPLY (SELECT TOP 1 Capacity_GB,AvailableSpace_GB
+				FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DriveSpace] DriveSpace
+				WHERE DriveSpace.Drive = TotalDriveEntries.Drive
+				AND DriveSpace.Servername = TotalDriveEntries.Servername
+				ORDER BY Log_Date DESC) as LastRecordedFreeSpace
+	CROSS APPLY (SELECT CAST(AVG(CASE WHEN laggedUsedSpace-UsedSpace_GB > 0 THEN 0  
+				 ELSE ABS(laggedUsedSpace-UsedSpace_GB) END) AS DECIMAL(20,2)) AS SUMFiveDayTotal 
+				 FROM 
+					(SELECT TOP 5 Drive, laggedUsedSpace,UsedSpace_GB
+						FROM SpaceVariation 
+						WHERE SpaceVariation.Drive = TotalDriveEntries.Drive 
+						AND SpaceVariation.Servername = TotalDriveEntries.Servername 
+						ORDER BY SpaceVariation.Log_Date DESC
+					)  AS LastFiveDays 
+				 ) AS FiveDayTotal
+	WHERE AverageDailyGrowth.Servername = @Serverlist
+	ORDER BY AverageDailyGrowth.Drive ASC
+	FOR XML PATH(''tr''),Elements)
+	
+	-- Count Drive space warnings
+	SET @CountDriveSpace = (LEN(@BodyDriveSpace) - LEN(REPLACE(@BodyDriveSpace,@RedHighlight, '''')))/LEN(@RedHighlight)
+	
+	SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDriveSpace, '''') + ISNULL(@BodyDriveSpace, '''') + ''</table><p><b><font style="color: Black; background-color: #FAFCA4">Yellow Highlight</font> - Drive remaining percent below ''+CAST(@FreeSpaceRemainingPercent AS VARCHAR(3))+''%''+ ISNULL('' (Drives being excluded are: ''+ @DriveLetterExcludes +'')'','''') +''<br>
+	 <font style="color: Black; background-color: Red">Red Highlight</font> - Estimated days remaining until drive is full, is below ''+CAST(@DaysUntilDriveFullThreshold AS VARCHAR(3))+ '' Days </p></b>''
+	 + ISNULL(REPLACE(@TableTail,''</table>'',''''),'''') +''<p><BR><p>''
+				  
+	IF @BodyDriveSpace LIKE ''%''+@RedHighlight+''%''		
+	BEGIN 
+		SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+CAST(@CountDriveSpace AS VARCHAR(5))+'') Drive Space warnings</font><p>''	  
+		SET @Importance = ''High'' 
+		SET @TotalWarningCount = @TotalWarningCount + @CountDriveSpace
+	END
+		
+	--Count Drive space Yellow Highlights	
+	SET @CountDriveSpace = (LEN(@BodyDriveSpace) - LEN(REPLACE(@BodyDriveSpace,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+	IF @CountDriveSpace > 0	
+	BEGIN 
+		SELECT @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+CAST(@CountDriveSpace AS VARCHAR(5))+'') Drive Space warnings where remaining space is below ''+CAST(@FreeSpaceRemainingPercent AS VARCHAR(3))+''% remaining</font><p>''	  
+		SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountDriveSpace
+	END
+		
+		
+	END
+	ELSE
+	BEGIN
+	SET @BodyDriveSpace = 
+	(SELECT 
+	@RedHighlight AS [@bgcolor], 
+	@Serverlist AS ''td'','''', + 
+	''Data Collection out of date'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'',''''
+	FOR XML PATH(''tr''),Elements)
+	
+	SET @CountDriveSpace = (LEN(@BodyDriveSpace) - LEN(REPLACE(@BodyDriveSpace,@RedHighlight, '''')))/LEN(@RedHighlight)
 
--- Count Drive space warnings
-	   SET @CountDriveSpace = (LEN(@BodyDriveSpace) - LEN(REPLACE(@BodyDriveSpace,@RedHighlight, '''')))/LEN(@RedHighlight)
-
-			SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDriveSpace, '''') + ISNULL(@BodyDriveSpace, '''') + ''</table><p><b><font style="color: Black; background-color: #FAFCA4">Yellow Highlight</font> - Drive remaining percent below ''+CAST(@FreeSpaceRemainingPercent AS VARCHAR(3))+''%''+ ISNULL('' (Drives being excluded are: ''+ @DriveLetterExcludes +'')'','''') +''<br>
-			 <font style="color: Black; background-color: Red">Red Highlight</font> - Estimated days remaining until drive is full, is below ''+CAST(@DaysUntilDriveFullThreshold AS VARCHAR(3))+ '' Days </p></b>''
-			 + ISNULL(REPLACE(@TableTail,''</table>'',''''),'''') +''<p><BR><p>''
-			  
-			 IF @BodyDriveSpace LIKE ''%''+@RedHighlight+''%''		
-			 BEGIN 
-			 SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDriveSpace+'') Drive Space warnings</font><p>''	  
-			 SET @Importance = ''High'' 
-			 SET @TotalWarningCount = @TotalWarningCount + @CountDriveSpace
-			 END
-
---Count Drive space Yellow Highlights
-
-		SET @CountDriveSpace = (LEN(@BodyDriveSpace) - LEN(REPLACE(@BodyDriveSpace,@YellowHighlight, '''')))/LEN(@YellowHighlight)
-			IF @CountDriveSpace > 0	
-				BEGIN 
-					SELECT @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+@CountDriveSpace+'') Drive Space warnings where remaining space is below ''+CAST(@FreeSpaceRemainingPercent AS VARCHAR(3))+''% remaining</font><p>''	  
-					SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountDriveSpace
-				END
-
-
-	   END
-	   ELSE
-	   BEGIN
-	   SET @BodyDriveSpace = 
-	   (SELECT 
-	   @RedHighlight AS [@bgcolor], 
-	   @Serverlist AS ''td'','''', + 
-	   ''Data Collection out of date'' AS ''td'','''', + 
-	   ''N/A'' AS ''td'','''', + 
-	   ''N/A'' AS ''td'','''', + 
-	   ''N/A'' AS ''td'','''', + 
-	   ''N/A'' AS ''td'','''', + 
-	   ''N/A'' AS ''td'','''', + 
-	   ''N/A'' AS ''td'','''', + 
-	   ''N/A'' AS ''td'','''', + 
-	   ''N/A'' AS ''td'',''''
-	   FOR XML PATH(''tr''),Elements)
-
-	   SET @CountDriveSpace = (LEN(@BodyDriveSpace) - LEN(REPLACE(@BodyDriveSpace,@RedHighlight, '''')))/LEN(@RedHighlight)
-
-			 SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDriveSpace, '''') + ISNULL(@BodyDriveSpace, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-			 IF @BodyDriveSpace LIKE ''%''+@RedHighlight+''%''		
-			 BEGIN 
-			 SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDriveSpace+'') Drive Space warnings <b>(Data collection out of Date)</b></font><p>''	  
-			 SET @Importance = ''High'' 
-			 SET @TotalWarningCount = @TotalWarningCount + @CountDriveSpace
-			 END
-	   END
+	SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDriveSpace, '''') + ISNULL(@BodyDriveSpace, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	
+	IF @BodyDriveSpace LIKE ''%''+@RedHighlight+''%''		
+	BEGIN 
+		SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+CAST(@CountDriveSpace AS VARCHAR(5))+'') Drive Space warnings <b>(Data collection out of Date)</b></font><p>''	  
+		SET @Importance = ''High'' 
+		SET @TotalWarningCount = @TotalWarningCount + @CountDriveSpace
 	END
 
-IF @AGCheck = 1 
-	BEGIN
---AVAILABILITY GROUP HEALTH CHECK VARIABLES
-DECLARE @BodyAGCheck VARCHAR(MAX),
-    @TableHeadAGCheck VARCHAR(1000),
-	@CountAGCheck VARCHAR(5)
+	END
 
-SET @TableHeadAGCheck = ''
+END
+
+
+IF @AGCheck = 1 
+BEGIN
+
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''AGCheck'')
+	
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
+	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''Red''
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
+
+	DECLARE @BodyAGCheck VARCHAR(MAX)
+	DECLARE @TableHeadAGCheck VARCHAR(1000)
+	DECLARE @CountAGCheck INT
+	
+	SET @TableHeadAGCheck = ''
     <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''"></a>Availability Group Health Check</b>
     <br> <table cellpadding=0 cellspacing=0 border=0> 
     <tr> 
@@ -4303,103 +4273,154 @@ SET @TableHeadAGCheck = ''
     '';
 
 	IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck]
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck]
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+		SET @BodyAGCheck = (
+		SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL AND ([State] != ''HEALTHY'' AND [State] != ''N/A'' ) THEN @RedHighlight
+			WHEN @WarningLevel = 1 AND ([State] != ''HEALTHY'' AND [State] != ''N/A'') THEN @RedHighlight
+			WHEN @WarningLevel = 2 AND ([State] != ''HEALTHY'' AND [State] != ''N/A'') THEN @YellowHighlight
+			WHEN @WarningLevel = 3 AND ([State] != ''HEALTHY'' AND [State] != ''N/A'') THEN @InfoHighlight
+			ELSE ''#FFFFFF''
+		END AS [@bgcolor],
+		Servername  AS ''td'','''', +
+		AGname AS ''td'','''', +
+		[State] AS ''td'','''', +
+		ISNULL([ReplicaServername],''N/A'') AS ''td'','''', +
+		CASE WHEN [Suspended] = 1 THEN ''Y'' 
+		WHEN [Suspended] = 0 THEN ''N''
+		ELSE ''N/A'' END AS ''td'','''', +
+		ISNULL([SuspendReason],''N/A'') AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck]
+		WHERE Servername = @Serverlist
+		ORDER BY AGname ASC,ReplicaServername ASC
+		FOR XML PATH(''tr''),ELEMENTS);
+	END
+	ELSE
+	BEGIN
+		SET @BodyAGCheck = (
+		SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @RedHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		@Serverlist  AS ''td'','''', +
+		''Data collection out of date'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck]
+		WHERE Servername = @Serverlist
+		ORDER BY AGname ASC
+		FOR XML PATH(''tr''),ELEMENTS);
 
-	   BEGIN
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1
+	END
 
---AVAILABILITY GROUP HEALTH CHECK SCRIPT
-SET @BodyAGCheck = (
-SELECT 
-CASE WHEN [State] != ''HEALTHY'' AND [State] != ''N/A'' THEN @RedHighlight ELSE ''#FFFFFF'' END AS [@bgcolor],
-Servername  AS ''td'','''', +
-AGname AS ''td'','''', +
-[State] AS ''td'','''', +
-ISNULL([ReplicaServername],''N/A'') AS ''td'','''', +
-CASE WHEN [Suspended] = 1 THEN ''Y'' 
-WHEN [Suspended] = 0 THEN ''N''
-ELSE ''N/A'' END AS ''td'','''', +
-ISNULL([SuspendReason],''N/A'') AS ''td'',''''
-FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck]
-WHERE Servername = @Serverlist
-ORDER BY AGname ASC,ReplicaServername ASC
-FOR XML PATH(''tr''),ELEMENTS);
-
---Count AG Check Warnings
-    SET @CountAGCheck = (LEN(@BodyAGCheck) - LEN(REPLACE(@BodyAGCheck,@RedHighlight, '''')))/LEN(@RedHighlight)
-
-			SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadAGCheck, '''') + ISNULL(@BodyAGCheck, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-				  IF @BodyAGCheck LIKE ''%''+@RedHighlight+''%''			
-				  BEGIN 
-				  SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountAGCheck+'') AG Warnings</font><p>''  
-				  SET @Importance = ''High'' 
-				  SET @TotalWarningCount = @TotalWarningCount + @CountAGCheck
-				  END   
-			
-
-	   END
-	   ELSE
-	   BEGIN
-	   SET @BodyAGCheck = (
-	   SELECT 
-	   @RedHighlight AS [@bgcolor],
-	   @Serverlist  AS ''td'','''', +
-	   ''Data collection out of date'' AS ''td'','''', +
-	   ''N/A'' AS ''td'','''', +
-	   ''N/A'' AS ''td'','''', +
-	   ''N/A'' AS ''td'','''', +
-	   ''N/A'' AS ''td'',''''
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck]
-	   WHERE Servername = @Serverlist
-	   ORDER BY AGname ASC
-	   FOR XML PATH(''tr''),ELEMENTS);
-
-	   SET @CountAGCheck = (LEN(@BodyAGCheck) - LEN(REPLACE(@BodyAGCheck,@RedHighlight, '''')))/LEN(@RedHighlight)
-
-	   			SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadAGCheck, '''') + ISNULL(@BodyAGCheck, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-				  IF @BodyAGCheck LIKE ''%''+@RedHighlight+''%''			
-				  BEGIN 
-				    SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountAGCheck+'') AG Warnings <b>(Data collection out of Date)</b></font><p>''  
-				    SET @Importance = ''High''
-					SET @TotalWarningCount = @TotalWarningCount + @CountAGCheck 
-				  END   
+	--Append html table to the report
+	SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadAGCheck, '''') + ISNULL(@BodyAGCheck, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	
+	--Populate Alert header (Default Warning Level)
+	IF (@WarningLevel = 1 OR @WarningLevel IS NULL)
+	BEGIN 
+		IF @BodyAGCheck LIKE ''%''+@RedHighlight+''%''
+		BEGIN
+			SET @CountAGCheck = (LEN(@BodyAGCheck) - LEN(REPLACE(@BodyAGCheck,@RedHighlight, '''')))/LEN(@RedHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountAGCheck
 		END
+	END
+	
+	--Populate Advisory header 
+	IF @WarningLevel = 2 
+	BEGIN 
+		IF @BodyAGCheck LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountAGCheck = (LEN(@BodyAGCheck) - LEN(REPLACE(@BodyAGCheck,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountAGCheck
+		END
+	END
+	
+	--Populate Info header 
+	IF @WarningLevel = 3
+	BEGIN 
+		IF @BodyAGCheck LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountAGCheck = (LEN(@BodyAGCheck) - LEN(REPLACE(@BodyAGCheck,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+		END
+	
+	END
 
-	   END
+END 
+
 
 IF @SuspectPages  = 1
-
 BEGIN 
---Suspect pages check 
 
-DECLARE @BodySuspectPages VARCHAR(MAX) = '''',
-    @TableHeadSuspectPages VARCHAR(1000),
-    @CountSuspectPages VARCHAR(5)
-
-SET @TableHeadSuspectPages = ''
-    <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''"></a>Suspect Pages Check</b>
-    <br> <table cellpadding=0 cellspacing=0 border=0> 
-    <tr> 
-    <td bgcolor=''+@TableHeaderColour+''><b>Server name</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Database name</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>File ID</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Page ID</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Event type</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Error count</b></td>
-	<td bgcolor=''+@TableHeaderColour+''><b>Last update</b></td>
-    '';
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''SuspectPages'')
 	
-	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[SuspectPages] 
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
+	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''Red''
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
 
-	   BEGIN
-
-		  SELECT @BodySuspectPages = @BodySuspectPages +
-		  (SELECT 
+	DECLARE @BodySuspectPages VARCHAR(MAX) = ''''
+	DECLARE @TableHeadSuspectPages VARCHAR(1000)
+	DECLARE @CountSuspectPages INT
+	
+	SET @TableHeadSuspectPages = ''
+	<b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''"></a>Suspect Pages Check</b>
+	<br> <table cellpadding=0 cellspacing=0 border=0> 
+	<tr> 
+	<td bgcolor=''+@TableHeaderColour+''><b>Server name</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Database name</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>File ID</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Page ID</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Event type</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Error count</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Last update</b></td>
+	'';
+		
+		IF (SELECT MAX(Log_Date) 
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[SuspectPages] 
+		WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)	
+		BEGIN
+			SELECT @BodySuspectPages = @BodySuspectPages +
+			(SELECT 
 			CASE 
-			WHEN [Databasename] IS NOT NULL THEN @RedHighlight
-			ELSE ''#FFFFFF'' END AS [@bgcolor],
+				WHEN @WarningLevel IS NULL AND [Databasename] IS NOT NULL THEN @RedHighlight
+				WHEN @WarningLevel = 1 AND [Databasename] IS NOT NULL THEN @RedHighlight
+				WHEN @WarningLevel = 2 AND [Databasename] IS NOT NULL THEN @YellowHighlight
+				WHEN @WarningLevel = 3 AND [Databasename] IS NOT NULL THEN @InfoHighlight
+				ELSE ''#FFFFFF''
+			END AS [@bgcolor],
 			[Servername] AS ''td'','''', +  
 			ISNULL([Databasename],''No Suspect pages found'') AS ''td'','''', + 
 			ISNULL([file_id],''-'') AS ''td'','''', + 
@@ -4411,21 +4432,17 @@ SET @TableHeadSuspectPages = ''
 			WHERE Servername = @Serverlist
 			ORDER BY [last_update_date] ASC
 			FOR XML PATH(''tr''),ELEMENTS);
-			
-			IF @BodySuspectPages LIKE ''%''+@RedHighlight+''%''
-			 BEGIN
-				SET @CountSuspectPages = (LEN(@BodySuspectPages) - LEN(REPLACE(@BodySuspectPages,@RedHighlight, '''')))/LEN(@RedHighlight)
-				SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "Red">  - <b>has (''+@CountSuspectPages+'') SUSPECT PAGES FOUND</b></font><p>''	  
-				SET @Importance = ''High'' 
-				SET @TotalWarningCount = @TotalWarningCount + @CountSuspectPages
-			 END
-	   END
-	   ELSE
-	   BEGIN
-
-	   	  SET @BodySuspectPages =
+		END
+		ELSE
+		BEGIN
+			SET @BodySuspectPages =
 			(SELECT 
-			@RedHighlight AS [@bgcolor], 
+			CASE 
+				WHEN @WarningLevel IS NULL THEN @RedHighlight
+				WHEN @WarningLevel = 1 THEN @RedHighlight
+				WHEN @WarningLevel = 2 THEN @YellowHighlight
+				WHEN @WarningLevel = 3 THEN @InfoHighlight
+			END AS [@bgcolor],
 			@Serverlist AS ''td'','''', + 
 			''N/A'' AS ''td'','''', + 
 			''N/A'' AS ''td'','''', + 
@@ -4435,120 +4452,222 @@ SET @TableHeadSuspectPages = ''
 			''N/A'' AS ''td'',''''
 			FOR XML PATH(''tr''),Elements);
 
-		  	 SET @CountSuspectPages = (LEN(@BodySuspectPages) - LEN(REPLACE(@BodySuspectPages,@RedHighlight, '''')))/LEN(@RedHighlight)
-
-			 SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadSuspectPages, '''') + ISNULL(@BodySuspectPages, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-			 IF @BodySuspectPages LIKE ''%''+@RedHighlight+''%''		
-			 BEGIN 
-				SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountSuspectPages+'') Suspect page warnings <b>(Data collection out of Date)</b></font><p>''	  
-				SET @Importance = ''High''
-				SET @TotalWarningCount = @TotalWarningCount + @CountSuspectPages 
-			 END
-
-	   END
-
-SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadSuspectPages,'''') + ISNULL(@BodySuspectPages, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-
+			--Mark Collection as out of date
+			SET @CollectionOutOfDate = 1;
+		END
+	
+	--Append html table to the report
+	SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadSuspectPages,'''') + ISNULL(@BodySuspectPages, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	
+	--Populate Alert header (Default Warning Level)
+	IF (@WarningLevel = 1 OR @WarningLevel IS NULL)
+	BEGIN 
+		IF @BodySuspectPages LIKE ''%''+@RedHighlight+''%''
+		BEGIN
+			SET @CountSuspectPages = (LEN(@BodySuspectPages) - LEN(REPLACE(@BodySuspectPages,@RedHighlight, '''')))/LEN(@RedHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountSuspectPages
+		END
+	END
+	
+	--Populate Advisory header 
+	IF @WarningLevel = 2 
+	BEGIN 
+		IF @BodySuspectPages LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountSuspectPages = (LEN(@BodySuspectPages) - LEN(REPLACE(@BodySuspectPages,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountSuspectPages
+		END
+	END
+	
+	--Populate Info header 
+	IF @WarningLevel = 3
+	BEGIN 
+		IF @BodySuspectPages LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountSuspectPages = (LEN(@BodySuspectPages) - LEN(REPLACE(@BodySuspectPages,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+		END
+	
+	END
+	
 END
+
 
 IF @AGDatabases  = 1
 BEGIN
 
-DECLARE @BodyAGDatabases VARCHAR(MAX),
-    @TableHeadAGDatabases VARCHAR(1000),
-    @CountAGDatabases VARCHAR(5)
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''AGDatabases'')
+	
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
+	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
 
-SET @TableHeadAGDatabases = ''
-    <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''"></a>Databases not joined to an Availability group</b>
-    <br> <table cellpadding=0 cellspacing=0 border=0> 
-    <tr> 
-    <td bgcolor=''+@TableHeaderColour+''><b>Server name</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Last Checked</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Database name</b></td>
-    '';
+	DECLARE @BodyAGDatabases VARCHAR(MAX)
+	DECLARE @TableHeadAGDatabases VARCHAR(1000)
+	DECLARE @CountAGDatabases INT
+	
+	SET @TableHeadAGDatabases = ''
+	<b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''"></a>Databases not joined to an Availability group</b>
+	<br> <table cellpadding=0 cellspacing=0 border=0> 
+	<tr> 
+	<td bgcolor=''+@TableHeaderColour+''><b>Server name</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Last Checked</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Database name</b></td>
+	'';
 
-	   IF (SELECT MAX(LastUpdated) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGDatabases] 
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
-
-	   BEGIN
+	IF (SELECT MAX(LastUpdated) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGDatabases] 
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+		SET @BodyAGDatabases =(
+		SELECT
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @YellowHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		[Servername] AS ''td'','''', +
+		CONVERT(VARCHAR(17),[LastUpdated],113) AS ''td'','''', +
+		[Databasename] AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGDatabases]
+		WHERE [Is_AG] = 1
+		AND [Is_AGJoined] = 0
+		AND Servername = @Serverlist
+		ORDER BY [Databasename] ASC
+		FOR XML PATH(''tr''),ELEMENTS);
+		
+		IF @BodyAGDatabases IS NULL
+		BEGIN
 			SET @BodyAGDatabases =(
 			SELECT
-			@YellowHighlight AS [@bgcolor], 
-			[Servername] AS ''td'','''', +
-			CONVERT(VARCHAR(17),[LastUpdated],113) AS ''td'','''', +
-			[Databasename] AS ''td'',''''
-			FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGDatabases]
-			WHERE [Is_AG] = 1
-			AND [Is_AGJoined] = 0
-			AND Servername = @Serverlist
-			ORDER BY [Databasename] ASC
-			FOR XML PATH(''tr''),ELEMENTS);
-			
-			IF @BodyAGDatabases IS NULL
-			BEGIN
-				SET @BodyAGDatabases =(
-				SELECT
-				''#FFFFFF'' AS [@bgcolor], 
-				@Serverlist AS ''td'','''', +
-				''No Databases marked as AG and not joined'' AS ''td'','''', +
-				''N/A'' AS ''td'',''''
-				FOR XML PATH(''tr''),ELEMENTS);
-				
-			END
-
-			IF @BodyAGDatabases LIKE ''%''+@YellowHighlight+''%''
-			 BEGIN
-				SET @CountAGDatabases = (LEN(@BodyAGDatabases) - LEN(REPLACE(@BodyAGDatabases,@YellowHighlight, '''')))/LEN(@YellowHighlight)
-				SET @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+@CountAGDatabases+'') Databases not joined to an Availability group</font><p>''	         
-				SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountAGDatabases
-			 END
-
-	   END
-	   ELSE
-	   BEGIN
-
-	   	  SET @BodyAGDatabases =
-			(SELECT 
-			@RedHighlight AS [@bgcolor], 
-			@Serverlist AS ''td'','''', + 
-			''Data Collection out of date'' AS ''td'','''', + 
+			''#FFFFFF'' AS [@bgcolor], 
+			@Serverlist AS ''td'','''', +
+			''No Databases marked as AG and not joined'' AS ''td'','''', +
 			''N/A'' AS ''td'',''''
-			FOR XML PATH(''tr''),Elements);
+			FOR XML PATH(''tr''),ELEMENTS);
+		END
+	END
+	ELSE
+	BEGIN
+		SET @BodyAGDatabases =
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @YellowHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor], 
+		@Serverlist AS ''td'','''', + 
+		''Data Collection out of date'' AS ''td'','''', + 
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),Elements);
 
-		  	 SET @CountAGDatabases = (LEN(@BodyAGDatabases) - LEN(REPLACE(@BodyAGDatabases,@RedHighlight, '''')))/LEN(@RedHighlight)
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
+	END
 
-			  
-			 IF @BodyAGDatabases LIKE ''%''+@RedHighlight+''%''		
-			 BEGIN 
-				SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountAGDatabases+'') Databases not joined to an Availability group <b>(Data collection out of Date)</b></font><p>''	  
-				SET @Importance = ''High''
-				SET @TotalWarningCount = @TotalWarningCount + @CountAGDatabases 
-			 END
-
-	   END
-
-SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadAGDatabases,'''') + ISNULL(@BodyAGDatabases, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	--Append html table to the report
+	SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadAGDatabases,'''') + ISNULL(@BodyAGDatabases, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	
+	--Populate Alert header
+	IF @WarningLevel = 1
+	BEGIN 
+		IF @BodyAGDatabases LIKE ''%''+@RedHighlight+''%''
+		BEGIN
+			SET @CountAGDatabases = (LEN(@BodyAGDatabases) - LEN(REPLACE(@BodyAGDatabases,@RedHighlight, '''')))/LEN(@RedHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountAGDatabases
+		END
+	END
+	
+	--Populate Advisory header (Default Warning Level)
+	IF (@WarningLevel = 2  OR @WarningLevel IS NULL) 
+	BEGIN 
+		IF @BodyAGDatabases LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountAGDatabases = (LEN(@BodyAGDatabases) - LEN(REPLACE(@BodyAGDatabases,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountAGDatabases
+		END
+	END
+	
+	--Populate Info header 
+	IF @WarningLevel = 3
+	BEGIN 
+		IF @BodyAGDatabases LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountAGDatabases = (LEN(@BodyAGDatabases) - LEN(REPLACE(@BodyAGDatabases,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group <b>(Data collection out of Date)</b></font><p>''  
+			END
+		END
+	
+	END
 
 END
 
 
 IF @LongRunningTransactions  = 1
 BEGIN
- 
-DECLARE @LongRunningTransactionThreshold VARCHAR(255) = (SELECT CAST([Value] AS INT) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''LongRunningTransactionThreshold'')
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''LongRunningTransactions'')
+	
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
+	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
+								
+	DECLARE @LongRunningTransactionThreshold VARCHAR(255) = (SELECT CAST([Value] AS INT) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''LongRunningTransactionThreshold'')
+	DECLARE @BodyLongRunningTransactions VARCHAR(MAX)
+	DECLARE @TableHeadLongRunningTransactions VARCHAR(1000)
+	DECLARE @CountLongRunningTransactions INT
+	
+	--Default value
+	IF @LongRunningTransactionThreshold IS NULL 
+	BEGIN 
+		SET @LongRunningTransactionThreshold = 300
+	END
 
-DECLARE @BodyLongRunningTransactions VARCHAR(MAX),
-	   @TableHeadLongRunningTransactions VARCHAR(1000),
-	   @CountLongRunningTransactions VARCHAR(5)
-
---Default value
-IF @LongRunningTransactionThreshold IS NULL 
-BEGIN 
-	SET @LongRunningTransactionThreshold = 300
-END
-
-SET @TableHeadLongRunningTransactions = ''
+	SET @TableHeadLongRunningTransactions = ''
     <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''"></a>Transactions that exceed the threshold of ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+'' seconds ''+CASE WHEN @LongRunningTransactionThreshold > 300 THEN ''(''+CAST(CAST(CAST(@LongRunningTransactionThreshold AS MONEY)/60.00 AS MONEY) AS VARCHAR(10))+'' Minutes)'' ELSE '''' END+''</b>
     <br> <table cellpadding=0 cellspacing=0 border=0> 
     <tr> 
@@ -4564,97 +4683,154 @@ SET @TableHeadLongRunningTransactions = ''
 	<td bgcolor=''+@TableHeaderColour+''><b>Database name</b></td>
     '';
 
-       IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[LongRunningTransactions] 
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	IF (SELECT MAX(Log_Date) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[LongRunningTransactions] 
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+		SET @BodyLongRunningTransactions = (SELECT 
+		CASE @WarningLevel
+			WHEN NULL THEN @YellowHighlight
+			WHEN 1 THEN @RedHighlight
+			WHEN 2 THEN @YellowHighlight
+			WHEN 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		[Servername] AS ''td'','''',+
+		[session_id] AS ''td'','''',+
+		CONVERT(VARCHAR(20),[transaction_begin_time],113) AS ''td'','''',+
+		[Duration_DDHHMMSS] AS ''td'','''',+
+		[TransactionState] AS ''td'','''',+
+		[SessionState] AS ''td'','''',+
+		[login_name] AS ''td'','''',+
+		[host_name] AS ''td'','''',+
+		[program_name] AS ''td'','''',+
+		[Databasename] AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[LongRunningTransactions]
+		WHERE Servername = @Serverlist
+		AND [transaction_begin_time] IS NOT NULL
+		ORDER BY [transaction_begin_time] ASC
+		FOR XML PATH(''tr''),ELEMENTS);
 
-	   BEGIN
-
-
-		  SET @BodyLongRunningTransactions = (SELECT 
-				@YellowHighlight AS [@bgcolor],
-				[Servername] AS ''td'','''',+
-				[session_id] AS ''td'','''',+
-				CONVERT(VARCHAR(20),[transaction_begin_time],113) AS ''td'','''',+
-				[Duration_DDHHMMSS] AS ''td'','''',+
-				[TransactionState] AS ''td'','''',+
-				[SessionState] AS ''td'','''',+
-				[login_name] AS ''td'','''',+
-				[host_name] AS ''td'','''',+
-				[program_name] AS ''td'','''',+
-				[Databasename] AS ''td'',''''
-				FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[LongRunningTransactions]
-				WHERE Servername = @Serverlist
-				AND [transaction_begin_time] IS NOT NULL
-				ORDER BY [transaction_begin_time] ASC
-				FOR XML PATH(''tr''),ELEMENTS);
-
-		  IF @BodyLongRunningTransactions IS NULL 
-		  BEGIN 
+		IF @BodyLongRunningTransactions IS NULL 
+		BEGIN 
 			SET @BodyLongRunningTransactions = (SELECT 
-				''#FFFFFF'' AS [@bgcolor],
-				[Servername] AS ''td'','''',+
-				''No Long running transactions'' AS ''td'','''',+
-				''N/A'' AS ''td'','''',+
-				''N/A'' AS ''td'','''',+
-				''N/A'' AS ''td'','''',+
-				''N/A'' AS ''td'','''',+
-				''N/A'' AS ''td'','''',+
-				''N/A'' AS ''td'','''',+
-				''N/A'' AS ''td'','''',+
-				''N/A'' AS ''td'',''''
-				FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[LongRunningTransactions]
-				WHERE Servername = @Serverlist
-				AND [transaction_begin_time] IS NULL
-				ORDER BY [transaction_begin_time] ASC
-				FOR XML PATH(''tr''),ELEMENTS);
-		  END
-
-		  SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadLongRunningTransactions, '''') + ISNULL(@BodyLongRunningTransactions, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-
-		  IF @BodyLongRunningTransactions LIKE ''%''+@YellowHighlight+''%''
-		  BEGIN
-			 --Count Long running transaction Warnings
-			 SET @CountLongRunningTransactions = (LEN(@BodyLongRunningTransactions) - LEN(REPLACE(@BodyLongRunningTransactions,@YellowHighlight, '''')))/LEN(@YellowHighlight)
-			 SELECT @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+@CountLongRunningTransactions+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''        
-			 SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountLongRunningTransactions
-		  END
-
+			''#FFFFFF'' AS [@bgcolor],
+			[Servername] AS ''td'','''',+
+			''No Long running transactions'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'',''''
+			FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[LongRunningTransactions]
+			WHERE Servername = @Serverlist
+			AND [transaction_begin_time] IS NULL
+			ORDER BY [transaction_begin_time] ASC
+			FOR XML PATH(''tr''),ELEMENTS);
+		END
 	END
 	ELSE 
-		BEGIN 
-		
-		   SET @BodyLongRunningTransactions = 
-		   (SELECT 
-		   ''#FFFFFF'' AS [@bgcolor],
-		    @Serverlist AS ''td'','''',+
-			''Data Collection out of date'' AS ''td'','''',+
-			''N/A'' AS ''td'','''', + 
-			''N/A'' AS ''td'','''', + 
-			''N/A'' AS ''td'','''', +
-			''N/A'' AS ''td'','''', + 
-			''N/A'' AS ''td'','''', + 
-			''N/A'' AS ''td'','''', + 
-			''N/A'' AS ''td'','''', + 
-			''N/A'' AS ''td'',''''
-		   FOR XML PATH(''tr''),ELEMENTS);
-		
-		   SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadLongRunningTransactions, '''') + ISNULL(@BodyLongRunningTransactions, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-		
+	BEGIN 
+		SET @BodyLongRunningTransactions = 
+		(SELECT 
+		CASE @WarningLevel
+			WHEN NULL THEN @YellowHighlight
+			WHEN 1 THEN @RedHighlight
+			WHEN 2 THEN @YellowHighlight
+			WHEN 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		@Serverlist AS ''td'','''',+
+		''Data Collection out of date'' AS ''td'','''',+
+		''N/A'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', + 
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS);
+			
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
+	END
+
+	--Append html table to the report
+	SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadLongRunningTransactions, '''') + ISNULL(@BodyLongRunningTransactions, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	
+	--Populate Alert header
+	IF @WarningLevel = 1
+	BEGIN 
+		IF @BodyLongRunningTransactions LIKE ''%''+@RedHighlight+''%''
+		BEGIN
+			SET @CountLongRunningTransactions = (LEN(@BodyLongRunningTransactions) - LEN(REPLACE(@BodyLongRunningTransactions,@RedHighlight, '''')))/LEN(@RedHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''   
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Long running transactions <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountLongRunningTransactions
 		END
+	END
+	
+	--Populate Advisory header (Default Warning Level)
+	IF (@WarningLevel = 2 OR @WarningLevel IS NULL)
+	BEGIN 
+		IF @BodyLongRunningTransactions LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountLongRunningTransactions = (LEN(@BodyLongRunningTransactions) - LEN(REPLACE(@BodyLongRunningTransactions,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''   
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Long running transactions <b>(Data collection out of Date)</b></font><p>''  		
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountLongRunningTransactions
+		END
+	END
+	
+	--Populate Info header 
+	IF @WarningLevel = 3
+	BEGIN 
+		IF @BodyLongRunningTransactions LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountLongRunningTransactions = (LEN(@BodyLongRunningTransactions) - LEN(REPLACE(@BodyLongRunningTransactions,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''   
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Long running transactions <b>(Data collection out of Date)</b></font><p>''  		
+			END
+		END
+	
+	END
 
 END
 
 
 IF @DatabaseStatesCheck = 1 
-	BEGIN
--- DATABASE STATE CHECK AND COUNT (INCLUDES LIST OF OFFLINE DBs) VARIABLES
-DECLARE @BodyDatabaseStates VARCHAR(MAX),
-    @TableHeadDatabaseStates VARCHAR(1000),
-    @CountDatabaseStates VARCHAR(5),
-	@SuspectAlertText VARCHAR(65) = NULL
+BEGIN
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''DatabaseStatesCheck'')
+	
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value 
+	--Warning level 1 (Red) only controls states: ''Restoring'',''RECOVERING'',''OFFLINE'',''SNAPSHOT (more than 10 days old)''
+	IF  @WarningLevel > 3 BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
+								
+	DECLARE @BodyDatabaseStates VARCHAR(MAX)
+	DECLARE @TableHeadDatabaseStates VARCHAR(1000)
+	DECLARE @CountDatabaseStates INT
+	DECLARE @SuspectAlertText VARCHAR(65) = NULL
 
-SET @TableHeadDatabaseStates = ''
+	SET @TableHeadDatabaseStates = ''
     <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''"></a>Database Count by State</b>
     <br> <table cellpadding=0 cellspacing=0 border=0> 
     <tr> 
@@ -4664,82 +4840,126 @@ SET @TableHeadDatabaseStates = ''
     <td bgcolor=''+@TableHeaderColour+''><b>Database names</b></td>
     '';
 
-	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseStates] 
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
-
-	   BEGIN
-
-	   SET @BodyDatabaseStates =(
-	   SELECT 
-	   CASE 
-	   WHEN DatabaseState IN (''Restoring'',''RECOVERING'',''OFFLINE'',''SNAPSHOT (more than 10 days old)'') THEN @YellowHighlight 
-	   WHEN DatabaseState IN (''RECOVERY_PENDING'',''SUSPECT'',''EMERGENCY'') THEN @RedHighlight
-	   ELSE ''#FFFFFF'' END AS [@bgcolor],
-	   Servername AS ''td'','''', +
-	   DatabaseState AS ''td'','''', +
-	   Total AS ''td'','''', +
-	   DatabaseNames AS ''td'',''''
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseStates]
-	   WHERE Servername = @Serverlist
-	   ORDER BY Total DESC
-	   FOR XML PATH(''tr''),ELEMENTS);
+	IF (SELECT MAX(Log_Date) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseStates] 
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+		SET @BodyDatabaseStates =(
+		SELECT 
+		CASE 
+			WHEN DatabaseState IN (''RECOVERY_PENDING'',''SUSPECT'',''EMERGENCY'') THEN @RedHighlight --Cannot be overidden using Warning levels
+			WHEN @WarningLevel IS NULL AND DatabaseState IN (''Restoring'',''RECOVERING'',''OFFLINE'',''SNAPSHOT (more than 10 days old)'') THEN @YellowHighlight
+			WHEN @WarningLevel = 1 AND DatabaseState IN (''Restoring'',''RECOVERING'',''OFFLINE'',''SNAPSHOT (more than 10 days old)'') THEN @RedHighlight
+			WHEN @WarningLevel = 2 AND DatabaseState IN (''Restoring'',''RECOVERING'',''OFFLINE'',''SNAPSHOT (more than 10 days old)'') THEN @YellowHighlight
+			WHEN @WarningLevel = 3 AND DatabaseState IN (''Restoring'',''RECOVERING'',''OFFLINE'',''SNAPSHOT (more than 10 days old)'') THEN @InfoHighlight
+		ELSE ''#FFFFFF'' END AS [@bgcolor],
+		Servername AS ''td'','''', +
+		DatabaseState AS ''td'','''', +
+		Total AS ''td'','''', +
+		DatabaseNames AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseStates]
+		WHERE Servername = @Serverlist
+		ORDER BY Total DESC
+		FOR XML PATH(''tr''),ELEMENTS);
 	   
-	   IF (@BodyDatabaseStates LIKE ''%<td>SUSPECT</td>%'' OR @BodyDatabaseStates LIKE ''%<td>RECOVERY_PENDING</td>%'' OR @BodyDatabaseStates LIKE ''%<td>EMERGENCY</td>%'')
-	   BEGIN 
-	   SET @SuspectAlertText = '' (SUSPECT , RECOVERY_PENDING OR EMERGENCY DATABASE/S PRESENT!)'' 
-	   END
-	   
-	   --Count Database States Warnings
-	   SET @CountDatabaseStates = (LEN(@BodyDatabaseStates) - LEN(REPLACE(@BodyDatabaseStates,@RedHighlight, '''')))/LEN(@RedHighlight)
-	   
-	    
-	   SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseStates, '''') + ISNULL(@BodyDatabaseStates, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-	   	  IF @BodyDatabaseStates LIKE ''%''+@RedHighlight+''%''		
-	   	  BEGIN 
-	   		 SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "Red">  - <b>has (''+@CountDatabaseStates+'') Database State warnings ''+ISNULL(@SuspectAlertText,'''')+''</font></b><p>''	  
-	   		 SET @Importance = ''High'' 
-			 SET @TotalWarningCount = @TotalWarningCount + @CountDatabaseStates
-	   	  END
-		  IF @BodyDatabaseStates LIKE ''%''+@YellowHighlight+''%''
-		  BEGIN
-			 SET @CountDatabaseStates = (LEN(@BodyDatabaseStates) - LEN(REPLACE(@BodyDatabaseStates,@YellowHighlight, '''')))/LEN(@YellowHighlight)
-			 SELECT @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+@CountDatabaseStates+'') Database State Advisories including any of the following states: (Restoring, Recovering, Offline, Snapshot (more than 10 days old))</font><p>''        
-			 SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountDatabaseStates
-		  END
+		IF (@BodyDatabaseStates LIKE ''%<td>SUSPECT</td>%'' OR @BodyDatabaseStates LIKE ''%<td>RECOVERY_PENDING</td>%'' OR @BodyDatabaseStates LIKE ''%<td>EMERGENCY</td>%'')
+		BEGIN 
+			SET @SuspectAlertText = '' (SUSPECT , RECOVERY_PENDING OR EMERGENCY DATABASE/S PRESENT!)'' 
+		END
+	END
+	ELSE
+	BEGIN
+		SET @BodyDatabaseStates =(
+		SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @YellowHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight 
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		@Serverlist AS ''td'','''', +
+		''Data collection out of date'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS);
 
-	   END
-	   ELSE
-	   BEGIN
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
+	END
 
-	   SET @BodyDatabaseStates =(
-	   SELECT 
-	   @RedHighlight AS [@bgcolor],
-	   @Serverlist AS ''td'','''', +
-	   ''Data collection out of date'' AS ''td'','''', +
-	   ''N/A'' AS ''td'','''', +
-	   ''N/A'' AS ''td'',''''
-	   FOR XML PATH(''tr''),ELEMENTS);
+	--Append html table to the report
+	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseStates, '''') + ISNULL(@BodyDatabaseStates, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'';
 
-	   SET @CountDatabaseStates = (LEN(@BodyDatabaseStates) - LEN(REPLACE(@BodyDatabaseStates,@RedHighlight, '''')))/LEN(@RedHighlight)
-	   
-	   SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseStates, '''') + ISNULL(@BodyDatabaseStates, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-	   IF @BodyDatabaseStates LIKE ''%''+@RedHighlight+''%''		
-	   BEGIN 
-	   SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDatabaseStates+'') Database State warnings <b>(Data collection out of Date)</b></font><p>''	  
-	   SET @Importance = ''High'' 
-	   SET @TotalWarningCount = @TotalWarningCount + @CountDatabaseStates
-	   END
+	--Populate Alert header
+	--Warning Level 1 handled inside the block as there are two conditions for red higlights
+	IF @BodyDatabaseStates LIKE ''%''+@RedHighlight+''%''
+	BEGIN
+		SET @CountDatabaseStates = (LEN(@BodyDatabaseStates) - LEN(REPLACE(@BodyDatabaseStates,@RedHighlight, '''')))/LEN(@RedHighlight);
+		SELECT @AlertHeader = @AlertHeader + 
+		CASE --@SuspectAlertText takes precedence over the standard red warning as these states are more critical that the warning level ones.
+			WHEN @CollectionOutOfDate = 0 AND @SuspectAlertText IS NOT NULL THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State warnings ''+ISNULL(@SuspectAlertText,'''')+''</font></b><p>''
+			WHEN @CollectionOutOfDate = 0 AND @SuspectAlertText IS NULL AND @WarningLevel = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State Advisories including any of the following states: (Restoring, Recovering, Offline, Snapshot (more than 10 days old))</font><p>'' 
+			WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State warnings <b>(Data collection out of Date)</b></font><p>''  
+		END
+		SET @Importance = ''High'' ;
+		SET @TotalWarningCount = @TotalWarningCount + @CountDatabaseStates;
+	END
+	
+	--Populate Advisory header (Default Warning Level)
+	IF @WarningLevel = 2 
+	BEGIN 
+		IF @BodyDatabaseStates LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountDatabaseStates = (LEN(@BodyDatabaseStates) - LEN(REPLACE(@BodyDatabaseStates,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State Advisories including any of the following states: (Restoring, Recovering, Offline, Snapshot (more than 10 days old))</font><p>''        
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State warnings <b>(Data collection out of Date)</b></font><p>''  		
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountDatabaseStates;
+		END
+	END
+	
+	--Populate Info header 
+	IF @WarningLevel = 3
+	BEGIN 
+		IF @BodyDatabaseStates LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountDatabaseStates = (LEN(@BodyDatabaseStates) - LEN(REPLACE(@BodyDatabaseStates,@InfoHighlight, '''')))/LEN(@InfoHighlight);
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State Advisories including any of the following states: (Restoring, Recovering, Offline, Snapshot (more than 10 days old))</font><p>''        
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State warnings <b>(Data collection out of Date)</b></font><p>''  		
+			END
+		END
+	
+	END
 
-	   END
 END
+
+
 
 IF @FailedAgentJobCheck = 1 
 BEGIN
 
-DECLARE @BodyFailedJobsTotals  VARCHAR(MAX) ,
-    @CountFailedJobsTotals VARCHAR(5),
-    @TableHeadFailedJobsTotals VARCHAR(1000) =''
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''FailedAgentJobCheck'')
+	
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
+	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''Red''
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
+	
+	DECLARE @BodyFailedJobsTotals VARCHAR(MAX)
+	DECLARE @TableHeadFailedJobsTotals VARCHAR(1000)
+	DECLARE @CountFailedJobsTotals INT
+
+	SET @TableHeadFailedJobsTotals =''
     <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''"></a>Failed Agent Jobs in the last 24hrs</b>
     <br> <table cellpadding=0 cellspacing=0 border=0> 
     <tr> 
@@ -4752,236 +4972,393 @@ DECLARE @BodyFailedJobsTotals  VARCHAR(MAX) ,
     '';
 
 	IF (SELECT MAX(Log_Date)   
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[FailedAgentJobs]
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE) 
-
-	   BEGIN
-
-    SET @BodyFailedJobsTotals = 
-     (SELECT @RedHighlight AS [@bgcolor],
-	Servername AS ''td'','''', + 
-	CONVERT(VARCHAR(17),Log_Date,113) AS ''td'','''', + 
-	Jobname AS ''td'','''', +  
-	LastStepFailed AS ''td'','''', +  
-	CONVERT(VARCHAR(17),LastFailedDate,113) AS ''td'','''',+  
-	LastError + ''...'' AS ''td'',''''
 	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[FailedAgentJobs]
-	WHERE Servername = @Serverlist
-	AND Jobname != ''No Failed Jobs present''
-	FOR XML PATH(''tr''),ELEMENTS);
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE) 
+	BEGIN
+		SET @BodyFailedJobsTotals = 
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @RedHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		Servername AS ''td'','''', + 
+		CONVERT(VARCHAR(17),Log_Date,113) AS ''td'','''', + 
+		Jobname AS ''td'','''', +  
+		LastStepFailed AS ''td'','''', +  
+		CONVERT(VARCHAR(17),LastFailedDate,113) AS ''td'','''',+  
+		LastError + ''...'' AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[FailedAgentJobs]
+		WHERE Servername = @Serverlist
+		AND Jobname != ''No Failed Jobs present''
+		FOR XML PATH(''tr''),ELEMENTS);
 
-
-		    
-	
-	IF @BodyFailedJobsTotals IS NULL
-	   BEGIN
-	   SET @BodyFailedJobsTotals = 
-	   (SELECT ''#FFFFFF'' AS [@bgcolor],
-	   @Serverlist AS ''td'','''', + 
-	   ''N/A'' AS ''td'','''', + 
-	   ''No Failed Jobs present'' AS ''td'','''', +  
-	   ''N/A'' AS ''td'','''', + 
-	   ''N/A'' AS ''td'','''', +   
-	   ''N/A'' AS ''td'',''''
-	   FOR XML PATH(''tr''),ELEMENTS);
-	   END
-
-	   --Count Failed Job Warnings	
-SET @CountFailedJobsTotals =  (LEN(@BodyFailedJobsTotals) - LEN(REPLACE(@BodyFailedJobsTotals,@RedHighlight, '''')))/LEN(@RedHighlight)
-
- SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadFailedJobsTotals,'''') + ISNULL(@BodyFailedJobsTotals, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-				  IF @BodyFailedJobsTotals LIKE ''%''+@RedHighlight+''%''	
-				  BEGIN 
-				  SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountFailedJobsTotals+'') Failed Job warnings</font><p>''  
-				  SET @Importance = ''High'' 
-				  SET @TotalWarningCount = @TotalWarningCount + @CountFailedJobsTotals
-				  END
-	   END
+		IF @BodyFailedJobsTotals IS NULL
+		BEGIN
+			SET @BodyFailedJobsTotals = 
+			(SELECT ''#FFFFFF'' AS [@bgcolor],
+			@Serverlist AS ''td'','''', + 
+			''N/A'' AS ''td'','''', + 
+			''No Failed Jobs present'' AS ''td'','''', +  
+			''N/A'' AS ''td'','''', + 
+			''N/A'' AS ''td'','''', +   
+			''N/A'' AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS);
+		END
+	END
 	ELSE 
 	BEGIN 
+		SET @BodyFailedJobsTotals = 
+		(SELECT
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @RedHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		@Serverlist AS ''td'','''', + 
+		''N/A'' AS ''td'','''', + 
+		''Data Collection out of date'' AS ''td'','''', +  
+		''N/A'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', +   
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS);
 
-	SET @BodyFailedJobsTotals = 
-     (SELECT @RedHighlight AS [@bgcolor],
-	@Serverlist AS ''td'','''', + 
-	''N/A'' AS ''td'','''', + 
-	''Data Collection out of date'' AS ''td'','''', +  
-	''N/A'' AS ''td'','''', + 
-	''N/A'' AS ''td'','''', +   
-	''N/A'' AS ''td'',''''
-	FOR XML PATH(''tr''),ELEMENTS);
-
-	SET @CountFailedJobsTotals =  (LEN(@BodyFailedJobsTotals) - LEN(REPLACE(@BodyFailedJobsTotals,@RedHighlight, '''')))/LEN(@RedHighlight)
-
-		     SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadFailedJobsTotals,'''') + ISNULL(@BodyFailedJobsTotals, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-				  IF @BodyFailedJobsTotals LIKE ''%''+@RedHighlight+''%''	
-				  BEGIN 
-				  SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountFailedJobsTotals+'') Failed Job warnings  <b>(Data collection out of Date)</b></font><p>''  
-				  SET @Importance = ''High'' 
-				  SET @TotalWarningCount = @TotalWarningCount + @CountFailedJobsTotals
-				  END
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
 	END
+
+	--Append html table to the report
+	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadFailedJobsTotals,'''') + ISNULL(@BodyFailedJobsTotals, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+
+--Populate Alert header (Default Warning Level)
+	IF (@WarningLevel = 1 OR @WarningLevel IS NULL)
+	BEGIN 
+		IF @BodyFailedJobsTotals LIKE ''%''+@RedHighlight+''%''
+		BEGIN
+			SET @CountFailedJobsTotals = (LEN(@BodyFailedJobsTotals) - LEN(REPLACE(@BodyFailedJobsTotals,@RedHighlight, '''')))/LEN(@RedHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountFailedJobsTotals
+		END
+	END
+	
+	--Populate Advisory header 
+	IF @WarningLevel = 2 
+	BEGIN 
+		IF @BodyFailedJobsTotals LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountFailedJobsTotals = (LEN(@BodyFailedJobsTotals) - LEN(REPLACE(@BodyFailedJobsTotals,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings <b>(Data collection out of Date)</b></font><p>''  		
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountFailedJobsTotals
+		END
+	END
+	
+	--Populate Info header 
+	IF @WarningLevel = 3
+	BEGIN 
+		IF @BodyFailedJobsTotals LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountFailedJobsTotals = (LEN(@BodyFailedJobsTotals) - LEN(REPLACE(@BodyFailedJobsTotals,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+		END
+	
+	END
+
 END
+
 
 IF @FailedLoginsCheck = 1
 BEGIN
 
-	DECLARE @BodyLoginAttempts VARCHAR(MAX),
-		   @TableHeadLoginAttempts VARCHAR(1000)
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''FailedLoginsCheck'')
+	
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
+	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''White''
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
+	
+	DECLARE @BodyLoginAttempts VARCHAR(MAX)
+	DECLARE @TableHeadLoginAttempts VARCHAR(1000)
+	DECLARE @CountLoginAttempts INT
 
 	SET @TableHeadLoginAttempts = ''
-	<b>Failed Login Attempts in the last 24hrs</b>
-     <br> <table cellpadding=0 cellspacing=0 border=0>
-     <tr> 
+	<b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''"></a>Failed Login Attempts in the last 24hrs</b>
+    <br> <table cellpadding=0 cellspacing=0 border=0>
+    <tr> 
 	<td bgcolor=''+@TableHeaderColour+''><b>Server name</b></td>
-     <td bgcolor=''+@TableHeaderColour+''><b>Username</b></td>
+    <td bgcolor=''+@TableHeaderColour+''><b>Username</b></td>
 	<td bgcolor=''+@TableHeaderColour+''><b>Attempts</b></td>
 	<td bgcolor=''+@TableHeaderColour+''><b>Last Failed Attempt</b></td> 
 	<td bgcolor=''+@TableHeaderColour+''><b>Last Error</b></td>
 	'';
 
-	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck] 
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
-
+	IF (SELECT MAX(Log_Date) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck] 
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 	BEGIN
-		  BEGIN
+		SET @BodyLoginAttempts = 
+		(SELECT
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @InfoHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		Servername AS ''td'','''',+
+		Username AS ''td'','''',+
+		Attempts AS ''td'','''',+
+		CONVERT(VARCHAR(17),LastErrorDate,113) AS ''td'','''',+
+		LastError AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[LoginAttempts]
+		WHERE Servername = @Serverlist
+		AND Username != ''No Failed Logins present''
+		FOR XML PATH(''tr''),ELEMENTS)
 
+		IF @BodyLoginAttempts IS NULL
+		BEGIN 
+			SET @BodyLoginAttempts = (SELECT
+			''#FFFFFF'' AS [@bgcolor],
+			@Serverlist AS ''td'','''',+
+			''No Failed Logins present'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS)
+		END
+	END
+	ELSE
+	BEGIN 
+		SET @BodyLoginAttempts = 
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @InfoHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		@Serverlist AS ''td'','''',+
+		''Data Collection out of date'' AS ''td'','''',+
+		''N/A'' AS ''td'','''',+
+		''N/A'' AS ''td'','''',+
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS);
 
-SET @BodyLoginAttempts = (SELECT
-					''#FFFFFF'' AS [@bgcolor],
-					Servername AS ''td'','''',+
-					Username AS ''td'','''',+
-					Attempts AS ''td'','''',+
-					CONVERT(VARCHAR(17),LastErrorDate,113) AS ''td'','''',+
-					LastError AS ''td'',''''
-					FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[LoginAttempts]
-					WHERE Servername = @Serverlist
-					AND Username != ''No Failed Logins present''
-					FOR XML PATH(''tr''),ELEMENTS)
-
-
-		  
-
-		  IF @BodyLoginAttempts IS NULL
-		  BEGIN 
-		  SET @BodyLoginAttempts = (SELECT
-							   ''#FFFFFF'' AS [@bgcolor],
-							   @Serverlist AS ''td'','''',+
-							   ''No Failed Logins present'' AS ''td'','''',+
-							   ''N/A'' AS ''td'','''',+
-							   ''N/A'' AS ''td'','''',+
-							   ''N/A'' AS ''td'',''''
-							   FOR XML PATH(''tr''),ELEMENTS)
-
-		  END
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
 	END
 
-SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadLoginAttempts, '''') + ISNULL(@BodyLoginAttempts, '''') + ISNULL(@TableTail,'''') +    ''<p><BR><p>'' 
+	--Append html table to the report
+	SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadLoginAttempts, '''') + ISNULL(@BodyLoginAttempts, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 
+	--Populate Alert header
+	IF @WarningLevel = 1
+	BEGIN 
+		IF @BodyLoginAttempts LIKE ''%''+@RedHighlight+''%''
+		BEGIN
+			SET @CountLoginAttempts = (LEN(@BodyLoginAttempts) - LEN(REPLACE(@BodyLoginAttempts,@RedHighlight, '''')))/LEN(@RedHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountLoginAttempts
+		END
+	END
+	
+	--Populate Advisory header 
+	IF @WarningLevel = 2 
+	BEGIN 
+		IF @BodyLoginAttempts LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountLoginAttempts = (LEN(@BodyLoginAttempts) - LEN(REPLACE(@BodyLoginAttempts,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings <b>(Data collection out of Date)</b></font><p>'' 
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountLoginAttempts
+		END
+	END
+	
+	--Populate Info header (Default Warning Level)
+	IF (@WarningLevel = 3 OR @WarningLevel IS NULL)
+	BEGIN 
+		IF @BodyLoginAttempts LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountLoginAttempts = (LEN(@BodyLoginAttempts) - LEN(REPLACE(@BodyLoginAttempts,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings <b>(Data collection out of Date)</b></font><p>'' 
+			END
+		END
+	
+	END
 
-END
-ELSE
-BEGIN 
-SET @BodyLoginAttempts = (SELECT 
-					''#FFFFFF'' AS [@bgcolor],
-					@Serverlist AS ''td'','''',+
-					''Data Collection out of date'' AS ''td'','''',+
-					''N/A'' AS ''td'','''',+
-					''N/A'' AS ''td'','''',+
-					''N/A'' AS ''td'',''''
-					FOR XML PATH(''tr''),ELEMENTS)
-
-SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadLoginAttempts, '''') + ISNULL(@BodyLoginAttempts, '''') + ISNULL(@TableTail,'''') +    ''<p><BR><p>'' 
-
-END
 END
 
 
 IF @JobOwnerCheck = 1 
-
 BEGIN
 
---JOB OWNERSHIP 
-DECLARE @AgentJobOwnerExclusions VARCHAR(255) = (SELECT REPLACE([Value],'' '' ,'''') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''AgentJobOwnerExclusions'')
-
-DECLARE @BodyJobOwner VARCHAR(MAX),
-	   @TableHeadJobOwner VARCHAR(1000),
-	   @CountJobOwner VARCHAR(5)
-
-SET @TableHeadJobOwner = ''
-    <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''"></a>Agent Jobs where the owner is not ''+ISNULL(REPLACE(REPLACE(@AgentJobOwnerExclusions,'' '',''''),'','','', ''),''[N/A - No Exclusions Set]'')+''</b>
-    <br> <table cellpadding=0 cellspacing=0 border=0> 
-    <tr> 
-    <td bgcolor=''+@TableHeaderColour+''><b>Server name</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Job ID</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Job name</b></td>
-    '';
-
-    	IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[JobOwner] 
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
-
-	   BEGIN
-
---JOB OWNER SCRIPT
-SET @BodyJobOwner = (SELECT 
-				@YellowHighlight AS [@bgcolor],
-				Servername AS ''td'','''',+
-				Job_ID AS ''td'','''', + 
-				Jobname AS ''td'',''''
-				FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[JobOwner]
-				WHERE Servername = @Serverlist
-				AND Jobname != ''No Job Owner issues present''
-				FOR XML PATH(''tr''),ELEMENTS);
-
-    IF @BodyJobOwner IS NULL
-    BEGIN
-    SET @BodyJobOwner = 
-    (SELECT 
-	''#FFFFFF'' AS [@bgcolor],
-	@Serverlist AS ''td'','''',+
-	''N/A'' AS ''td'','''', + 
-	''No Job Owner issues present'' AS ''td'',''''
-	FOR XML PATH(''tr''),ELEMENTS);
-    END
-
-SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadJobOwner, '''') + ISNULL(@BodyJobOwner, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-
-		  IF @BodyJobOwner LIKE ''%''+@YellowHighlight+''%''
-		  BEGIN
-			 --Count Database States Warnings
-			 SET @CountJobOwner = (LEN(@BodyJobOwner) - LEN(REPLACE(@BodyJobOwner,@YellowHighlight, '''')))/LEN(@YellowHighlight)
-			 SELECT @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+@CountJobOwner+'') Agent jobs where the Owner is not ''+ISNULL(REPLACE(REPLACE(@AgentJobOwnerExclusions,'' '',''''),'','','', ''),''[N/A - No Exclusions Set]'')+''</font><p>''        
-			 SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountJobOwner
-		  END
-
-END
-ELSE 
-    BEGIN 
-    
-	   SET @BodyJobOwner = 
-	   (SELECT 
-	   ''#FFFFFF'' AS [@bgcolor],
-	   @Serverlist AS ''td'','''',+
-	   ''N/A'' AS ''td'','''', + 
-	   ''Data Collection out of date'' AS ''td'',''''
-	   FOR XML PATH(''tr''),ELEMENTS);
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''JobOwnerCheck'')
 	
-	   SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadJobOwner, '''') + ISNULL(@BodyJobOwner, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-    
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
+	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''#e68a00''
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
+	
+	DECLARE @AgentJobOwnerExclusions VARCHAR(255) = (SELECT REPLACE([Value],'' '' ,'''') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''AgentJobOwnerExclusions'')
+	DECLARE @BodyJobOwner VARCHAR(MAX)
+	DECLARE @TableHeadJobOwner VARCHAR(1000)
+	DECLARE @CountJobOwner INT
+	
+	SET @TableHeadJobOwner = ''
+	<b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''"></a>Agent Jobs where the owner is not ''+ISNULL(REPLACE(REPLACE(@AgentJobOwnerExclusions,'' '',''''),'','','', ''),''[N/A - No Exclusions Set]'')+''</b>
+	<br> <table cellpadding=0 cellspacing=0 border=0> 
+	<tr> 
+	<td bgcolor=''+@TableHeaderColour+''><b>Server name</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Job ID</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Job name</b></td>
+	'';
+
+	IF (SELECT MAX(Log_Date) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[JobOwner] 
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+		SET @BodyJobOwner = 
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @YellowHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		Servername AS ''td'','''',+
+		Job_ID AS ''td'','''', + 
+		Jobname AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[JobOwner]
+		WHERE Servername = @Serverlist
+		AND Jobname != ''No Job Owner issues present''
+		FOR XML PATH(''tr''),ELEMENTS);
+
+		IF @BodyJobOwner IS NULL
+		BEGIN
+			SET @BodyJobOwner = 
+			(SELECT 
+			''#FFFFFF'' AS [@bgcolor],
+			@Serverlist AS ''td'','''',+
+			''N/A'' AS ''td'','''', + 
+			''No Job Owner issues present'' AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS);
+		END
+	END
+	ELSE 
+    BEGIN 
+		SET @BodyJobOwner = 
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @YellowHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		@Serverlist AS ''td'','''',+
+		''N/A'' AS ''td'','''', + 
+		''Data Collection out of date'' AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS);
+
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
     END
 
+	--Append html table to the report
+	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadJobOwner, '''') + ISNULL(@BodyJobOwner, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+
+	--Populate Alert header
+	IF @WarningLevel = 1 
+	BEGIN 
+		IF @BodyJobOwner LIKE ''%''+@RedHighlight+''%''
+		BEGIN
+			SET @CountJobOwner = (LEN(@BodyJobOwner) - LEN(REPLACE(@BodyJobOwner,@RedHighlight, '''')))/LEN(@RedHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent jobs where the Owner is not ''+ISNULL(REPLACE(REPLACE(@AgentJobOwnerExclusions,'' '',''''),'','','', ''),''[N/A - No Exclusions Set]'')+''</font><p>'' 
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent Job Owner warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountJobOwner
+		END
+	END
+	
+	--Populate Advisory header (Default Warning Level) 
+	IF (@WarningLevel = 2 OR @WarningLevel IS NULL)
+	BEGIN 
+		IF @BodyJobOwner LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountJobOwner = (LEN(@BodyJobOwner) - LEN(REPLACE(@BodyJobOwner,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent jobs where the Owner is not ''+ISNULL(REPLACE(REPLACE(@AgentJobOwnerExclusions,'' '',''''),'','','', ''),''[N/A - No Exclusions Set]'')+''</font><p>'' 
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent Job Owner warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountJobOwner
+		END
+	END
+	
+	--Populate Info header 
+	IF @WarningLevel = 3
+	BEGIN 
+		IF @BodyJobOwner LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountJobOwner = (LEN(@BodyJobOwner) - LEN(REPLACE(@BodyJobOwner,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent jobs where the Owner is not ''+ISNULL(REPLACE(REPLACE(@AgentJobOwnerExclusions,'' '',''''),'','','', ''),''[N/A - No Exclusions Set]'')+''</font><p>'' 
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent Job Owner warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+		END
+	
+	END
+
 END
+
+
 
 IF @TopFiveDatabaseSizeCheck = 1 
-
 BEGIN
+	--Excluded from Warning level control
+	DECLARE @BodyTopFiveDatabases VARCHAR(MAX)
+	DECLARE @TableHeadTopFiveDatabases VARCHAR(1000)
 
---TOP 5 DATABASES BY SIZE VARIABLES
-DECLARE @BodyTopFiveDatabases VARCHAR(MAX),
-	   @TableHeadTopFiveDatabases VARCHAR(1000)
-
-SET @TableHeadTopFiveDatabases = ''
+	SET @TableHeadTopFiveDatabases = ''
     <b>Top 5 Databases by size</b>
     <br> <table cellpadding=0 cellspacing=0 border=0> 
     <tr> 
@@ -4991,46 +5368,58 @@ SET @TableHeadTopFiveDatabases = ''
     '';
 
 	IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[TopFiveDatabases] 
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[TopFiveDatabases] 
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+	SET @BodyTopFiveDatabases = 
+		(SELECT 
+		''#FFFFFF'' AS [@bgcolor],
+		Servername AS ''td'','''', + 
+		Databasename AS ''td'','''', + 
+		TotalSize_MB AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[TopFiveDatabases] 
+		WHERE Servername = @Serverlist
+		FOR XML PATH(''tr''),ELEMENTS);
+	END
+	ELSE
+	BEGIN
+		SET @BodyTopFiveDatabases = 
+		(SELECT 
+		''#FFFFFF'' AS [@bgcolor],
+		@Serverlist AS ''td'','''', + 
+		''Data Collection out of date'' AS ''td'','''', + 
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS);
+	END
 
-	   BEGIN
-
---TOP 5 DATABASES BY SIZE SCRIPT
-SET @BodyTopFiveDatabases = (SELECT 
-					   ''#FFFFFF'' AS [@bgcolor],
-					   Servername AS ''td'','''', + 
-					   Databasename AS ''td'','''', + 
-					   TotalSize_MB AS ''td'',''''
-					   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[TopFiveDatabases] 
-					   WHERE Servername = @Serverlist
-					   FOR XML PATH(''tr''),ELEMENTS);
-
-	   
-	   END
-	   ELSE
-	   BEGIN
-	   SET @BodyTopFiveDatabases = (SELECT 
-							  ''#FFFFFF'' AS [@bgcolor],
-							  @Serverlist AS ''td'','''', + 
-							  ''Data Collection out of date'' AS ''td'','''', + 
-							  ''N/A'' AS ''td'',''''
-							  FOR XML PATH(''tr''),ELEMENTS);
-	   END
-
-SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadTopFiveDatabases, '''') + ISNULL(@BodyTopFiveDatabases, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	--Append html table to the report
+	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadTopFiveDatabases, '''') + ISNULL(@BodyTopFiveDatabases, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 
 END
-	 
+	
+	
 IF @DatabaseFileCheck = 1 
 BEGIN
---Check Data and log files are on the correct drives Variables
-DECLARE @BodyDatabaseFiles VARCHAR(MAX),
-	   @TableHeadDatabaseFiles VARCHAR(1000),
-	   @CountDatabaseFiles VARCHAR(5)
 
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''DatabaseFileCheck'')
+	
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
+	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''Red''
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
 
-SET @TableHeadDatabaseFiles = ''
+	--Check Data and log files are on the correct drives Variables
+	DECLARE @BodyDatabaseFiles VARCHAR(MAX)
+	DECLARE @TableHeadDatabaseFiles VARCHAR(1000)
+	DECLARE @CountDatabaseFiles INT
+
+	SET @TableHeadDatabaseFiles = ''
     <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''"></a>Data or Log files on incorrect drives</b>
     <br> <table cellpadding=0 cellspacing=0 border=0> 
     <tr> 
@@ -5040,79 +5429,115 @@ SET @TableHeadDatabaseFiles = ''
     <td bgcolor=''+@TableHeaderColour+''><b>File path</b></td>
     '';
 
-	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseFiles] 
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	IF (SELECT MAX(Log_Date) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseFiles] 
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+		SET @BodyDatabaseFiles = 
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @RedHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		Servername AS ''td'','''', +
+		Databasename AS ''td'','''', + 
+		FileType AS ''td'','''', +
+		FilePath AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseFiles]
+		WHERE Servername = @Serverlist
+		AND Databasename != ''No Database File issues present''
+		FOR XML PATH(''tr''),ELEMENTS);
 
-	   BEGIN
 
-
---Check Data and log files are on the correct drives Script
-
-SET @BodyDatabaseFiles = (SELECT 
-					@RedHighlight AS [@bgcolor],
-					Servername AS ''td'','''', +
-					Databasename AS ''td'','''', + 
-					FileType AS ''td'','''', +
-					FilePath AS ''td'',''''
-					FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseFiles]
-					WHERE Servername = @Serverlist
-					AND Databasename != ''No Database File issues present''
-					FOR XML PATH(''tr''),ELEMENTS);
-
-
-    IF @BodyDatabaseFiles IS NULL 
-	   BEGIN
-	   SET @BodyDatabaseFiles = 
-				    (SELECT 
-					''#FFFFFF'' AS [@bgcolor],
-					@Serverlist AS ''td'','''', +
-					''No Database File issues present'' AS ''td'','''', + 
-					''N/A'' AS ''td'','''', +
-					''N/A'' AS ''td'',''''
-					FOR XML PATH(''tr''),ELEMENTS);
-	   END
---Count Database File Warnings
-SET @CountDatabaseFiles = (LEN(@BodyDatabaseFiles) - LEN(REPLACE(@BodyDatabaseFiles,@RedHighlight, '''')))/LEN(@RedHighlight)	
- 
-SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseFiles, '''') + ISNULL(@BodyDatabaseFiles, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-IF @BodyDatabaseFiles LIKE ''%''+@RedHighlight+''%''		
-BEGIN 
-SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDatabaseFiles+'') Data or Log files on incorrect drives</font><p>''  
-SET @Importance = ''High'' 
-SET @TotalWarningCount = @TotalWarningCount + @CountDatabaseFiles
-END
-
+		IF @BodyDatabaseFiles IS NULL 
+		BEGIN
+			SET @BodyDatabaseFiles = 
+			(SELECT 
+			''#FFFFFF'' AS [@bgcolor],
+			@Serverlist AS ''td'','''', +
+			''No Database File issues present'' AS ''td'','''', + 
+			''N/A'' AS ''td'','''', +
+			''N/A'' AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS);
+		END
 	END
 	ELSE 
 	BEGIN 
-	   SET @BodyDatabaseFiles = 
-	   (SELECT 
-	   @RedHighlight AS [@bgcolor],
-	   @Serverlist AS ''td'','''', +
-	   ''Data Collection out of date'' AS ''td'','''', + 
-	   ''N/A'' AS ''td'','''', +
-	   ''N/A'' AS ''td'',''''
-	   FOR XML PATH(''tr''),ELEMENTS);
+		SET @BodyDatabaseFiles = 
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @RedHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		@Serverlist AS ''td'','''', +
+		''Data Collection out of date'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS);
 
-	   --Count Database File Warnings
-	   SET @CountDatabaseFiles = (LEN(@BodyDatabaseFiles) - LEN(REPLACE(@BodyDatabaseFiles,@RedHighlight, '''')))/LEN(@RedHighlight)	
- 
-	   SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseFiles, '''') + ISNULL(@BodyDatabaseFiles, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-	   IF @BodyDatabaseFiles LIKE ''%''+@RedHighlight+''%''		
-	   BEGIN 
-	   SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDatabaseFiles+'') Data or Log files on incorrect drives <b>(Data collection out of Date)</b></font><p>''  
-	   SET @Importance = ''High'' 
-	   SET @TotalWarningCount = @TotalWarningCount + @CountDatabaseFiles
-	   END
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
 	END
 
+	--Append html table to the report
+	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseFiles, '''') + ISNULL(@BodyDatabaseFiles, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>''
+
+	--Populate Alert header (Default Warning Level)
+	IF (@WarningLevel = 1 OR @WarningLevel IS NULL)
+	BEGIN 
+		IF @BodyDatabaseFiles LIKE ''%''+@RedHighlight+''%''
+		BEGIN
+			SET @CountDatabaseFiles = (LEN(@BodyDatabaseFiles) - LEN(REPLACE(@BodyDatabaseFiles,@RedHighlight, '''')))/LEN(@RedHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives <b>(Data collection out of Date)</b></font><p>''   
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountDatabaseFiles
+		END
+	END
+	
+	--Populate Advisory header 
+	IF @WarningLevel = 2 
+	BEGIN 
+		IF @BodyDatabaseFiles LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountDatabaseFiles = (LEN(@BodyDatabaseFiles) - LEN(REPLACE(@BodyDatabaseFiles,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives <b>(Data collection out of Date)</b></font><p>''   
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountDatabaseFiles
+		END
+	END
+	
+	--Populate Info header 
+	IF @WarningLevel = 3
+	BEGIN 
+		IF @BodyDatabaseFiles LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountDatabaseFiles = (LEN(@BodyDatabaseFiles) - LEN(REPLACE(@BodyDatabaseFiles,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives <b>(Data collection out of Date)</b></font><p>''   
+			END
+		END
+	
+	END
 
 END
 
+
 IF @BackupsCheck = 1 
 BEGIN
-
+--Excluded from Warning level control
 	IF OBJECT_ID(''tempdb.dbo.#RawData'') IS NOT NULL 
 	DROP TABLE #RawData;
 
@@ -5169,11 +5594,11 @@ BEGIN
 	backup_preference NVARCHAR(60)
 	);
 
-DECLARE @BodyBackupsReport VARCHAR(MAX),
-	   @TableHeadBackupsReport VARCHAR(1000),
-	   @CountBackupsReport VARCHAR(5)
+	DECLARE @BodyBackupsReport VARCHAR(MAX)
+	DECLARE @TableHeadBackupsReport VARCHAR(1000)
+	DECLARE @CountBackupsReport INT
 
-SET @TableHeadBackupsReport = ''
+	SET @TableHeadBackupsReport = ''
     <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''Backup''+''"></a>The following Databases are missing database backups:</b>
     <br> <table cellpadding=0 cellspacing=0 border=0> 
     <tr> 
@@ -5189,190 +5614,182 @@ SET @TableHeadBackupsReport = ''
     '';
 
 
-	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupsCheck] 
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
-
-	   BEGIN
-
-		  INSERT INTO #RawData (Log_Date,Databasename,LastFull,LastDiff,LastLog,AGname,GroupingMethod,Servername,IsFullRecovery,IsSystemDB,primary_replica,backup_preference)
-		  SELECT 
-		  Log_Date,
-		  LTRIM(RTRIM(BackupSet.Databasename)), --Added trim as Leading and trailing spaces can cause misreporting
-		  [FULL] AS LastFull,
-		  [DIFF] AS LastDiff,
-		  [LOG] AS LastLog,
-		  BackupSet.AGname,
-		  CASE WHEN BackupSet.AGname = ''Not in an AG'' THEN Servername
-		  ELSE BackupSet.AGname END AS GroupingMethod,  
-		  Servername,
-		  BackupSet.IsFullRecovery,
-		  BackupSet.IsSystemDB,
-		  BackupSet.primary_replica,
-		  BackupSet.backup_preference
-		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupsCheck] BackupSet
+	IF (SELECT MAX(Log_Date) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupsCheck] 
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+		INSERT INTO #RawData (Log_Date,Databasename,LastFull,LastDiff,LastLog,AGname,GroupingMethod,Servername,IsFullRecovery,IsSystemDB,primary_replica,backup_preference)
+		SELECT 
+		Log_Date,
+		LTRIM(RTRIM(BackupSet.Databasename)), --Added trim as Leading and trailing spaces can cause misreporting
+		[FULL] AS LastFull,
+		[DIFF] AS LastDiff,
+		[LOG] AS LastLog,
+		BackupSet.AGname,
+		CASE WHEN BackupSet.AGname = ''Not in an AG'' THEN Servername
+		ELSE BackupSet.AGname END AS GroupingMethod,  
+		Servername,
+		BackupSet.IsFullRecovery,
+		BackupSet.IsSystemDB,
+		BackupSet.primary_replica,
+		BackupSet.backup_preference
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupsCheck] BackupSet;
+		  	
+			
+		INSERT INTO #Aggregates (Log_Date,Databasename,LastFull,LastDiff,LastLog,AGname,GroupingMethod,IsFullRecovery,IsSystemDB,primary_replica,backup_preference)
+		SELECT 
+		MAX(Log_Date),
+		RawData.Databasename,
+		MAX(LastFull) AS LastFull,
+		MAX(LastDiff) AS LastDiff,
+		MAX(LastLog) AS LastLog,
+		AGname,
+		GroupingMethod,
+		IsFullRecovery,
+		IsSystemDB,
+		MAX(primary_replica),
+		UPPER(backup_preference) AS backup_preference
+		FROM #RawData RawData
+		GROUP BY Databasename,AGname,GroupingMethod,IsFullRecovery,IsSystemDB,backup_preference;
 		  
 		  
-		  
-		  INSERT INTO #Aggregates (Log_Date,Databasename,LastFull,LastDiff,LastLog,AGname,GroupingMethod,IsFullRecovery,IsSystemDB,primary_replica,backup_preference)
-		  SELECT 
-		  MAX(Log_Date),
-		  RawData.Databasename,
-		  MAX(LastFull) AS LastFull,
-		  MAX(LastDiff) AS LastDiff,
-		  MAX(LastLog) AS LastLog,
-		  AGname,
-		  GroupingMethod,
-		  IsFullRecovery,
-		  IsSystemDB,
-		  MAX(primary_replica),
-		  UPPER(backup_preference) AS backup_preference
-		  FROM #RawData RawData
-		  GROUP BY Databasename,AGname,GroupingMethod,IsFullRecovery,IsSystemDB,backup_preference;
-		  
-		  
-		  INSERT INTO #Validations (Databasename,AGname,FullState,DiffState,LogState,IsFullRecovery,Serverlist,primary_replica,backup_preference)
-		  SELECT 
-		  Databasename,
-		  AGname,
-		  CASE
-		  	WHEN [LastFull] = ''19000101'' THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
-		  	WHEN ([LastFull] >= ''19000101'' AND [LastFull] < DATEADD(DAY,-@FullBackupThreshold,[Log_Date]) OR [LastFull] IS NULL) THEN ISNULL(CONVERT(VARCHAR(17),[LastFull],113),''More then ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' days ago'')
-		  	ELSE ''OK'' END AS [FullState], 
-		  	CASE 
+		INSERT INTO #Validations (Databasename,AGname,FullState,DiffState,LogState,IsFullRecovery,Serverlist,primary_replica,backup_preference)
+		SELECT 
+		Databasename,
+		AGname,
+		CASE
+			WHEN [LastFull] = ''19000101'' THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
+			WHEN ([LastFull] >= ''19000101'' AND [LastFull] < DATEADD(DAY,-@FullBackupThreshold,[Log_Date]) OR [LastFull] IS NULL) THEN ISNULL(CONVERT(VARCHAR(17),[LastFull],113),''More then ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' days ago'')
+			ELSE ''OK'' 
+		END AS [FullState], 
+		CASE 
 			WHEN @DiffBackupThreshold IS NOT NULL 
-			THEN 
-				CASE
-		  			WHEN [LastDiff] = ''19000101'' AND IsSystemDB = 0 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
-		  			WHEN ([LastDiff] >= ''19000101'' AND [LastDiff] < DATEADD(DAY,-@DiffBackupThreshold,[Log_Date])  OR [LastDiff] IS NULL) AND IsSystemDB = 0 THEN ISNULL(CONVERT(VARCHAR(17),[LastDiff],113),''More then ''+CAST(@DiffBackupThreshold AS VARCHAR(3))+'' days ago'')
-		  			WHEN IsSystemDB = 1 THEN ''N/A''
+			THEN CASE
+					WHEN [LastDiff] = ''19000101'' AND IsSystemDB = 0 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
+					WHEN ([LastDiff] >= ''19000101'' AND [LastDiff] < DATEADD(DAY,-@DiffBackupThreshold,[Log_Date])  OR [LastDiff] IS NULL) AND IsSystemDB = 0 THEN ISNULL(CONVERT(VARCHAR(17),[LastDiff],113),''More then ''+CAST(@DiffBackupThreshold AS VARCHAR(3))+'' days ago'')
+					WHEN IsSystemDB = 1 THEN ''N/A''
 		  			ELSE ''OK'' 
-				END 
+				 END 
 			ELSE ''N/A''
-			END AS [DiffState],		  	
-		  	CASE 
-		  	WHEN  [LastLog] = ''19000101'' AND IsSystemDB = 0 AND Aggregates.IsFullRecovery = 1 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
-		  	WHEN (([LastLog] >= ''19000101'' AND [LastLog] < DATEADD(MINUTE,-@LogBackupThreshold,[Log_Date]) OR [LastLog] IS NULL) AND IsSystemDB = 0 AND (Aggregates.IsFullRecovery = 1 OR CAST(Aggregates.IsFullRecovery AS VARCHAR(3)) = ''N/A'')) THEN ISNULL(CONVERT(VARCHAR(17),[LastLog] ,113),''More than ''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minutes ago'')
-		  	WHEN Aggregates.IsFullRecovery = 0  OR IsSystemDB = 1 THEN ''N/A''
-		  	ELSE ''OK'' END AS [LogState],
-		  CASE IsFullRecovery WHEN 1 THEN ''Y'' ELSE ''N'' END AS IsFullRecovery,
-		  STUFF(Serverlist.Serverlist,1,1,'''') AS Serverlist,
-		  primary_replica,
-		  backup_preference
-		  FROM #Aggregates Aggregates
-		  CROSS APPLY (SELECT 
-					CASE 
-						WHEN backup_preference IN (''PRIMARY'',''NON AG'') THEN '', '' + primary_replica
-						ELSE '', '' + Servername	
-					END
-		  			FROM #RawData RawData
-		  			WHERE Aggregates.GroupingMethod = RawData.GroupingMethod
-		  			AND Aggregates.Databasename = RawData.Databasename 
-		  			AND Aggregates.IsFullRecovery = RawData.IsFullRecovery
-		  			AND Aggregates.IsSystemDB = RawData.IsSystemDB
-		  			AND Aggregates.AGname = RawData.AGname
-					ORDER BY 1 ASC
-		  			FOR XML PATH('''')
-		  			) AS Serverlist (Serverlist) 
+		END AS [DiffState],		  	
+		CASE 
+			WHEN  [LastLog] = ''19000101'' AND IsSystemDB = 0 AND Aggregates.IsFullRecovery = 1 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
+			WHEN (([LastLog] >= ''19000101'' AND [LastLog] < DATEADD(MINUTE,-@LogBackupThreshold,[Log_Date]) OR [LastLog] IS NULL) AND IsSystemDB = 0 AND (Aggregates.IsFullRecovery = 1 OR CAST(Aggregates.IsFullRecovery AS VARCHAR(3)) = ''N/A'')) THEN ISNULL(CONVERT(VARCHAR(17),[LastLog] ,113),''More than ''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minutes ago'')
+			WHEN Aggregates.IsFullRecovery = 0  OR IsSystemDB = 1 THEN ''N/A''
+			ELSE ''OK'' 
+		END AS [LogState],
+		CASE IsFullRecovery WHEN 1 THEN ''Y'' ELSE ''N'' END AS IsFullRecovery,
+		STUFF(Serverlist.Serverlist,1,1,'''') AS Serverlist,
+		primary_replica,
+		backup_preference
+		FROM #Aggregates Aggregates
+		CROSS APPLY (SELECT 
+			CASE 
+				WHEN backup_preference IN (''PRIMARY'',''NON AG'') THEN '', '' + primary_replica
+				ELSE '', '' + Servername	
+			END
+			FROM #RawData RawData
+			WHERE Aggregates.GroupingMethod = RawData.GroupingMethod
+			AND Aggregates.Databasename = RawData.Databasename 
+			AND Aggregates.IsFullRecovery = RawData.IsFullRecovery
+			AND Aggregates.IsSystemDB = RawData.IsSystemDB
+			AND Aggregates.AGname = RawData.AGname
+			ORDER BY 1 ASC
+			FOR XML PATH('''')
+		) AS Serverlist (Serverlist);
 		  
 		  
-		  
-		  SET @BodyBackupsReport = (
-		  SELECT 
-		  @RedHighlight [@bgcolor], 
-		  @Serverlist AS ''td'','''', + 
-		  Databasename AS ''td'','''', +
-		  AGname AS ''td'','''', +
-		  FullState AS ''td'','''', +
-		  DiffState AS ''td'','''', +
-		  LogState AS ''td'','''', +
-		  IsFullRecovery AS ''td'','''', +
-		  CASE 
+		SET @BodyBackupsReport = (
+		SELECT 
+		@RedHighlight [@bgcolor], 
+		@Serverlist AS ''td'','''', + 
+		Databasename AS ''td'','''', +
+		AGname AS ''td'','''', +
+		FullState AS ''td'','''', +
+		DiffState AS ''td'','''', +
+		LogState AS ''td'','''', +
+		IsFullRecovery AS ''td'','''', +
+		CASE 
 			WHEN backup_preference = ''PRIMARY'' THEN ''Primary only''
 			WHEN backup_preference = ''SECONDARY'' THEN ''Prefer secondary''
 			WHEN backup_preference = ''SECONDARY_ONLY'' THEN ''Secondary only''
 			WHEN backup_preference = ''NONE'' THEN ''Any replica''
 			WHEN backup_preference = ''NON AG'' THEN ''N/A''
 			ELSE backup_preference  
-		  END AS ''td'','''', +
-		  CASE 
+		END AS ''td'','''', +
+		CASE 
 			WHEN backup_preference = ''SECONDARY_ONLY'' THEN REPLACE(REPLACE(Serverlist,'', ''+@Serverlist,''''),@Serverlist+'', '','''')
 			ELSE Serverlist
-		  END AS ''td'',''''
-		  FROM #Validations
-		  WHERE ([FullState] != ''OK'' OR ([DiffState] != ''OK'' AND [DiffState] != ''N/A'') OR ([LogState] != ''OK'' AND [LogState] != ''N/A''))
-		  AND Serverlist like ''%''+@Serverlist+''%''
-		  ORDER BY Databasename ASC
-		  FOR XML PATH(''tr''),ELEMENTS)
+		END AS ''td'',''''
+		FROM #Validations
+		WHERE ([FullState] != ''OK'' OR ([DiffState] != ''OK'' AND [DiffState] != ''N/A'') OR ([LogState] != ''OK'' AND [LogState] != ''N/A''))
+		AND Serverlist like ''%''+@Serverlist+''%''
+		ORDER BY Databasename ASC
+		FOR XML PATH(''tr''),ELEMENTS);
 		  
-		  IF @BodyBackupsReport IS NULL
-			 BEGIN
+		IF @BodyBackupsReport IS NULL
+		BEGIN
+			SET @BodyBackupsReport = (
+			SELECT 
+			''#FFFFFF'' [@bgcolor], 
+			@Serverlist AS ''td'','''', + 
+			''No backup issues present''  AS ''td'','''', +
+			''N/A''  AS ''td'','''', +
+			''N/A''  AS ''td'','''', +
+			''N/A''  AS ''td'','''', +
+			''N/A''  AS ''td'','''', +
+			''N/A''  AS ''td'','''', +
+			''N/A''  AS ''td'','''', +
+			''N/A''  AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS)
+		END
 
-				SET @BodyBackupsReport = (
-				SELECT 
-				''#FFFFFF'' [@bgcolor], 
-				@Serverlist AS ''td'','''', + 
-				''No backup issues present''  AS ''td'','''', +
-				''N/A''  AS ''td'','''', +
-				''N/A''  AS ''td'','''', +
-				''N/A''  AS ''td'','''', +
-				''N/A''  AS ''td'','''', +
-				''N/A''  AS ''td'','''', +
-				''N/A''  AS ''td'','''', +
-				''N/A''  AS ''td'',''''
-				FOR XML PATH(''tr''),ELEMENTS)
+		--Count Backup Warnings
+		SET @CountBackupsReport = (LEN(@BodyBackupsReport) - LEN(REPLACE(@BodyBackupsReport,@RedHighlight, '''')))/LEN(@RedHighlight)
+		
+		SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadBackupsReport, '''') + ISNULL(@BodyBackupsReport, '''') +''</table><p><font style="color: Black; background-color: #F78181">Red Highlight Thresholds:</font><br>
+		Last FULL backup older than <b>''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Day/s</b><br>
+		''+ CASE WHEN @DiffBackupThreshold IS NOT NULL THEN ''Last DIFF backup older than <b>''+ CAST(@DiffBackupThreshold AS VARCHAR(3))+'' Day/s</b><br>'' ELSE ''DIFF backups excluded from check</b><br>'' END +
+		''Last Log backup older than <b>''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minute/s</b></p></b>''+ ISNULL(REPLACE(@TableTail,''</table>'',''''),'''') +''<p><BR><p>''
 
-			 END
 
-		  --Count Backup Warnings
-		  SET @CountBackupsReport = (LEN(@BodyBackupsReport) - LEN(REPLACE(@BodyBackupsReport,@RedHighlight, '''')))/LEN(@RedHighlight)
-		  
-		  SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadBackupsReport, '''') + ISNULL(@BodyBackupsReport, '''') +''</table><p><font style="color: Black; background-color: #F78181">Red Highlight Thresholds:</font><br>
-		  Last FULL backup older than <b>''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Day/s</b><br>
-		  '''+'+ CASE WHEN @DiffBackupThreshold IS NOT NULL THEN ''Last DIFF backup older than <b>''+ CAST(@DiffBackupThreshold AS VARCHAR(3))+'' Day/s</b><br>'' ELSE ''DIFF backups excluded from check</b><br>'' END +
-		  '''+'Last Log backup older than <b>''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minute/s</b></p></b>''+ ISNULL(REPLACE(@TableTail,''</table>'',''''),'''') +''<p><BR><p>''
+		IF @BodyBackupsReport LIKE ''%''+@RedHighlight+''%''		
+		BEGIN 
+			SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Backup''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+CAST(@CountBackupsReport AS VARCHAR(5))+'') Database Backup issues</font><p>''   
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountBackupsReport
+		END
 
-		  
-		  
-		  	
+	END
+	ELSE 
+	BEGIN
+		SET @BodyBackupsReport = (
+		SELECT 
+		@RedHighlight [@bgcolor],
+		@Serverlist AS ''td'','''', +  
+		''Data Collection out of date''  AS ''td'','''', +
+		''N/A''  AS ''td'','''', +
+		''N/A''  AS ''td'','''', +
+		''N/A''  AS ''td'','''', +
+		''N/A''  AS ''td'','''', +
+		''N/A''  AS ''td'','''', +
+		''N/A''  AS ''td'','''', +
+		''N/A''  AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS)
 
-		  	  IF @BodyBackupsReport LIKE ''%''+@RedHighlight+''%''		
-		  	  BEGIN 
-		  	  SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Backup''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountBackupsReport+'') Database Backup issues</font><p>''   
-		  	  SET @Importance = ''High'' 
-			  SET @TotalWarningCount = @TotalWarningCount + @CountBackupsReport
-		  	  END
+		--Count Backup Warnings
+		SET @CountBackupsReport = (LEN(@BodyBackupsReport) - LEN(REPLACE(@BodyBackupsReport,@RedHighlight, '''')))/LEN(@RedHighlight)
+		
+		--Append html table to the report
+		SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadBackupsReport, '''') + ISNULL(@BodyBackupsReport, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 
-		  END
-		  ELSE 
-			 BEGIN
-
-				SET @BodyBackupsReport = (
-				SELECT 
-				@RedHighlight [@bgcolor],
-				@Serverlist AS ''td'','''', +  
-				''Data Collection out of date''  AS ''td'','''', +
-				''N/A''  AS ''td'','''', +
-				''N/A''  AS ''td'','''', +
-				''N/A''  AS ''td'','''', +
-				''N/A''  AS ''td'','''', +
-				''N/A''  AS ''td'','''', +
-				''N/A''  AS ''td'','''', +
-				''N/A''  AS ''td'',''''
-				FOR XML PATH(''tr''),ELEMENTS)
-
-			  --Count Backup Warnings
-			  SET @CountBackupsReport = (LEN(@BodyBackupsReport) - LEN(REPLACE(@BodyBackupsReport,@RedHighlight, '''')))/LEN(@RedHighlight)
-		  
-			  SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadBackupsReport, '''') + ISNULL(@BodyBackupsReport, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-		  	  IF @BodyBackupsReport LIKE ''%''+@RedHighlight+''%''		
-		  	  BEGIN 
-		  	  SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Backup''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountBackupsReport+'') Database Backup issues <b>(Data collection out of Date)</b></font><p>''   
-		  	  SET @Importance = ''High'' 
-			  SET @TotalWarningCount = @TotalWarningCount + @CountBackupsReport
-		  	  END
-
-			  END
+		IF @BodyBackupsReport LIKE ''%''+@RedHighlight+''%''		
+		BEGIN 
+			SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Backup''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+CAST(@CountBackupsReport AS VARCHAR(5))+'') Database Backup issues <b>(Data collection out of Date)</b></font><p>''   
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountBackupsReport
+		END
+	END
 
 END
 
@@ -5380,15 +5797,28 @@ END
 IF @DatabaseOwnershipCheck = 1 
 BEGIN
 
-DECLARE @DatabaseOwnerExclusions VARCHAR(255) = (SELECT REPLACE([Value],'' '' ,'''') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''DatabaseOwnerExclusions'')
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''DatabaseOwnershipCheck'')
+	
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
+	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''#e68a00''
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
+	
+	DECLARE @DatabaseOwnerExclusions VARCHAR(255) = (SELECT REPLACE([Value],'' '' ,'''') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''DatabaseOwnerExclusions'')
+	
+	DECLARE @BodyDBOwner VARCHAR(MAX)
+	DECLARE @TableHeadDBOwner VARCHAR(1000)
+	DECLARE @CountDBOwner INT
 
-DECLARE @BodyDBOwner VARCHAR(MAX),
-	   @TableHeadDBOwner VARCHAR(1000),
-	   @CountDBOwner VARCHAR(5)
+	SET @DatabaseOwnerExclusions = REPLACE(REPLACE(@DatabaseOwnerExclusions,'' '',''''),'','','', '')
 
-SET @DatabaseOwnerExclusions = REPLACE(REPLACE(@DatabaseOwnerExclusions,'' '',''''),'','','', '')
-
-SET @TableHeadDBOwner = ''
+	SET @TableHeadDBOwner = ''
     <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''"></a>The following Databases have an owner that is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+'':</b>
     <br> <table cellpadding=0 cellspacing=0 border=0> 
     <tr> 
@@ -5398,87 +5828,120 @@ SET @TableHeadDBOwner = ''
     <td bgcolor=''+@TableHeaderColour+''><b>Owner</b></td>
     '';
 
-	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseOwnership]
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	IF (SELECT MAX(Log_Date) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseOwnership]
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+		SET @BodyDBOwner = 
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @YellowHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		[Servername] AS ''td'','''', + 
+		[AGname] AS ''td'','''', + 
+		[Database_name] AS ''td'','''', + 
+		[Owner] AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseOwnership]
+		WHERE [Servername] = @Serverlist
+		AND [Database_name] != ''No Database Ownership issues present''
+		ORDER BY [Database_name]
+		FOR XML PATH(''tr''),ELEMENTS);
 
-	   BEGIN
+		IF @BodyDBOwner IS NULL
+		BEGIN
+			SET @BodyDBOwner = 
+			(SELECT 
+			''#FFFFFF'' AS [@bgcolor],
+			''N/A'' AS ''td'','''', + 
+			''N/A'' AS ''td'','''', + 
+			''No Database Ownership issues present'' AS ''td'','''', + 
+			''N/A'' AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS);
+		END
+	END
+	ELSE
+	BEGIN
+		SET @BodyDBOwner = 
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @YellowHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		''N/A'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', + 
+		''Data Collection out of date'' AS ''td'','''', + 
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS);
 
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
+	END
 
-		  SET @BodyDBOwner = 
-		  (SELECT 
-		  @YellowHighlight AS [@bgcolor],
-		  [Servername] AS ''td'','''', + 
-		  [AGname] AS ''td'','''', + 
-		  [Database_name] AS ''td'','''', + 
-		  [Owner] AS ''td'',''''
-		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseOwnership]
-		  WHERE [Servername] = @Serverlist
-		  AND [Database_name] != ''No Database Ownership issues present''
-		  ORDER BY [Database_name]
-		  FOR XML PATH(''tr''),ELEMENTS);
+	--Append html table to the report
+	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadDBOwner, '''') + ISNULL(@BodyDBOwner, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 
-		  IF @BodyDBOwner IS NULL
-		  BEGIN
-			 SET @BodyDBOwner = 
-			 (SELECT 
-			 ''#FFFFFF'' AS [@bgcolor],
-			 ''N/A'' AS ''td'','''', + 
-			 ''N/A'' AS ''td'','''', + 
-			 ''No Database Ownership issues present'' AS ''td'','''', + 
-			 ''N/A'' AS ''td'',''''
-			 FOR XML PATH(''tr''),ELEMENTS);
-		  END
-
-	   --Count DB Owner Warnings
-	   SET @CountDBOwner = (LEN(@BodyDBOwner) - LEN(REPLACE(@BodyDBOwner,@YellowHighlight, '''')))/LEN(@YellowHighlight)
-	   
-	   SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDBOwner, '''') + ISNULL(@BodyDBOwner, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-
-	   IF @BodyDBOwner LIKE ''%''+@YellowHighlight+''%''    
-	   BEGIN 
-	   SET @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+@CountDBOwner+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+''</font><p>''   
-	   SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountDBOwner
-	   END
-
-
-	   END
-	   ELSE
-	   BEGIN
-
-	   SET @BodyDBOwner = 
-			 (SELECT 
-			 @RedHighlight AS [@bgcolor],
-			 ''N/A'' AS ''td'','''', + 
-			 ''N/A'' AS ''td'','''', + 
-			 ''Data Collection out of date'' AS ''td'','''', + 
-			 ''N/A'' AS ''td'',''''
-			 FOR XML PATH(''tr''),ELEMENTS);
-
-	   --Count DB Owner Warnings
-	   SET @CountDBOwner = (LEN(@BodyDBOwner) - LEN(REPLACE(@BodyDBOwner,@RedHighlight, '''')))/LEN(@RedHighlight)
-	  
-	   SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDBOwner, '''') + ISNULL(@BodyDBOwner, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-	   IF @BodyDBOwner LIKE ''%''+@RedHighlight+''%''			
-	   BEGIN 
-	   SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountDBOwner+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+'' <b>(Data collection out of Date)</b></font><p>''   
-	   SET @Importance = ''High'' 
-	   SET @TotalWarningCount = @TotalWarningCount + @CountDBOwner
-	   END
-
-	   END
-
-
+	--Populate Alert header (Default Warning Level)
+	IF (@WarningLevel = 1 OR @WarningLevel IS NULL)
+	BEGIN 
+		IF @BodyDBOwner LIKE ''%''+@RedHighlight+''%''
+		BEGIN
+			SET @CountDBOwner = (LEN(@BodyDBOwner) - LEN(REPLACE(@BodyDBOwner,@RedHighlight, '''')))/LEN(@RedHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+''</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+'' <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountDBOwner
+		END
+	END
+	
+	--Populate Advisory header 
+	IF @WarningLevel = 2 
+	BEGIN 
+		IF @BodyDBOwner LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountDBOwner = (LEN(@BodyDBOwner) - LEN(REPLACE(@BodyDBOwner,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+''</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+'' <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountDBOwner
+		END
+	END
+	
+	--Populate Info header 
+	IF @WarningLevel = 3
+	BEGIN 
+		IF @BodyDBOwner LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountDBOwner = (LEN(@BodyDBOwner) - LEN(REPLACE(@BodyDBOwner,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+''</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+'' <b>(Data collection out of Date)</b></font><p>''  
+			END
+		END
+	
+	END
 
 END
 
+
+
 IF @BackupSizesCheck = 1 
 BEGIN
+--Excluded from Warning level control
+	DECLARE @BodyBackupsByDay VARCHAR(MAX)
+	DECLARE @TableHeadBackupsByDay VARCHAR(1000)
 
-DECLARE @BodyBackupsByDay VARCHAR(MAX),
-    @TableHeadBackupsByDay VARCHAR(1000)
-
-SET @TableHeadBackupsByDay = ''
+	SET @TableHeadBackupsByDay = ''
     <b>Backup Sizes by Day for server:</b>
     <br> <table cellpadding=0 cellspacing=0 border=0> 
     <tr> 
@@ -5487,74 +5950,77 @@ SET @TableHeadBackupsByDay = ''
     '';
 
 	
-	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupSizesByDay]
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	IF (SELECT MAX(Log_Date) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupSizesByDay]
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+		SET @BodyBackupsByDay =   
+		(SELECT 
+		''#FFFFFF'' AS [@bgcolor],
+		[DayOfWeek] AS ''td'','''', + 
+		[TotalBackupSize_GB] AS ''td'','''' 
+		FROM (
+		SELECT 
+		[DayOfWeek],
+		[CastedDate],
+		CAST(SUM(((TotalSizeInBytes)/1024)/1024)/1024 AS DECIMAL (10,1)) AS [TotalBackupSize_GB]
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupSizesByDay]
+		WHERE Servername = @Serverlist
+		AND Log_Date IS NOT NULL
+		GROUP BY [DayOfWeek],[CastedDate]
+		) BackupSizesByDay
+		ORDER BY CastedDate ASC
+		FOR XML PATH(''tr''),ELEMENTS);  	 
+	END
+	ELSE 
+	BEGIN  
+		IF EXISTS (SELECT Log_Date FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupSizesByDay] WHERE Servername = @Serverlist AND Log_Date IS NULL) 
+		BEGIN
+			SET @BodyBackupsByDay =  
+			(SELECT 
+			''#FFFFFF'' AS [@bgcolor],
+			''No Backups for the past 7 days'' AS ''td'','''', + 
+			''N/A'' AS ''td'','''' 
+			FOR XML PATH(''tr''),ELEMENTS);
+		END
+		
+		IF @BodyBackupsByDay IS NULL
+		BEGIN
+			SET @BodyBackupsByDay =  
+			(SELECT 
+			''#FFFFFF'' AS [@bgcolor],
+			''Data collection out of Date'' AS ''td'','''', + 
+			''N/A'' AS ''td'','''' 
+			FOR XML PATH(''tr''),ELEMENTS);
+		END
+	END
 
-	   BEGIN
-
-		  SET @BodyBackupsByDay =   
-		  (SELECT 
-		  ''#FFFFFF'' AS [@bgcolor],
-		  [DayOfWeek] AS ''td'','''', + 
-		  [TotalBackupSize_GB] AS ''td'','''' 
-		  FROM (
-		  SELECT 
-		  [DayOfWeek],
-		  [CastedDate],
-		  CAST(SUM(((TotalSizeInBytes)/1024)/1024)/1024 AS DECIMAL (10,1)) AS [TotalBackupSize_GB]
-		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupSizesByDay]
-		  WHERE Servername = @Serverlist
-		  AND Log_Date IS NOT NULL
-		  GROUP BY [DayOfWeek],[CastedDate]
-		  ) BackupSizesByDay
-		  ORDER BY CastedDate ASC
-		  FOR XML PATH(''tr''),ELEMENTS);
-		 
-
-		  	 
-	   END
-	   ELSE 
-	   BEGIN  
-				IF EXISTS (SELECT Log_Date 
-						   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupSizesByDay] 
-						   WHERE Servername = @Serverlist
-						   AND Log_Date IS NULL) 
-			 BEGIN
-				SET @BodyBackupsByDay =  
-				(SELECT 
-				''#FFFFFF'' AS [@bgcolor],
-				''No Backups for the past 7 days'' AS ''td'','''', + 
-				''N/A'' AS ''td'','''' 
-				FOR XML PATH(''tr''),ELEMENTS);
-			 END
-
-		  IF @BodyBackupsByDay IS NULL
-			 BEGIN
-				 SET @BodyBackupsByDay =  
-				 (SELECT 
-				 ''#FFFFFF'' AS [@bgcolor],
-				 ''Data collection out of Date'' AS ''td'','''', + 
-				 ''N/A'' AS ''td'','''' 
-				 FOR XML PATH(''tr''),ELEMENTS);
-			 END
-
-
-	   END
-
-		  	  
-SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadBackupsByDay, '''') + ISNULL(@BodyBackupsByDay, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-
+	--Append html table to the report	  	  
+	SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadBackupsByDay, '''') + ISNULL(@BodyBackupsByDay, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 END
+
 
 IF @ADHocDatabaseCreationCheck = 1 
 BEGIN
 
-DECLARE @BodyAdHocDatabases VARCHAR(MAX),
-	   @TableHeadAdHocDatabases VARCHAR(1000),
-	   @CountAdHocDatabases VARCHAR(5)
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''ADHocDatabaseCreationCheck'')
+	
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
+	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''#e68a00''
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
 
-SET @TableHeadAdHocDatabases = ''
+	DECLARE @BodyAdHocDatabases VARCHAR(MAX)
+	DECLARE @TableHeadAdHocDatabases VARCHAR(1000)
+	DECLARE @CountAdHocDatabases INT
+
+	SET @TableHeadAdHocDatabases = ''
     <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''"></a>Potential Ad hoc database creations in the last 7 days</b>
     <br> <table cellpadding=0 cellspacing=0 border=0> 
     <tr> 
@@ -5562,91 +6028,133 @@ SET @TableHeadAdHocDatabases = ''
     <td bgcolor=''+@TableHeaderColour+''><b>Create date</b></td>
     '';
 
-	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ADHocDatabaseCreations] 
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
-
-	   BEGIN
-
-		  SET @BodyAdHocDatabases =
-		  (SELECT 
-		  @YellowHighlight  AS [@bgcolor],
-		  Databasename AS ''td'','''', + 
-		  CONVERT(VARCHAR(17),Create_Date,113) AS ''td'',''''
-		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ADHocDatabaseCreations]
-		  WHERE Servername = @Serverlist
-		  AND Databasename != ''No Ad hoc database creations present''
-		  AND Databasename NOT IN (
+	IF (SELECT MAX(Log_Date) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ADHocDatabaseCreations] 
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+		SET @BodyAdHocDatabases =
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @YellowHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		Databasename AS ''td'','''', + 
+		CONVERT(VARCHAR(17),Create_Date,113) AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ADHocDatabaseCreations]
+		WHERE Servername = @Serverlist
+		AND Databasename != ''No Ad hoc database creations present''
+		AND Databasename NOT IN (
 				SELECT Databasename 
 				FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ADHocDatabaseSupression] Suppressed
 				WHERE Servername = @Serverlist 
 				AND Suppressed.Suppress = 1)
-		  ORDER BY Create_Date ASC
-		  FOR XML PATH(''tr''),ELEMENTS);
+		ORDER BY Create_Date ASC
+		FOR XML PATH(''tr''),ELEMENTS);
 
-		  
-		  IF @BodyAdHocDatabases IS NULL
-		  BEGIN 
+		IF @BodyAdHocDatabases IS NULL
+		BEGIN 
+			SET @BodyAdHocDatabases =
+			(SELECT 
+			''#FFFFFF''  AS [@bgcolor],
+			''No Ad hoc database creations present'' AS ''td'','''', + 
+			''N/A'' AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS);
+		END
+	END
+	ELSE 
+	BEGIN
+		SET @BodyAdHocDatabases =
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @YellowHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		''Data Collection out of date'' AS ''td'','''', + 
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS);
 
-		  SET @BodyAdHocDatabases =
-		  (SELECT 
-		  ''#FFFFFF''  AS [@bgcolor],
-		  ''No Ad hoc database creations present'' AS ''td'','''', + 
-		  ''N/A'' AS ''td'',''''
-		  FOR XML PATH(''tr''),ELEMENTS);
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
+	END
 
-		  END
+	--Append html table to the report
+	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadAdHocDatabases, '''') +ISNULL(@BodyAdHocDatabases, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>''
 
-	   --Count Ad Hoc Database Creations
-	   SET @CountAdHocDatabases = (LEN(@BodyAdHocDatabases) - LEN(REPLACE(@BodyAdHocDatabases,@YellowHighlight, '''')))/LEN(@YellowHighlight)
-	   
-	   SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadAdHocDatabases, '''') +ISNULL(@BodyAdHocDatabases, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-	   IF @BodyAdHocDatabases LIKE ''%''+@YellowHighlight+''%''    
-	   BEGIN 
-	   SELECT @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+@CountAdHocDatabases+'') Potential AD Hoc Database creations in the last 7 days</font><p>''        
-	   SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountAdHocDatabases
-	   END
-
-	   END
-	   ELSE 
-		  BEGIN
-
-		  SET @BodyAdHocDatabases =
-		  (SELECT 
-		  @RedHighlight  AS [@bgcolor],
-		  ''Data Collection out of date'' AS ''td'','''', + 
-		  ''N/A'' AS ''td'',''''
-		  FOR XML PATH(''tr''),ELEMENTS);
-
-		  --Count Ad Hoc Database Creations
-		  SET @CountAdHocDatabases = (LEN(@BodyAdHocDatabases) - LEN(REPLACE(@BodyAdHocDatabases,@RedHighlight, '''')))/LEN(@RedHighlight)
-		  
-		  SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadAdHocDatabases, '''') +ISNULL(@BodyAdHocDatabases, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-		  IF @BodyAdHocDatabases LIKE ''%''+@RedHighlight+''%''    
-		  BEGIN 
-		  SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "Red">  - has (''+@CountAdHocDatabases+'') Potential AD Hoc Database creations <b>(Data collection out of Date)</b></font><p>''   
-		  SET @Importance = ''High'' 
-		  SET @TotalWarningCount = @TotalWarningCount + @CountAdHocDatabases
-		  END
-
-		  END
-
-
+	--Populate Alert header
+	IF @WarningLevel = 1
+	BEGIN 
+		IF @BodyAdHocDatabases LIKE ''%''+@RedHighlight+''%''
+		BEGIN
+			SET @CountAdHocDatabases = (LEN(@BodyAdHocDatabases) - LEN(REPLACE(@BodyAdHocDatabases,@RedHighlight, '''')))/LEN(@RedHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations in the last 7 days</font><p>''     
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations <b>(Data collection out of Date)</b></font><p>'' 
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountAdHocDatabases
+		END
+	END
+	
+	--Populate Advisory header (Default Warning Level)
+	IF (@WarningLevel = 2 OR @WarningLevel IS NULL) 
+	BEGIN 
+		IF @BodyAdHocDatabases LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountAdHocDatabases = (LEN(@BodyAdHocDatabases) - LEN(REPLACE(@BodyAdHocDatabases,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations in the last 7 days</font><p>''     
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations <b>(Data collection out of Date)</b></font><p>'' 
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountAdHocDatabases
+		END
+	END
+	
+	--Populate Info header 
+	IF @WarningLevel = 3
+	BEGIN 
+		IF @BodyAdHocDatabases LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountAdHocDatabases = (LEN(@BodyAdHocDatabases) - LEN(REPLACE(@BodyAdHocDatabases,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations in the last 7 days</font><p>''     
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations <b>(Data collection out of Date)</b></font><p>'' 
+			END
+		END
+	
+	END
 
 END
 	     
 
 
 IF @DatabaseSettings  = 1
-
 BEGIN 
---Database Settings 
 
-DECLARE @BodyDatabaseSettings VARCHAR(MAX) = '''',
-    @TableHeadDatabaseSettings VARCHAR(1000),
-    @CountDBSettings VARCHAR(5)
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''DatabaseSettings'')
+	
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
+	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''#e68a00''
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
 
-SET @TableHeadDatabaseSettings = ''
+	DECLARE @BodyDatabaseSettings VARCHAR(MAX) = ''''
+	DECLARE @TableHeadDatabaseSettings VARCHAR(1000)
+	DECLARE @CountDBSettings INT
+	
+	SET @TableHeadDatabaseSettings = ''
     <b>Database Settings</b>
     <br> 
     <table cellpadding=0 cellspacing=0 border=0> 
@@ -5657,177 +6165,257 @@ SET @TableHeadDatabaseSettings = ''
     <td bgcolor=''+@TableHeaderColour+''><b>Total</b></td></tr>
     '';
 
-	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings] 
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	IF (SELECT MAX(Log_Date) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings] 
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+		SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
+		(SELECT 
+		''#FFFFFF'' AS [@bgcolor],
+		[Description]  AS ''td'','''', + 
+		Total   AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
+		WHERE Servername = @Serverlist 
+		AND Setting = ''Collation_name''
+		ORDER BY Total DESC
+		FOR XML PATH(''tr''),ELEMENTS);
+		  
+		SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''
+		<tr> 
+		<td bgcolor=''+@TableHeaderColour+''><b>Auto Close</b></td>
+		<td bgcolor=''+@TableHeaderColour+''><b>Total</b></td>
+		</tr>
+		'';
+		  
+		SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL AND [Description] = ''Enabled'' THEN @YellowHighlight
+			WHEN @WarningLevel = 1 AND [Description] = ''Enabled'' THEN @RedHighlight
+			WHEN @WarningLevel = 2 AND [Description] = ''Enabled'' THEN @YellowHighlight
+			WHEN @WarningLevel = 3 AND [Description] = ''Enabled'' THEN @InfoHighlight
+			ELSE ''#FFFFFF''
+		END AS [@bgcolor],
+		[Description]  AS ''td'','''', + 
+		Total   AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
+		WHERE Servername = @Serverlist 
+		AND Setting = ''is_auto_close_on''
+		ORDER BY Total DESC
+		FOR XML PATH(''tr''),ELEMENTS);
+		  
+		SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''
+		<tr> 
+		<td bgcolor=''+@TableHeaderColour+''><b>Auto Shrink</b></td>
+		<td bgcolor=''+@TableHeaderColour+''><b>Total</b></td>
+		</tr>
+		'';
+		  
+		SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
+		(SELECT
+		CASE 
+			WHEN @WarningLevel IS NULL AND [Description] = ''Enabled'' THEN @YellowHighlight
+			WHEN @WarningLevel = 1 AND [Description] = ''Enabled'' THEN @RedHighlight
+			WHEN @WarningLevel = 2 AND [Description] = ''Enabled'' THEN @YellowHighlight
+			WHEN @WarningLevel = 3 AND [Description] = ''Enabled'' THEN @InfoHighlight
+			ELSE ''#FFFFFF''
+		END AS [@bgcolor],
+		[Description]  AS ''td'','''', + 
+		Total   AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
+		WHERE Servername = @Serverlist 
+		AND Setting = ''is_auto_shrink_on''
+		ORDER BY Total DESC
+		FOR XML PATH(''tr''),ELEMENTS);
+		  
+		SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''
+		<tr>
+		<td bgcolor=''+@TableHeaderColour+''><b>Auto Update Stats</b></td>
+		<td bgcolor=''+@TableHeaderColour+''><b>Total</b></td>
+		</tr>
+		'';
+		  
+		SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL AND [Description] = ''Disabled'' THEN @YellowHighlight
+			WHEN @WarningLevel = 1 AND [Description] = ''Disabled'' THEN @RedHighlight
+			WHEN @WarningLevel = 2 AND [Description] = ''Disabled'' THEN @YellowHighlight
+			WHEN @WarningLevel = 3 AND [Description] = ''Disabled'' THEN @InfoHighlight
+			ELSE ''#FFFFFF''
+		END AS [@bgcolor],
+		[Description]  AS ''td'','''', + 
+		Total   AS ''td'','''' 
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
+		WHERE Servername = @Serverlist 
+		AND Setting = ''is_auto_update_stats_on''
+		ORDER BY Total DESC
+		FOR XML PATH(''tr''),ELEMENTS);
+		  
+		SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''
+		<tr> 
+		<td bgcolor=''+@TableHeaderColour+''><b>Read Only</b></td>
+		<td bgcolor=''+@TableHeaderColour+''><b>Total</b></td>
+		</tr>
+		'';
+		  
+		SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
+		(SELECT 
+		''#FFFFFF'' AS [@bgcolor],		  
+		[Description]  AS ''td'','''', + 
+		Total   AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
+		WHERE Servername = @Serverlist 
+		AND Setting = ''is_read_only''
+		ORDER BY Total DESC
+		FOR XML PATH(''tr''),ELEMENTS);
+		  
+		SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''
+		<tr> 
+		<td bgcolor=''+@TableHeaderColour+''><b>User Access</b></td>
+		<td bgcolor=''+@TableHeaderColour+''><b>Total</b></td>
+		</tr>
+		'';
+		  
+		SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
+		(SELECT 
+		''#FFFFFF'' AS [@bgcolor],
+		[Description]  AS ''td'','''', + 
+		Total   AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
+		WHERE Servername = @Serverlist 
+		AND Setting = ''user_access_desc''
+		ORDER BY Total DESC
+		FOR XML PATH(''tr''),ELEMENTS);
+		  
+		SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''
+		<tr> 
+		<td bgcolor=''+@TableHeaderColour+''><b>Compatibility Level</b></td>
+		<td bgcolor=''+@TableHeaderColour+''><b>Total</b></td>
+		</tr>
+		'';
+		  
+		SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
+		(SELECT  
+		''#FFFFFF'' AS [@bgcolor],
+		[Description]  AS ''td'','''', + 
+		Total   AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
+		WHERE Servername = @Serverlist 
+		AND Setting = ''compatibility_level''
+		ORDER BY Total DESC
+		FOR XML PATH(''tr''),ELEMENTS);
+		  
+		SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''
+		<tr> 
+		<td bgcolor=''+@TableHeaderColour+''><b>Recovery Model</b></td>
+		<td bgcolor=''+@TableHeaderColour+''><b>Total</b></td>
+		</tr>
+		'';
+		  
+		SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
+		(SELECT  
+		''#FFFFFF'' AS [@bgcolor],
+		[Description]  AS ''td'','''', + 
+		Total   AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
+		WHERE Servername = @Serverlist 
+		AND Setting = ''recovery_model_desc''
+		ORDER BY Total DESC
+		FOR XML PATH(''tr''),ELEMENTS);
+	END
+	ELSE
+	BEGIN
+		SET @BodyDatabaseSettings =
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @RedHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		''Data Collection out of date''  AS ''td'','''', + 
+		''N/A''   AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS);
 
-	   BEGIN
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
 
-		  SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
-		  (SELECT 
-		  ''#FFFFFF'' AS [@bgcolor],
-		  [Description]  AS ''td'','''', + 
-		  Total   AS ''td'',''''
-		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
-		  WHERE Servername = @Serverlist 
-		  AND Setting = ''Collation_name''
-		  ORDER BY Total DESC
-		  FOR XML PATH(''tr''),ELEMENTS);
-		  
-		  SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''
-    <tr> 
-    <td bgcolor=''+@TableHeaderColour+''><b>Auto Close</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Total</b></td>
-    </tr>
-    '';
-		  
-		  SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
-		  (SELECT 
-		  CASE WHEN [Description] = ''Enabled'' THEN @YellowHighlight ELSE ''#FFFFFF'' END AS [@bgcolor],
-		  [Description]  AS ''td'','''', + 
-		  Total   AS ''td'',''''
-		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
-		  WHERE Servername = @Serverlist 
-		  AND Setting = ''is_auto_close_on''
-		  ORDER BY Total DESC
-		  FOR XML PATH(''tr''),ELEMENTS);
-		  
-		  SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''
-    <tr> 
-    <td bgcolor=''+@TableHeaderColour+''><b>Auto Shrink</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Total</b></td>
-    </tr>
-    '';
-		  
-		  SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
-		  (SELECT
-		  CASE WHEN [Description] = ''Enabled'' THEN @YellowHighlight ELSE ''#FFFFFF'' END AS [@bgcolor],
-		  [Description]  AS ''td'','''', + 
-		  Total   AS ''td'',''''
-		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
-		  WHERE Servername = @Serverlist 
-		  AND Setting = ''is_auto_shrink_on''
-		  ORDER BY Total DESC
-		  FOR XML PATH(''tr''),ELEMENTS);
-		  
-		  SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''<tr> <td bgcolor=''+@TableHeaderColour+''><b>Auto Update Stats</b></td>''+''<td bgcolor=''+@TableHeaderColour+''><b>Total</b></td></tr>''
-		  
-		  SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
-		  (SELECT 
-		  CASE WHEN [Description] = ''Disabled'' THEN @YellowHighlight ELSE ''#FFFFFF'' END AS [@bgcolor],
-		  [Description]  AS ''td'','''', + 
-		  Total   AS ''td'','''' 
-		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
-		  WHERE Servername = @Serverlist 
-		  AND Setting = ''is_auto_update_stats_on''
-		  ORDER BY Total DESC
-		  FOR XML PATH(''tr''),ELEMENTS);
-		  
-		  SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''
-    <tr> 
-    <td bgcolor=''+@TableHeaderColour+''><b>Read Only</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Total</b></td>
-    </tr>
-    '';
-		  
-		  SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
-		  (SELECT 
-		  ''#FFFFFF'' AS [@bgcolor],		  
-		  [Description]  AS ''td'','''', + 
-		  Total   AS ''td'',''''
-		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
-		  WHERE Servername = @Serverlist 
-		  AND Setting = ''is_read_only''
-		  ORDER BY Total DESC
-		  FOR XML PATH(''tr''),ELEMENTS);
-		  
-		  SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''
-    <tr> 
-    <td bgcolor=''+@TableHeaderColour+''><b>User Access</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Total</b></td>
-    </tr>
-    '';
-		  
-		  SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
-		  (SELECT 
-		  ''#FFFFFF'' AS [@bgcolor],
-		  [Description]  AS ''td'','''', + 
-		  Total   AS ''td'',''''
-		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
-		  WHERE Servername = @Serverlist 
-		  AND Setting = ''user_access_desc''
-		  ORDER BY Total DESC
-		  FOR XML PATH(''tr''),ELEMENTS);
-		  
-		  SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''
-    <tr> 
-    <td bgcolor=''+@TableHeaderColour+''><b>Compatibility Level</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Total</b></td>
-    </tr>
-    '';
-		  
-		  SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
-		  (SELECT  
-		  ''#FFFFFF'' AS [@bgcolor],
-		  [Description]  AS ''td'','''', + 
-		  Total   AS ''td'',''''
-		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
-		  WHERE Servername = @Serverlist 
-		  AND Setting = ''compatibility_level''
-		  ORDER BY Total DESC
-		  FOR XML PATH(''tr''),ELEMENTS);
-		  
-		  SELECT @BodyDatabaseSettings  = @BodyDatabaseSettings + ''
-    <tr> 
-    <td bgcolor=''+@TableHeaderColour+''><b>Recovery Model</b></td>
-    <td bgcolor=''+@TableHeaderColour+''><b>Total</b></td>
-    </tr>
-    '';
-		  
-		  SELECT @BodyDatabaseSettings = @BodyDatabaseSettings +
-		  (SELECT  
-		  ''#FFFFFF'' AS [@bgcolor],
-		  [Description]  AS ''td'','''', + 
-		  Total   AS ''td'',''''
-		  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseSettings]
-		  WHERE Servername = @Serverlist 
-		  AND Setting = ''recovery_model_desc''
-		  ORDER BY Total DESC
-		  FOR XML PATH(''tr''),ELEMENTS);
+	END
 
-		  IF @BodyDatabaseSettings LIKE ''%''+@YellowHighlight+''%''
-			 BEGIN
-				SET @CountDBSettings = (LEN(@BodyDatabaseSettings) - LEN(REPLACE(@BodyDatabaseSettings,@YellowHighlight, '''')))/LEN(@YellowHighlight)
-				SELECT @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+@CountDBSettings+'') Database Auto Close or Auto Shrink settings enabled or Auto Update Stats Disabled</font><p>''	  
-				SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountDBSettings
-			 END
-	   END
-	   ELSE
-	   BEGIN
+	--Append html table to the report
+	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseSettings,'''') + ISNULL(@BodyDatabaseSettings, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 
-	   	  SET @BodyDatabaseSettings =
-		  (SELECT 
-		  ''#FFFFFF'' AS [@bgcolor],
-		  ''Data Collection out of date''  AS ''td'','''', + 
-		  ''N/A''   AS ''td'',''''
-		  FOR XML PATH(''tr''),ELEMENTS);
-
-	   END
-
-SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseSettings,'''') + ISNULL(@BodyDatabaseSettings, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	--Populate Alert header (Default Warning Level)
+	IF (@WarningLevel = 1 OR @WarningLevel IS NULL)
+	BEGIN 
+		IF @BodyDatabaseSettings LIKE ''%''+@RedHighlight+''%''
+		BEGIN
+			SET @CountDBSettings = (LEN(@BodyDatabaseSettings) - LEN(REPLACE(@BodyDatabaseSettings,@RedHighlight, '''')))/LEN(@RedHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database Auto Close or Auto Shrink settings enabled or Auto Update Stats Disabled</font><p>''	
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database setting warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountDBSettings
+		END
+	END
+	
+	--Populate Advisory header 
+	IF @WarningLevel = 2 
+	BEGIN 
+		IF @BodyDatabaseSettings LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountDBSettings = (LEN(@BodyDatabaseSettings) - LEN(REPLACE(@BodyDatabaseSettings,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database Auto Close or Auto Shrink settings enabled or Auto Update Stats Disabled</font><p>''	
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database setting warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountDBSettings
+		END
+	END
+	
+	--Populate Info header 
+	IF @WarningLevel = 3
+	BEGIN 
+		IF @BodyDatabaseSettings LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountDBSettings = (LEN(@BodyDatabaseSettings) - LEN(REPLACE(@BodyDatabaseSettings,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database Auto Close or Auto Shrink settings enabled or Auto Update Stats Disabled</font><p>''	
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database setting warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+		END
+	
+	END
 
 END
 
+
 IF @ServerSettings  = 1
-
 BEGIN 
---Server Settings 
 
-DECLARE @BodyServerSettings VARCHAR(MAX) = '''',
-    @TableHeadServerSettings VARCHAR(1000),
-    @CountServerSettings VARCHAR(5)
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''ServerSettings'')
+	
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
+	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''#e68a00''
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
+	
+	DECLARE @BodyServerSettings VARCHAR(MAX) = ''''
+	DECLARE @TableHeadServerSettings VARCHAR(1000)
+	DECLARE @CountServerSettings INT
 
-SET @TableHeadServerSettings = ''
+	SET @TableHeadServerSettings = ''
     <b>Server Settings</b>
     <br> 
     <table cellpadding=0 cellspacing=0 border=0> 
@@ -5838,62 +6426,292 @@ SET @TableHeadServerSettings = ''
     <td bgcolor=''+@TableHeaderColour+''><b>Total</b></td></tr>
     '';
 	
-	   IF (SELECT MAX(Log_Date) 
-	   FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ServerSettings] 
-	   WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	IF (SELECT MAX(Log_Date) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ServerSettings] 
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+		SELECT @BodyServerSettings = @BodyServerSettings +
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL 
+			THEN CASE 
+					WHEN [Setting] = ''cost threshold for parallelism'' AND [value_in_use] = 5 THEN @YellowHighlight
+					WHEN [Setting] = ''max degree of parallelism'' AND [value_in_use] <= 1 THEN @YellowHighlight
+					WHEN [Setting] = ''max server memory (MB)'' AND [value_in_use] = 2147483647 THEN @YellowHighlight
+					ELSE ''#FFFFFF''
+				 END
+			WHEN @WarningLevel = 1
+			THEN CASE 
+					WHEN [Setting] = ''cost threshold for parallelism'' AND [value_in_use] = 5 THEN @RedHighlight
+					WHEN [Setting] = ''max degree of parallelism'' AND [value_in_use] <= 1 THEN @RedHighlight
+					WHEN [Setting] = ''max server memory (MB)'' AND [value_in_use] = 2147483647 THEN @RedHighlight
+					ELSE ''#FFFFFF''
+				 END
+			WHEN @WarningLevel = 2 
+			THEN CASE 
+					WHEN [Setting] = ''cost threshold for parallelism'' AND [value_in_use] = 5 THEN @YellowHighlight
+					WHEN [Setting] = ''max degree of parallelism'' AND [value_in_use] <= 1 THEN @YellowHighlight
+					WHEN [Setting] = ''max server memory (MB)'' AND [value_in_use] = 2147483647 THEN @YellowHighlight
+					ELSE ''#FFFFFF''
+				 END
+			WHEN @WarningLevel = 3 
+			THEN CASE 
+					WHEN [Setting] = ''cost threshold for parallelism'' AND [value_in_use] = 5 THEN @InfoHighlight
+					WHEN [Setting] = ''max degree of parallelism'' AND [value_in_use] <= 1 THEN @InfoHighlight
+					WHEN [Setting] = ''max server memory (MB)'' AND [value_in_use] = 2147483647 THEN @InfoHighlight
+					ELSE ''#FFFFFF''
+				 END
+		ELSE ''#FFFFFF''		
+		END AS [@bgcolor],
+		[Setting]  AS ''td'','''', + 
+		[value_in_use]   AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ServerSettings]
+		WHERE Servername = @Serverlist
+		ORDER BY [configuration_id] ASC
+		FOR XML PATH(''tr''),ELEMENTS);
+	END
+	ELSE
+	BEGIN
+		SET @BodyServerSettings =
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @RedHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		''Data Collection out of date''  AS ''td'','''', + 
+		''N/A''   AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS);
 
-	   BEGIN
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
+	END
 
-		  SELECT @BodyServerSettings = @BodyServerSettings +
-		  (SELECT 
+	--Append html table to the report
+	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadServerSettings,'''') + ISNULL(@BodyServerSettings, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+
+	--Populate Alert header
+	IF @WarningLevel = 1
+	BEGIN 
+		IF @BodyServerSettings LIKE ''%''+@RedHighlight+''%''
+		BEGIN
+			SET @CountServerSettings = (LEN(@BodyServerSettings) - LEN(REPLACE(@BodyServerSettings,@RedHighlight, '''')))/LEN(@RedHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-			WHEN [Setting] = ''cost threshold for parallelism'' AND [value_in_use] = 5 THEN @YellowHighlight
-			WHEN [Setting] = ''max degree of parallelism'' AND [value_in_use] <= 1 THEN @YellowHighlight
-			ELSE ''#FFFFFF'' END AS [@bgcolor],
-			[Setting]  AS ''td'','''', + 
-			[value_in_use]   AS ''td'',''''
-			FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ServerSettings]
-			WHERE Servername = @Serverlist
-			ORDER BY [configuration_id] ASC
-			FOR XML PATH(''tr''),ELEMENTS);
-			
-			IF @BodyServerSettings LIKE ''%''+@YellowHighlight+''%''
-			 BEGIN
-				SET @CountServerSettings = (LEN(@BodyServerSettings) - LEN(REPLACE(@BodyServerSettings,@YellowHighlight, '''')))/LEN(@YellowHighlight)
-				SELECT @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "#e68a00">  - has (''+@CountServerSettings+'') Cost Threshold or MAXDOP running with default values</font><p>''	  
-				SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountServerSettings
-			 END
-	   END
-	   ELSE
-	   BEGIN
-
-	   	  SET @BodyServerSettings =
-		  (SELECT 
-		  ''#FFFFFF'' AS [@bgcolor],
-		  ''Data Collection out of date''  AS ''td'','''', + 
-		  ''N/A''   AS ''td'',''''
-		  FOR XML PATH(''tr''),ELEMENTS);
-
-	   END
-
-SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadServerSettings,'''') + ISNULL(@BodyServerSettings, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values</font><p>''	
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Server Settings warnings <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountServerSettings
+		END
+	END
+	
+	--Populate Advisory header (Default Warning Level)
+	IF (@WarningLevel = 2 OR @WarningLevel IS NULL)
+	BEGIN 
+		IF @BodyServerSettings LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountServerSettings = (LEN(@BodyServerSettings) - LEN(REPLACE(@BodyServerSettings,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values</font><p>''	
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Server Settings warnings <b>(Data collection out of Date)</b></font><p>'' 
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountServerSettings
+		END
+	END
+	
+	--Populate Info header 
+	IF @WarningLevel = 3
+	BEGIN 
+		IF @BodyServerSettings LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountServerSettings = (LEN(@BodyServerSettings) - LEN(REPLACE(@BodyServerSettings,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values</font><p>''	
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Server Settings warnings <b>(Data collection out of Date)</b></font><p>'' 
+			END
+		END
+	
+	END
 
 END
+
+
+IF @UnusedLogshipConfig = 1 
+BEGIN
+
+	SET @CollectionOutOfDate = 0
+	SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''UnusedLogshipConfig'')
+	
+	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
+	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+	
+	SET @WaningLevelFontColour = CASE 
+									WHEN @WarningLevel IS NULL THEN ''#e68a00''
+									WHEN @WarningLevel = 1 THEN ''Red''
+									WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+									WHEN @WarningLevel = 3 THEN ''White'' 
+								 END;
+
+	DECLARE @BodyUnusedLogshipConfig VARCHAR(MAX)
+	DECLARE @TableHeadUnusedLogshipConfig VARCHAR(1000)
+	DECLARE @CountUnusedLogshipConfig INT
+
+	SET @TableHeadUnusedLogshipConfig = ''
+    <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''"></a>Unused secondary log shipping config</b>
+    <br> <table cellpadding=0 cellspacing=0 border=0> 
+    <tr> 
+    <td bgcolor=''+@TableHeaderColour+''><b>Servername</b></td>
+    <td bgcolor=''+@TableHeaderColour+''><b>Database name</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>State</b></td>
+    '';
+
+	IF (SELECT MAX(Log_Date) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ADHocDatabaseCreations] 
+	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
+	BEGIN
+		SET @BodyUnusedLogshipConfig =
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @YellowHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		Servername AS ''td'','''', + 
+		Databasename AS ''td'','''', +
+		Databasestate AS ''td'',''''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[UnusedLogshipConfig]
+		WHERE Servername = @Serverlist
+		ORDER BY [Databasename] ASC
+		FOR XML PATH(''tr''),ELEMENTS);
+
+		IF @BodyUnusedLogshipConfig IS NULL
+		BEGIN 
+			SET @BodyUnusedLogshipConfig =
+			(SELECT 
+			''#FFFFFF''  AS [@bgcolor],
+			@Serverlist AS ''td'','''', + 
+			''No unused log shipping config present'' AS ''td'','''', + 
+			''N/A'' AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS);
+		END
+	END
+	ELSE 
+	BEGIN
+		SET @BodyUnusedLogshipConfig =
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @YellowHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		@Serverlist AS ''td'','''', + 
+		''Data Collection out of date'' AS ''td'','''', + 
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS);
+
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
+	END
+
+	--Append html table to the report
+	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadUnusedLogshipConfig, '''') +ISNULL(@BodyUnusedLogshipConfig, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>''
+
+	--Populate Alert header
+	IF @WarningLevel = 1
+	BEGIN 
+		IF @BodyUnusedLogshipConfig LIKE ''%''+@RedHighlight+''%''
+		BEGIN
+			SET @CountUnusedLogshipConfig = (LEN(@BodyUnusedLogshipConfig) - LEN(REPLACE(@BodyUnusedLogshipConfig,@RedHighlight, '''')))/LEN(@RedHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping configs present</font><p>''     
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping config <b>(Data collection out of Date)</b></font><p>'' 
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountUnusedLogshipConfig
+		END
+	END
+	
+	--Populate Advisory header (Default Warning Level)
+	IF (@WarningLevel = 2 OR @WarningLevel IS NULL) 
+	BEGIN 
+		IF @BodyUnusedLogshipConfig LIKE ''%''+@YellowHighlight+''%''
+		BEGIN
+			SET @CountUnusedLogshipConfig = (LEN(@BodyUnusedLogshipConfig) - LEN(REPLACE(@BodyUnusedLogshipConfig,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping configs present</font><p>''     
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping config <b>(Data collection out of Date)</b></font><p>'' 
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountUnusedLogshipConfig
+		END
+	END
+	
+	--Populate Info header 
+	IF @WarningLevel = 3
+	BEGIN 
+		IF @BodyUnusedLogshipConfig LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountUnusedLogshipConfig = (LEN(@BodyUnusedLogshipConfig) - LEN(REPLACE(@BodyUnusedLogshipConfig,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping configs present</font><p>''     
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping config <b>(Data collection out of Date)</b></font><p>'' 
+			END
+		END
+	
+	END
+
+END
+
+
+--Check for Instance version or edition changes in [Inspector].[InstanceVersionHistory]
+--Excluded from Warning level control
+SELECT 
+@VersionNo = CAST([VersionNo] AS VARCHAR(50)),
+@Edition = CAST([Edition] AS VARCHAR(128))
+FROM [Inspector].[InstanceVersionHistory] 
+WHERE [Servername] = @Serverlist 
+AND CAST([CollectionDatetime] AS DATE) = CAST(GETDATE() AS DATE)
+
+--If version has changed then create an entry in the advisory header
+IF @VersionNo IS NOT NULL  
+BEGIN 
+	SET @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Servername''+''">''+@Serverlist+''</a><font color="#e68a00"> - SQL ''+@VersionNo+''</font><p>'';
+END
+
+--If Edition has changed then create an entry in the advisory header
+IF @Edition IS NOT NULL
+BEGIN
+	SET @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Servername''+''">''+@Serverlist+''</a><font color="#e68a00"> - SQL ''+@Edition+''</font><p>'';
+END
+
 
 
 IF @AlertHeader LIKE ''%''+@Serverlist+''%''
 BEGIN
    SET @ServerSummaryFontColour = ''<font color= "Red">''
 END
-    ELSE 
-    IF @AdvisoryHeader LIKE ''%''+@Serverlist+''%''
-	   BEGIN
-	   	SET @ServerSummaryFontColour = ''<font color= "#e68a00">''
-	   END
-	   ELSE
-		  BEGIN
-		     SET @ServerSummaryFontColour = ''<font color= "Green">''
-		  END
+ELSE 
+IF @AdvisoryHeader LIKE ''%''+@Serverlist+''%''
+BEGIN
+	SET @ServerSummaryFontColour = ''<font color= "#e68a00">''
+END
+ELSE
+IF @InfoHeader LIKE ''%''+@Serverlist+''%''
+BEGIN
+	SET @ServerSummaryFontColour = ''<font color= "''+CASE WHEN @Theme = ''LIGHT'' THEN ''Black'' ELSE ''White'' END+''">''
+END
+ELSE
+BEGIN
+   SET @ServerSummaryFontColour = ''<font color= "Green">''
+END
 
 
 --Evaluate server and colour code accordingly  
@@ -5902,12 +6720,14 @@ SELECT
 CASE
 WHEN @ServerSummaryFontColour = ''<font color= "Red">'' THEN ''<b>''+ @ServerSummaryFontColour+''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Servername''+''">''+''[''+''<font color="red">''+@Serverlist+''</font>]</a></b></font> ''
 WHEN @ServerSummaryFontColour = ''<font color= "#e68a00">'' THEN ''<b>''+ @ServerSummaryFontColour+''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Servername''+''">''+''[''+''<font color="#e68a00">''+@Serverlist+''</font>]</a></b></font> ''
+WHEN @ServerSummaryFontColour = ''<font color= "White">'' THEN ''<b>''+ @ServerSummaryFontColour+''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Servername''+''">''+''[''+''<font color="''+CASE WHEN @Theme = ''LIGHT'' THEN ''Black'' ELSE ''White'' END+''">''+@Serverlist+''</font>]</a></b></font> ''
 WHEN @ServerSummaryFontColour = ''<font color= "Green">'' THEN ''<b>''+ @ServerSummaryFontColour+''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Servername''+''">''+''[''+''<font color="Green">''+@Serverlist+''</font>]</a></b></font> ''
 END,
 CASE
 WHEN @ServerSummaryFontColour = ''<font color= "Red">'' THEN 1
 WHEN @ServerSummaryFontColour = ''<font color= "#e68a00">'' THEN 2
-WHEN @ServerSummaryFontColour = ''<font color= "Green">'' THEN 3
+WHEN @ServerSummaryFontColour = ''<font color= "''+CASE WHEN @Theme = ''LIGHT'' THEN ''Black'' ELSE ''White'' END+''">'' THEN 3
+WHEN @ServerSummaryFontColour = ''<font color= "Green">'' THEN 4
 END
 
 --Add Break to the end of the Server warning ready for the next
@@ -5916,8 +6736,11 @@ IF @AlertHeader LIKE ''%''+@Serverlist+''%'' BEGIN SET @AlertHeader = @AlertHead
 --Add Break to the end of the Server Advisory Condition ready for the next
 IF @AdvisoryHeader LIKE ''%''+@Serverlist+''%'' BEGIN SET @AdvisoryHeader = @AdvisoryHeader + ''<BR></BR>'' END
 
+--Add Break to the end of the Server Info header ready for the next
+IF @InfoHeader LIKE ''%''+@Serverlist+''%'' BEGIN SET @InfoHeader = @InfoHeader + ''<BR></BR>'' END
 
-					 FETCH NEXT FROM ServerCur INTO @Serverlist,@ModuleConfig,@TableHeaderColour
+
+FETCH NEXT FROM ServerCur INTO @Serverlist,@ModuleConfig,@TableHeaderColour
 
 END
 CLOSE ServerCur
@@ -5927,14 +6750,14 @@ DEALLOCATE ServerCur
 
 
 IF @DatabaseGrowthCheck = 1 
-	BEGIN
+BEGIN
+--Excluded from Warning level control	
+
+	DECLARE @BodyGrowthCheck VARCHAR(MAX) = ''''
+	DECLARE @TableHeadGrowthCheck VARCHAR(1000)
+	DECLARE @CountGrowthCheck INT
 	
-
-DECLARE @BodyGrowthCheck VARCHAR(MAX) = '''',
-	   @TableHeadGrowthCheck VARCHAR(1000),
-	   @CountGrowthCheck VARCHAR(5)
-
-SET @TableHeadGrowthCheck = ''
+	SET @TableHeadGrowthCheck = ''
     <b><A NAME = "GrowthEvents''+''Growth''+''"></a><p>The following Database files have grown more than ''+CAST(@DatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'' time/s in the past 24hours:
     <br> <table cellpadding=0 cellspacing=0 border=0> 
     <tr> 
@@ -5951,69 +6774,62 @@ SET @TableHeadGrowthCheck = ''
     '';
 
 
-SELECT @BodyGrowthCheck = @BodyGrowthCheck + 
-(SELECT  
-CASE   
-WHEN [GrowthIncrements] > @DatabaseGrowthsAllowedPerDay AND [GrowthIncrements] < @MAXDatabaseGrowthsAllowedPerDay 
-THEN @YellowHighlight
-WHEN [GrowthIncrements] > @DatabaseGrowthsAllowedPerDay AND [GrowthIncrements] >= @MAXDatabaseGrowthsAllowedPerDay 
-THEN @RedHighlight
-END AS [@bgcolor], 
-[Servername] AS ''td'','''', + 
-[Database_name] AS ''td'','''', +
-[Type_Desc] AS ''td'','''', +
-[File_id] AS ''td'','''', +
-[FileName] AS ''td'','''', +
-[PreGrowthSize_MB] AS ''td'','''', +
-[GrowthRate_MB] AS ''td'','''', +
-[GrowthIncrements] AS ''td'','''', +
-[PostGrowthSize_MB] AS ''td'','''',+
-CASE WHEN [GrowthRate_MB] < 100 
-THEN 100  -- if current growth rate is less than 100MB then suggest a minimum of 100MB
-ELSE
-[GrowthRate_MB] * [GrowthIncrements] END AS ''td'',''''
-  FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseFileSizeHistory]
-  WHERE [Log_Date] >= CAST(GETDATE() AS DATE)
-  AND [GrowthIncrements] > @DatabaseGrowthsAllowedPerDay
-  ORDER BY Servername,Database_name,[File_id]
-  FOR XML PATH(''tr''),Elements);
+	SELECT @BodyGrowthCheck = @BodyGrowthCheck + 
+	(SELECT  
+	CASE   
+		WHEN [GrowthIncrements] > @DatabaseGrowthsAllowedPerDay AND [GrowthIncrements] < @MAXDatabaseGrowthsAllowedPerDay THEN @YellowHighlight
+		WHEN [GrowthIncrements] > @DatabaseGrowthsAllowedPerDay AND [GrowthIncrements] >= @MAXDatabaseGrowthsAllowedPerDay THEN @RedHighlight
+	END AS [@bgcolor], 
+	[Servername] AS ''td'','''', + 
+	[Database_name] AS ''td'','''', +
+	[Type_Desc] AS ''td'','''', +
+	[File_id] AS ''td'','''', +
+	[FileName] AS ''td'','''', +
+	[PreGrowthSize_MB] AS ''td'','''', +
+	[GrowthRate_MB] AS ''td'','''', +
+	[GrowthIncrements] AS ''td'','''', +
+	[PostGrowthSize_MB] AS ''td'','''',+
+	CASE 
+		WHEN [GrowthRate_MB] < 100 THEN 100  -- if current growth rate is less than 100MB then suggest a minimum of 100MB
+		ELSE [GrowthRate_MB] * [GrowthIncrements] 
+	END AS ''td'',''''
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseFileSizeHistory]
+	WHERE [Log_Date] >= CAST(GETDATE() AS DATE)
+	AND [GrowthIncrements] > @DatabaseGrowthsAllowedPerDay
+	ORDER BY Servername,Database_name,[File_id]
+	FOR XML PATH(''tr''),Elements);
 
-
-  --CHECK FOR Database Growth Advisory Condition, then for any warnings 
-
-SELECT  @EmailBody = @EmailBody + ''<hr><BR><p> <b>Server [ALL Servers]<b><p><BR>''+ISNULL(@TableHeadGrowthCheck, '''') + ISNULL(@BodyGrowthCheck, '''') + ''</table><p><font style="color: Black; background-color: #FAFCA4">Yellow Highlight</font> - More than ''+CAST(@DatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'' growth event/s in the past 24 hours<br>
-	<font style="color: Black; background-color: Red">Red Highlight</font> - ''+CAST(@MAXDatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'' or more growth event/s in the past 24 hours</b></p>'' + ISNULL(REPLACE(@TableTail,''</table>'',''''),'''') + ''<p><BR><p>''
-IF @BodyGrowthCheck LIKE ''%''+@YellowHighlight+''%''	
-	   BEGIN
-
+	--Check for Database Growth Advisory Condition, then for any warnings 
+	SELECT  @EmailBody = @EmailBody + ''<hr><BR><p> <b>Server [ALL Servers]<b><p><BR>''+ISNULL(@TableHeadGrowthCheck, '''') + ISNULL(@BodyGrowthCheck, '''') + ''</table><p><font style="color: Black; background-color: #FAFCA4">Yellow Highlight</font> - More than ''+CAST(@DatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'' growth event/s in the past 24 hours<br>
+		<font style="color: Black; background-color: Red">Red Highlight</font> - ''+CAST(@MAXDatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'' or more growth event/s in the past 24 hours</b></p>'' + ISNULL(REPLACE(@TableTail,''</table>'',''''),'''') + ''<p><BR><p>''
+	IF @BodyGrowthCheck LIKE ''%''+@YellowHighlight+''%''	
+	BEGIN
 		SET @CountGrowthCheck = (LEN(@BodyGrowthCheck) - LEN(REPLACE(@BodyGrowthCheck,@YellowHighlight, '''')))/LEN(@YellowHighlight)
-		SELECT @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+''GrowthEvents''+''Growth''+''">''+''Database Growth''+''</a><font color= "#e68a00">  - (''+@CountGrowthCheck+'') Database Growth events found which exceed your acceptable threshold of ''+CAST(@DatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'' Growth/s per 24hrs</font><p>''  
-		SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountGrowthCheck
-		  
-	   END
+		SET @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+''GrowthEvents''+''Growth''+''">''+''Database Growth''+''</a><font color= "#e68a00">  - (''+CAST(@CountGrowthCheck AS VARCHAR(5))+'') Database Growth events found which exceed your acceptable threshold of ''+CAST(@DatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'' Growth/s per 24hrs</font><p>''  
+		SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountGrowthCheck 
+	END
 
-IF @BodyGrowthCheck LIKE ''%''+@RedHighlight+''%''	
-		  
-	   BEGIN 
-		    SET @CountGrowthCheck = (LEN(@BodyGrowthCheck) - LEN(REPLACE(@BodyGrowthCheck,@RedHighlight, '''')))/LEN(@RedHighlight)
-		    SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''GrowthEvents''+''Growth''+''">''+''Database Growth''+''</a><font color= "Red">  - (''+@CountGrowthCheck+'') Database Growth events found which equal or exceed your Max Threshold of ''+CAST(@MAXDatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'' Growths per 24hrs</font><p>''  
-		    SET @Importance = ''High'' 
-			SET @TotalWarningCount = @TotalWarningCount + @CountGrowthCheck
-	   END
+	IF @BodyGrowthCheck LIKE ''%''+@RedHighlight+''%''	  
+	BEGIN 
+		SET @CountGrowthCheck = (LEN(@BodyGrowthCheck) - LEN(REPLACE(@BodyGrowthCheck,@RedHighlight, '''')))/LEN(@RedHighlight)
+		SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''GrowthEvents''+''Growth''+''">''+''Database Growth''+''</a><font color= "Red">  - (''+CAST(@CountGrowthCheck AS VARCHAR(5))+'') Database Growth events found which equal or exceed your Max Threshold of ''+CAST(@MAXDatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'' Growths per 24hrs</font><p>''  
+		SET @Importance = ''High'' 
+		SET @TotalWarningCount = @TotalWarningCount + @CountGrowthCheck
+	END
 
-  END
+END
 
 
 IF @BackupSpaceCheck = 1  
 BEGIN
+--Excluded from Warning level control
+	DECLARE @BackupRoot VARCHAR(128)
+	SET @BackupRoot = (SELECT NULLIF([Value],'''') From ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] where [Description] = ''BackupsPath'')
 
-DECLARE @BackupRoot VARCHAR(128)
-SET @BackupRoot = (SELECT NULLIF([Value],'''') From ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] where [Description] = ''BackupsPath'')
+	DECLARE @BodyBackupSpace VARCHAR(MAX) = ''''
+    DECLARE @TableHeadBackupSpace VARCHAR(1000)
 
-DECLARE @BodyBackupSpace VARCHAR(MAX) = '''',
-    @TableHeadBackupSpace VARCHAR(1000)
-
-SET @TableHeadBackupSpace = ''
+	SET @TableHeadBackupSpace = ''
     <b><A NAME = "BackupStorage''+''BackupStorage''+''"></a><b>Backup space estimate for tonight (entire stack) versus free space checked against  [''+ISNULL(@BackupRoot,''No Server Set, Check Inspector.Settings'')+''] </b>
     <br> <table cellpadding=0 cellspacing=0 border=0>
     <tr> 
@@ -6023,165 +6839,151 @@ SET @TableHeadBackupSpace = ''
     '';
 
 
-IF (Select [Value]
-	From sys.configurations
-	WHERE name = ''xp_cmdshell'') = 1
-
-		BEGIN
-
-		  DECLARE @ErrorEncountered BIT = 0
-		  DECLARE @ErrorEncounteredText VARCHAR(100)
-		  DECLARE @BackupSizeForNextWeekday AS DECIMAL(10,1)
-		  DECLARE @BackupSpaceLessStorageSpace AS DECIMAL(10,1) 
-		  DECLARE @ExtractedInformation VARCHAR(MAX) = ''''
-		  DECLARE @FreeSpace_Bytes BIGINT = ''''
-		  DECLARE @FreeSpace_GB INT = '''' 
-		  DECLARE @Xpcmd VARCHAR(128)   
-		  IF OBJECT_ID(''tempdb.dbo.#BackupDriveSpace'') IS NOT NULL
-		  DROP TABLE #BackupDriveSpace;
-		     
-		  CREATE TABLE #BackupDriveSpace
-		  (
-		  BytesFree NVARCHAR(MAX) 
-		  ); 
+	IF (Select [value] FROM sys.configurations WHERE name = ''xp_cmdshell'') = 1
+	BEGIN
+		DECLARE @ErrorEncountered BIT = 0
+		DECLARE @ErrorEncounteredText VARCHAR(100)
+		DECLARE @BackupSizeForNextWeekday AS DECIMAL(10,1)
+		DECLARE @BackupSpaceLessStorageSpace AS DECIMAL(10,1) 
+		DECLARE @ExtractedInformation VARCHAR(MAX) = ''''
+		DECLARE @FreeSpace_Bytes BIGINT = ''''
+		DECLARE @FreeSpace_GB INT = '''' 
+		DECLARE @Xpcmd VARCHAR(128)  
+		
+		IF OBJECT_ID(''tempdb.dbo.#BackupDriveSpace'') IS NOT NULL
+		DROP TABLE #BackupDriveSpace;
+		   
+		CREATE TABLE #BackupDriveSpace
+		(
+		BytesFree NVARCHAR(MAX) 
+		); 
 		  
 
+		IF @BackupRoot LIKE ''%\'' 
+		BEGIN 
+			SET @BackupRoot = LEFT(@BackupRoot,LEN(@BackupRoot)-1);
+		END
 		  
-		  IF @BackupRoot LIKE ''%\'' SET @BackupRoot = LEFT(@BackupRoot,LEN(@BackupRoot)-1)
+		SET @Xpcmd =  ''DIR\ ''+@BackupRoot;
+
+		INSERT INTO #BackupDriveSpace (BytesFree)
+		EXEC xp_cmdshell @Xpcmd;
 		  
-		  SET @Xpcmd =  ''DIR\ ''+@BackupRoot
-		  INSERT INTO #BackupDriveSpace (BytesFree)
-		  EXEC xp_cmdshell @Xpcmd
-		  
-		  IF EXISTS (SELECT TOP 1 BytesFree
+		IF EXISTS (SELECT TOP 1 BytesFree
 					FROM #BackupDriveSpace
 					WHERE BytesFree IS NOT NULL 
 					AND BytesFree NOT IN (''The device is not ready.'', ''The system cannot find the path specified.'',''The network path was not found.'',''The specified path is invalid'',''The filename, directory name, or volume label syntax is incorrect.'')
 					)
-
-					BEGIN
-						
-						
-						--Extract the drive information based on the @BackupRoot value (Start the string at this point ignoring any drives letters prior to it)
-						SELECT @ExtractedInformation = @ExtractedInformation + (
-						SELECT RIGHT(BytesFree,LEN(BytesFree)-CHARINDEX(@BackupRoot,BytesFree)+1) as DriveidentificationSTART
-						FROM (
-						SELECT BytesFree as BytesFree
-						FROM #BackupDriveSpace 
-						FOR XML PATH('''')
-						) IdentifyDriveSpace (BytesFree)
-						)
-						
-						IF @ExtractedInformation LIKE ''%File Not Found%'' 
-						  BEGIN 
-
-							 SET @ErrorEncountered = 1
-							 SET @ErrorEncounteredText = ''Invalid Backup Path Specified in [Inspector].[Settings]''
-							 
-							 SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= "Red">  - Access denied for Backup Path Specified in [Inspector].[Settings]</font><p>'' 
-							 SET @Importance = ''High''
-							 SET @TotalWarningCount = @TotalWarningCount + 1
-
-						  END
-						ELSE
-						BEGIN
-						SELECT @FreeSpace_Bytes = 
-						REPLACE(RIGHT(LEFT(@ExtractedInformation,CHARINDEX(''bytes free'',@ExtractedInformation)-1),
-						LEN(LEFT(@ExtractedInformation,CHARINDEX(''bytes free'',@ExtractedInformation)-1))-
-						CHARINDEX(''Dir(S)'',LEFT(@ExtractedInformation,CHARINDEX(''bytes free'',@ExtractedInformation)-1))-6),'','','''')
-						
-						SET @FreeSpace_GB = ((@FreeSpace_Bytes/1024)/1024)/1024
-						END
+		BEGIN
+			--Extract the drive information based on the @BackupRoot value (Start the string at this point ignoring any drives letters prior to it)
+			SELECT @ExtractedInformation = @ExtractedInformation + (
+			SELECT RIGHT(BytesFree,LEN(BytesFree)-CHARINDEX(@BackupRoot,BytesFree)+1) as DriveidentificationSTART
+			FROM (SELECT BytesFree as BytesFree
+					FROM #BackupDriveSpace 
+					FOR XML PATH('''')
+					) IdentifyDriveSpace (BytesFree))
+			
+			IF @ExtractedInformation LIKE ''%File Not Found%'' 
+			BEGIN 
+				SET @ErrorEncountered = 1;
+				SET @ErrorEncounteredText = ''Invalid Backup Path Specified in [Inspector].[Settings]'';
+				SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= "Red">  - Access denied for Backup Path Specified in [Inspector].[Settings]</font><p>'' ;
+				SET @Importance = ''High'';
+				SET @TotalWarningCount = @TotalWarningCount + 1;
+			END
+			ELSE
+			BEGIN
+				SELECT @FreeSpace_Bytes = TRY_CONVERT(BIGINT,
+				REPLACE(RIGHT(LEFT(@ExtractedInformation,CHARINDEX(''bytes free'',@ExtractedInformation)-1),
+				LEN(LEFT(@ExtractedInformation,CHARINDEX(''bytes free'',@ExtractedInformation)-1))-
+				CHARINDEX(''Dir(s)'',LEFT(@ExtractedInformation,CHARINDEX(''bytes free'',@ExtractedInformation)-1))-6),'','',''''));
+			
+				IF @FreeSpace_Bytes IS NULL 
+				BEGIN 
+					SET @ErrorEncountered = 1;
+					SET @ErrorEncounteredText = ''Unable to determine free space for the Backup Path Specified in [Inspector].[Settings]'';
+					SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= "Red">  - Unable to determine free space for the Backup Path Specified in [Inspector].[Settings]</font><p>'';
+					SET @Importance = ''High'';
+					SET @TotalWarningCount = @TotalWarningCount + 1;
+				END 
 				
-					END
-
-						ELSE
-
-					BEGIN
-
-						SET @ErrorEncountered = 1
-						SET @ErrorEncounteredText = ''Invalid Backup Path Specified in [Inspector].[Settings]''
-						
-						SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= "Red">  - Invalid Backup Path Specified in [Inspector].[Settings]</font><p>'' 
-						SET @Importance = ''High''
-						SET @TotalWarningCount = @TotalWarningCount + 1
-
-					
-					END
-
-
+				SET @FreeSpace_GB = ((@FreeSpace_Bytes/1024)/1024)/1024;
+			END
+				
 		END
 		ELSE
-		BEGIN 
-		SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= "Red">  - xp_cmdshell must be enabled for module BackupSizesCheck to run</font><p>'' 
-		SET @Importance = ''High'' 
-		SET @ErrorEncountered = 1
-		SET @ErrorEncounteredText = ''xp_cmdshell must be enabled''
-		SET @TotalWarningCount = @TotalWarningCount + 1
+		BEGIN
+			SET @ErrorEncountered = 1;
+			SET @ErrorEncounteredText = ''Invalid Backup Path Specified in [Inspector].[Settings]'';
+			SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= "Red">  - Invalid Backup Path Specified in [Inspector].[Settings]</font><p>'';
+			SET @Importance = ''High'';
+			SET @TotalWarningCount = @TotalWarningCount + 1;
 		END
+	END
+	ELSE
+	BEGIN 
+		SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= "Red">  - xp_cmdshell must be enabled for module BackupSizesCheck to run</font><p>'';
+		SET @Importance = ''High'';
+		SET @ErrorEncountered = 1;
+		SET @ErrorEncounteredText = ''xp_cmdshell must be enabled'';
+		SET @TotalWarningCount = @TotalWarningCount + 1;
+	END
+
 	
-	
+	SET @BackupSizeForNextWeekday = 
+	(SELECT ISNULL(CAST(SUM(((TotalSizeInBytes)/1024)/1024)/1024 AS DECIMAL (10,1)),0) 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupSizesByDay]
+	WHERE [DayOfWeek] = DATENAME(WEEKDAY,DATEADD(DAY,1,Getdate()))
+	)
 
-
-SET @BackupSizeForNextWeekday = 
-(SELECT ISNULL(CAST(SUM(((TotalSizeInBytes)/1024)/1024)/1024 AS DECIMAL (10,1)),0) 
-FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[BackupSizesByDay]
-WHERE [DayOfWeek] = DATENAME(WEEKDAY,DATEADD(DAY,1,Getdate()))
-)
-
-
-IF @BackupRoot IS NOT NULL
+	IF @BackupRoot IS NOT NULL
     BEGIN
-	   IF @ErrorEncountered = 0 
-		  BEGIN 
-			 SET @BackupSpaceLessStorageSpace = CAST(@FreeSpace_GB AS DECIMAL(10,1)) - @BackupSizeForNextWeekday
-			 SELECT @BodyBackupSpace = @BodyBackupSpace + 
-			 (SELECT 
-			 CASE 
-			 WHEN @FreeSpace_GB < (@BackupSizeForNextWeekday + (@BackupSizeForNextWeekday*10) /100) --Warn when the free space on the backup location is less than the estimated size for the next days backups multiplied by 10%.
-			 THEN @RedHighlight 
-			 ELSE ''#FFFFFF'' END AS [@bgcolor],
-			 @BackupSizeForNextWeekday AS ''td'','''',+
-			 @FreeSpace_GB  AS ''td'','''',+
-			 @BackupSpaceLessStorageSpace  AS ''td'',''''
-			 FOR XML PATH(''tr''),ELEMENTS);
+		IF @ErrorEncountered = 0 
+		BEGIN 
+			SET @BackupSpaceLessStorageSpace = CAST(@FreeSpace_GB AS DECIMAL(10,1)) - @BackupSizeForNextWeekday
+			SELECT @BodyBackupSpace = @BodyBackupSpace + 
+			(SELECT 
+			CASE 
+			WHEN @FreeSpace_GB < (@BackupSizeForNextWeekday + (@BackupSizeForNextWeekday*10) /100) --Warn when the free space on the backup location is less than the estimated size for the next days backups multiplied by 10%.
+			THEN @RedHighlight 
+			ELSE ''#FFFFFF'' END AS [@bgcolor],
+			@BackupSizeForNextWeekday AS ''td'','''',+
+			@FreeSpace_GB  AS ''td'','''',+
+			@BackupSpaceLessStorageSpace  AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS);
+		END 
 
-		  END 
-	   IF @ErrorEncountered = 1 
-		  BEGIN
-
-		  SELECT @BodyBackupSpace = @BodyBackupSpace + 
-		  (SELECT 
-		  @RedHighlight AS [@bgcolor],
-		  @BackupSizeForNextWeekday AS ''td'','''',+
-		  @ErrorEncounteredText  AS ''td'','''',+
-		  ''N/A''  AS ''td'',''''
-		  FOR XML PATH(''tr''),ELEMENTS);
-
-		  END
-    END
-ELSE 
+		IF @ErrorEncountered = 1 
+		BEGIN
+			SELECT @BodyBackupSpace = @BodyBackupSpace + 
+			(SELECT 
+			@RedHighlight AS [@bgcolor],
+			@BackupSizeForNextWeekday AS ''td'','''',+
+			@ErrorEncounteredText  AS ''td'','''',+
+			''N/A''  AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS);
+		END
+	END
+	ELSE 
     BEGIN 
-	   SET @BackupSpaceLessStorageSpace = CAST(@FreeSpace_GB AS DECIMAL(10,1)) - @BackupSizeForNextWeekday
-	   SELECT @BodyBackupSpace = @BodyBackupSpace + 
-	   (SELECT @RedHighlight AS [@bgcolor],
-	   @BackupSizeForNextWeekday AS ''td'','''',+
-	   ''BackupPath is Set to NULL, Check Inspector.Settings''  AS ''td'','''',+
-	   ''N/A''  AS ''td'',''''
-	   FOR XML PATH(''tr''),ELEMENTS);
+		SET @BackupSpaceLessStorageSpace = CAST(@FreeSpace_GB AS DECIMAL(10,1)) - @BackupSizeForNextWeekday
+		SELECT @BodyBackupSpace = @BodyBackupSpace + 
+		(SELECT @RedHighlight AS [@bgcolor],
+		@BackupSizeForNextWeekday AS ''td'','''',+
+		''BackupPath is Set to NULL, Check Inspector.Settings''  AS ''td'','''',+
+		''N/A''  AS ''td'',''''
+		FOR XML PATH(''tr''),ELEMENTS);
+	END 
 
-    END 
-
-
-
-	SELECT  @EmailBody = @EmailBody + ''<hr><BR><p> <b>Server [ALL Servers]<b><p><BR>''+ISNULL(@TableHeadBackupSpace, '''') + ISNULL(@BodyBackupSpace, '''') + ISNULL(@TableTail, '''') + ''<p><BR><p>''
+	--Append html table to the report
+	SELECT @EmailBody = @EmailBody + ''<hr><BR><p> <b>Server [ALL Servers]<b><p><BR>''+ISNULL(@TableHeadBackupSpace, '''') + ISNULL(@BodyBackupSpace, '''') + ISNULL(@TableTail, '''') + ''<p><BR><p>'';
 
 	--If unsufficient space then create and alert.
 	IF @FreeSpace_GB < (@BackupSizeForNextWeekday + (@BackupSizeForNextWeekday*10) /100)	
 	BEGIN 
-	SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''Backup Storage''+''</a><font color= "Red"> - There is insufficient free space on the backup server [''+@BackupRoot+''] for tonight''''s backups, Minimum space required: ''+CAST(@BackupSizeForNextWeekday AS VARCHAR(15))+'' GB , Space Available ''+CAST(@FreeSpace_GB AS VARCHAR(15)) + '' GB <p></font>'' 
-	SET @Importance = ''High'' 
-	SET @TotalWarningCount = @TotalWarningCount + 1
+		SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''Backup Storage''+''</a><font color= "Red"> - There is insufficient free space on the backup server [''+@BackupRoot+''] for tonight''''s backups, Minimum space required: ''+CAST(@BackupSizeForNextWeekday AS VARCHAR(15))+'' GB , Space Available ''+CAST(@FreeSpace_GB AS VARCHAR(15)) + '' GB <p></font>''; 
+		SET @Importance = ''High'';
+		SET @TotalWarningCount = @TotalWarningCount + 1;
 	END
 
 END
@@ -6189,9 +6991,9 @@ END
 
 IF @BackupSizesCheck = 1
 BEGIN
-
-	DECLARE @BodyBackupSpaceWeekly VARCHAR(MAX) = '''',
-		   @TableHeadBackupSpaceWeekly VARCHAR(1000)
+--Excluded from Warning level control
+	DECLARE @BodyBackupSpaceWeekly VARCHAR(MAX) = ''''
+	DECLARE @TableHeadBackupSpaceWeekly VARCHAR(1000)
 	
 	SET @TableHeadBackupSpaceWeekly = ''
     <b>Backup space total by day (entire stack)</b>
@@ -6206,7 +7008,6 @@ BEGIN
     <td bgcolor=''+@TableHeaderColour+''><b>Saturday</b></td>
     <td bgcolor=''+@TableHeaderColour+''><b>Sunday</b></td>
     '';
-	
 	
 	SELECT @BodyBackupSpaceWeekly = @BodyBackupSpaceWeekly +
 	(SELECT ''#FFFFFF'' AS [@bgcolor],
@@ -6228,53 +7029,76 @@ BEGIN
 	) AS PivotTable
 	FOR XML PATH(''tr''),ELEMENTS);
 	
-	
-	SELECT  @EmailBody = @EmailBody + ''<hr><BR><p> <b>Server [ALL Servers]<b><p><BR>''+ISNULL(+@TableHeadBackupSpaceWeekly, '''') + ISNULL(@BodyBackupSpaceWeekly, '''') + ISNULL(@TableTail, '''') + ''<p><BR><p>'' 
+	--Append html table to the report
+	SELECT @EmailBody = @EmailBody + ''<hr><BR><p> <b>Server [ALL Servers]<b><p><BR>''+ISNULL(+@TableHeadBackupSpaceWeekly, '''') + ISNULL(@BodyBackupSpaceWeekly, '''') + ISNULL(@TableTail, '''') + ''<p><BR><p>'';
 
 END
 
 
 																
-IF @Importance = ''High'' SET @SubjectText = @AlertSubjectText
+IF @Importance = ''High'' 
+BEGIN 
+	SET @SubjectText = @AlertSubjectText;
+END
 
 
 IF @AlertHeader != '''' 
 BEGIN
-
 SET @AlertHeader = ''
 <BR></BR>
-<B>Warnings Conditions:</b>
+<B>Warning Conditions:</b>
 <p>''
 +@AlertHeader
-
 END 
 ELSE
 BEGIN 
-
 SET @AlertHeader = ''
 <BR></BR>
 <B>No Warnings are present</B>
 <p></p>
 ''
-
 END
 
 IF @AdvisoryHeader != ''''
 BEGIN
-
 SET @AdvisoryHeader = ''
 <HR></HR>
 <br></br>
 <b>Advisory Conditions:</b> 
 <p></p>
 ''+@AdvisoryHeader
+END
+ELSE 
+BEGIN 
+SET @AdvisoryHeader = ''
+<HR></HR>
+<BR></BR>
+<B>No Advisories are present</B>
+<p></p>
+''
+END
 
+IF @InfoHeader != ''''
+BEGIN
+SET @InfoHeader = ''
+<HR></HR>
+<br></br>
+<b>Informational conditions:</b> 
+<p></p>
+''+@InfoHeader
+END
+ELSE 
+BEGIN
+SET @InfoHeader = ''
+<HR></HR>
+<BR></BR>
+<B>No Informational conditions are present</B>
+<p></p>
+''
 END
 
 
-
 --Red 
-
 IF EXISTS (SELECT SummaryHeader FROM #TrafficLightSummary WHERE WarningPriority = 1 )
 BEGIN
 SELECT @ServerSummaryHeader = @ServerSummaryHeader +
@@ -6304,8 +7128,23 @@ FOR XML PATH('''')
 )
 END
 
---Green
+--White
 IF EXISTS (SELECT SummaryHeader FROM #TrafficLightSummary WHERE WarningPriority = 3 )
+BEGIN
+SELECT @ServerSummaryHeader = @ServerSummaryHeader + ''<BR></BR>'' + 
+(SELECT STUFF(SummaryHeader,1,0,''<b><font color= "White">Informational/No Advisories or Warnings - </font></b><BR></BR>'')
+FROM
+(
+SELECT SummaryHeader + '' '' 
+FROM #TrafficLightSummary
+WHERE WarningPriority = 3
+FOR XML PATH('''')
+) AS SummaryHeader(SummaryHeader)
+)
+END
+
+--Green
+IF EXISTS (SELECT SummaryHeader FROM #TrafficLightSummary WHERE WarningPriority = 4 )
 BEGIN
 SELECT @ServerSummaryHeader = @ServerSummaryHeader + ''<BR></BR>'' + 
 (SELECT STUFF(SummaryHeader,1,0,''<b><font color= "Green">OK - </font></b><BR></BR>'')
@@ -6313,7 +7152,7 @@ FROM
 (
 SELECT SummaryHeader + '' '' 
 FROM #TrafficLightSummary
-WHERE WarningPriority = 3
+WHERE WarningPriority = 4
 FOR XML PATH('''')
 ) AS SummaryHeader(SummaryHeader)
 )
@@ -6325,11 +7164,14 @@ SET @EmailBody = ''
 + ''
 <BR></BR>
 <HR></HR>
-<div style="background:linear-gradient(to right, ''+CASE WHEN @Theme = ''Light'' THEN ''#FFFFFF'' ELSE ''#000000'' END+'' 35%, #F78181 110%)">
+<div style="background:linear-gradient(to right, ''+CASE WHEN @Theme = ''LIGHT'' THEN ''#FFFFFF'' ELSE ''#000000'' END+'' 35%, #F78181 110%)">
 <text>''+@AlertHeader +''<BR></text>
 </div>
-<div style="background: linear-gradient(to right, ''+CASE WHEN @Theme = ''Light'' THEN ''#FFFFFF'' ELSE ''#000000'' END+'' 35%, #FAFCA4 110%)">
+<div style="background: linear-gradient(to right, ''+CASE WHEN @Theme = ''LIGHT'' THEN ''#FFFFFF'' ELSE ''#000000'' END+'' 35%, #FAFCA4 110%)">
 <text>'' + ISNULL(@AdvisoryHeader,'''') + ''</text>
+</div>
+<div style="background: linear-gradient(to right, ''+CASE WHEN @Theme = ''LIGHT'' THEN ''#FFFFFF'' ELSE ''#000000'' END+'' 35%, ''+CASE WHEN @Theme = ''LIGHT'' THEN ''#000000'' ELSE ''#FFFFFF'' END+'' 110%)">
+<text>'' + ISNULL(@InfoHeader,'''') + ''</text>
 </div>
 '' +@EmailBody
 
@@ -6344,7 +7186,7 @@ SET @EmailBody = @EmailHeader + @EmailBody
 
 IF @TestMode = 1 OR (@RecipientsList IS NULL OR @RecipientsList = '''')
 BEGIN
-INSERT INTO '+CAST(@Databasename AS VARCHAR(128))+'.[Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary)
+INSERT INTO ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary)
 SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,''(''+CAST(@TotalWarningCount AS VARCHAR(6))+'') Red warnings, (''+CAST(@TotalAdvisoryCount AS VARCHAR(6))+'') Yellow Advisories'';
 END
 ELSE
@@ -6354,7 +7196,7 @@ IF @EmailRedWarningsOnly = 1
 	BEGIN
 		IF @Importance = ''High''
 		BEGIN
-			INSERT INTO '+CAST(@Databasename AS VARCHAR(128))+'.[Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary)
+			INSERT INTO ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary)
 			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,''(''+CAST(@TotalWarningCount AS VARCHAR(6))+'') Red warnings, (''+CAST(@TotalAdvisoryCount AS VARCHAR(6))+'') Yellow Advisories'';
 
 			EXEC msdb.dbo.sp_send_dbmail 
@@ -6367,7 +7209,7 @@ IF @EmailRedWarningsOnly = 1
 	END
 	ELSE 
 	BEGIN
-			INSERT INTO '+CAST(@Databasename AS VARCHAR(128))+'.[Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary)
+			INSERT INTO ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary)
 			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,''(''+CAST(@TotalWarningCount AS VARCHAR(6))+'') Red warnings, (''+CAST(@TotalAdvisoryCount AS VARCHAR(6))+'') Yellow Advisories'';
 
 			EXEC msdb.dbo.sp_send_dbmail 
@@ -6380,19 +7222,22 @@ IF @EmailRedWarningsOnly = 1
 END
 
 --Report Data cleanup
-DELETE FROM '+CAST(@Databasename AS VARCHAR(128))+'.[Inspector].[ReportData]
+DELETE FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ReportData]
 WHERE ReportDate < DATEADD(DAY,-@ReportDataRetention,GETDATE());
 
 END
 ELSE
-BEGIN RAISERROR(''@ModuleDesc supplied does not exist in [Inspector].[Modules]'',15,1) END
+BEGIN 
+	RAISERROR(''@ModuleDesc supplied does not exist in [Inspector].[Modules]'',15,1) 
+END
 END
 ELSE 
 BEGIN
-PRINT ''Not the Source server for the report , Quitting the job''
+	PRINT ''Not the Source server for the report , Quitting the job''
 END
 
-END'
+END
+'
 
 EXEC(@SQLStatement);
 
