@@ -37,14 +37,14 @@ function Invoke-SQLUndercoverInspector {
         $CentralConnection = Get-DbaDatabase -SqlInstance $CentralServer -Database $LoggingDb -ErrorAction Stop -WarningAction Stop
         Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] [$CentralServer] - Central server connectivity ok."
 
-        Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] Checking for the existance of the database: $LoggingDb."
+        Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] [$CentralServer] - Checking for the existance of the database: $LoggingDb."
         if (-not $CentralConnection.Name) {
             Write-Warning "[$CentralServer] - Logging database specified does not exist."
             break
         }
 
 
-        Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] Database: $LoggingDb exists, validating Inspector installation..."
+        Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] [$CentralServer] - Database: $LoggingDb exists, validating Inspector installation..."
         $ValidateInstallQry = "SELECT CASE WHEN OBJECT_ID('Inspector.Settings') IS NOT NULL THEN 1 ELSE 0 END AS Outcome;"
         $InstallStatus = $CentralConnection.Query($ValidateInstallQry)
 
@@ -62,7 +62,7 @@ function Invoke-SQLUndercoverInspector {
             break
             }
 
-        Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] Database: $LoggingDb exists, validating Inspector installation OK"
+        Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] [$CentralServer] - Database: $LoggingDb exists, validating Inspector installation OK"
         }
 
 
@@ -80,7 +80,7 @@ function Invoke-SQLUndercoverInspector {
 
                 $InstallStatus[0] = 0  
                      
-                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] - Database: $LoggingDb exists, validating Inspector installation..."
+                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Database: $LoggingDb exists, validating Inspector installation..."
                  $ValidateInstallQry = "SELECT CASE WHEN OBJECT_ID('Inspector.Settings') IS NOT NULL THEN 1 ELSE 0 END AS Outcome;"
                  $InstallStatus = $CentralConnection.Query($ValidateInstallQry)
 
@@ -201,17 +201,28 @@ function Invoke-SQLUndercoverInspector {
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Truncating or deleting from Settings table..."
                 $SettingsTableQry = "EXEC [$LoggingDb].[Inspector].[PSGetSettingsTables] @SortOrder = 0, @PSCollection = 1;"
                 $SettingsTables = $CentralConnection.Query($SettingsTableQry)
-                $SettingsTables.Tablename | ForEach-Object -Process {
-                    $SettingsTableName = $_
+                $SettingsTables | ForEach-Object -Process {
+                    $SettingsTableName = $_.Tablename
                     $WriteTableOptions.Table = $SettingsTableName
 
-                    if ($SettingsTableName -eq 'Modules') {
-                        Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Deleting from table [Inspector].[$SettingsTableName] and reseeding the identity column"
-                        $TruncateDeleteQry = "DBCC CHECKIDENT ('Inspector.$SettingsTableName', RESEED, 0); DELETE FROM [$LoggingDb].[Inspector].[$SettingsTableName];" 
-                    } else {
-                        Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Truncating table [Inspector].[$SettingsTableName]"
+                    switch ($_.TruncateTable) {
+                        { $_ -eq 0 } {
+                        Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Creating delete query for table [Inspector].[$SettingsTableName]"
+                        $TruncateDeleteQry = "DELETE FROM [$LoggingDb].[Inspector].[$SettingsTableName];"
+                        }
+
+                        { $_ -eq 1 } {
+                        Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Creating truncate query for table [Inspector].[$SettingsTableName]"
                         $TruncateDeleteQry = "TRUNCATE TABLE [$LoggingDb].[Inspector].[$SettingsTableName];"
-                    }
+                        }
+                        }
+
+                    switch ($_.ReseedTable) {
+                        { $_ -eq 1 } {
+                        Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Appending Reseed indentity command for table [Inspector].[$SettingsTableName]"
+                        $TruncateDeleteQry = $TruncateDeleteQry + " DBCC CHECKIDENT ('Inspector.$SettingsTableName', RESEED, 0);" 
+                        }
+                        }
                     $ConnectionCurrent.Query($TruncateDeleteQry)
                 }
 
