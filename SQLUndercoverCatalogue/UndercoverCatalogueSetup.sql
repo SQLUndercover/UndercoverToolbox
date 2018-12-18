@@ -1976,7 +1976,7 @@ FROM Catalogue.LinkedServers_Stage
 --update servers table where servers are known to the catalogue
 
 UPDATE Catalogue.LinkedServers_Server 
-SET	Server = LinkedServers.Server
+	SET	Server = LinkedServers.Server
 	,LinkedServerName = LinkedServers.LinkedServerName
 	,DataSource = LinkedServers.DataSource
 	,Provider = LinkedServers.Provider
@@ -1986,11 +1986,8 @@ SET	Server = LinkedServers.Server
 	,Catalog = LinkedServers.Catalog
 	,LastRecorded = GETDATE()
 FROM #LinkedServers LinkedServers
-WHERE EXISTS
-	(SELECT 1
-	FROM Catalogue.LinkedServers_Server
-	WHERE LinkedServers_Server.Server = LinkedServers.Server
-	AND LinkedServers_Server.LinkedServerName = LinkedServers.LinkedServerName)
+WHERE LinkedServers_Server.Server = LinkedServers.Server
+	AND LinkedServers_Server.LinkedServerName = LinkedServers.LinkedServerName
 
 --insert into servers table where servers are not known to the catalogue
 
@@ -2023,11 +2020,9 @@ SET 	Server = LinkedServers_Stage.Server
 		,RemoteUser = LinkedServers_Stage.RemoteUser
 		,LastRecorded = GETDATE()
 FROM Catalogue.LinkedServers_Stage
-WHERE EXISTS
-	(SELECT 1
-	FROM Catalogue.LinkedServers_Users
-	WHERE LinkedServers_Users.Server = LinkedServers_Stage.Server
-	AND LinkedServers_Users.LinkedServerName = LinkedServers_Stage.LinkedServerName)
+WHERE LinkedServers_Users.Server = LinkedServers_Stage.Server
+	AND LinkedServers_Users.LinkedServerName = LinkedServers_Stage.LinkedServerName
+	AND ISNULL(LinkedServers_Users.LocalUser, '') = ISNULL(LinkedServers_Stage.LocalUser,'')
 
 --insert into users table where users are unkown to the catalogue
 
@@ -2045,9 +2040,11 @@ WHERE NOT EXISTS
 	(SELECT 1
 	FROM Catalogue.LinkedServers_Users
 	WHERE LinkedServers_Users.Server = LinkedServers_Stage.Server
-	AND LinkedServers_Users.LinkedServerName = LinkedServers_Stage.LinkedServerName)
+	AND LinkedServers_Users.LinkedServerName = LinkedServers_Stage.LinkedServerName
+	AND ISNULL(LinkedServers_Users.LocalUser,'') = ISNULL(LinkedServers_Stage.LocalUser,''))
 
 END
+
 GO
 
 
@@ -2153,8 +2150,13 @@ BEGIN
 			FROM sys.tables
 			JOIN sys.schemas ON tables.schema_id = schemas.schema_id'
 	
-	INSERT INTO #Tables
-	EXEC sp_executesql @cmd
+	BEGIN TRY
+		INSERT INTO #Tables
+		EXEC sp_executesql @cmd
+	END TRY
+	BEGIN CATCH
+		--if database in in accessible do nothing and move on to next database
+	END CATCH
 
 	FETCH NEXT FROM DBCur INTO @DBName
 
