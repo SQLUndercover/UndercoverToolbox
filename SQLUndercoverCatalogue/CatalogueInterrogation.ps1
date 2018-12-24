@@ -67,7 +67,7 @@ Write-Host "|                                  ;c.                              
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "|                           Undercover Catalogue                            |" -ForegroundColor White -BackgroundColor Black
 Write-Host "|                               version 0.2                                 |" -ForegroundColor White -BackgroundColor Black
-Write-Host "|                          ©2018 sqlundercover.com                          |" -ForegroundColor White -BackgroundColor Black
+Write-Host "|                          ©2019 sqlundercover.com                          |" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "getting configuration parameters..." -ForegroundColor Yellow
