@@ -898,10 +898,10 @@ WHERE NOT EXISTS
 (SELECT 1 FROM Catalogue.AvailabilityGroups
 		WHERE AGName = AvailabilityGroups_Stage.AGName 
 		AND ServerName = AvailabilityGroups_Stage.ServerName)
-AND AGName IN (	SELECT AvailabilityGroups_Stage_sub.AGName 
-				FROM AvailabilityGroups_Stage AvailabilityGroups_Stage_sub 
-				WHERE AvailabilityGroups_Stage_sub.ServerName = AvailabilityGroups_Stage.ServerName 
-					AND Role = 'Primary')
+--AND AGName IN (	SELECT AvailabilityGroups_Stage_sub.AGName 
+--				FROM AvailabilityGroups_Stage AvailabilityGroups_Stage_sub 
+--				WHERE AvailabilityGroups_Stage_sub.ServerName = AvailabilityGroups_Stage.ServerName 
+--					AND Role = 'Primary')
 
 END
 GO
