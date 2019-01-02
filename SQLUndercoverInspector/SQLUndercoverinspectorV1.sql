@@ -132,7 +132,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.3
---Revision date: 27/09/2018
+--Revision date: 13/12/2018
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -902,6 +902,7 @@ TRUNCATE TABLE [Inspector].[ModuleWarnings];
 TRUNCATE TABLE [Inspector].[ModuleWarningLevel];
 TRUNCATE TABLE [Inspector].[EmailRecipients];
 DELETE FROM [Inspector].[Modules];
+DBCC CHECKIDENT ('Inspector.Modules', RESEED, 0);
 
 --Insert Settings into Inspector Base tables  
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
@@ -1829,6 +1830,9 @@ BackupSizesCheck
 END'
 
 EXEC(@SQLStatement);
+
+--Run Proc for the first time to populate the Warning Level table
+EXEC [Inspector].[PopulateModuleWarningLevel];
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[FailedAgentJobsInsert]
@@ -3566,7 +3570,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 30/11/2018
+--Revision date: 13/12/2018
 
 SET NOCOUNT ON;
 
