@@ -2840,7 +2840,7 @@ AS
 
 BEGIN
 
---Revision date: 21/11/2018
+--Revision date: 13/12/2018
 
 SET NOCOUNT ON;
 
@@ -3781,7 +3781,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 30/11/2018
+--Revision date: 13/12/2018
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.3
 
