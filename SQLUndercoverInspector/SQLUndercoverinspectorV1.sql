@@ -4910,7 +4910,7 @@ BEGIN
 	END
 	
 	--Populate Advisory header (Default Warning Level)
-	IF @WarningLevel = 2 
+	IF (@WarningLevel = 2 OR @WarningLevel IS NULL)
 	BEGIN 
 		IF @BodyDatabaseStates LIKE ''%''+@YellowHighlight+''%''
 		BEGIN
