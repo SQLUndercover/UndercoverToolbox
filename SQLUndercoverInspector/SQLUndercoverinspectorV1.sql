@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 13/12/2018
+Revision date: 11/01/2019
 Version: 1.3
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
@@ -2840,7 +2840,7 @@ AS
 
 BEGIN
 
---Revision date: 13/12/2018
+--Revision date: 11/01/2019
 
 SET NOCOUNT ON;
 
@@ -2904,6 +2904,7 @@ BEGIN
 		) AS LastLoggedVersionInfo
 	) AS VersionCheck
 	WHERE ([VersionNo] IS NOT NULL OR [Edition] IS NOT NULL)
+	AND NOT EXISTS (SELECT 1 FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[InstanceVersionHistory] WHERE Servername = @Servername AND CAST(VersionCheck.[Log_Date] AS DATE) = CAST([InstanceVersionHistory].[Log_Date] AS DATE))
 
 END 
 
@@ -3494,7 +3495,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 )
 AS 
 BEGIN 
---Revision date: 13/12/2018
+--Revision date: 11/01/2019
 
 SET NOCOUNT ON;
 
@@ -3507,6 +3508,7 @@ AND NOT EXISTS (SELECT 1
 				FROM [Inspector].[InstanceVersionHistory] Base
 				WHERE Base.Servername = Stage.Servername
 				AND Base.Log_Date = Stage.Log_Date 
+				AND CAST(Base.Log_Date AS DATE) = CAST(Stage.Log_Date AS DATE)
 				);
 
 END'
@@ -3781,7 +3783,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 13/12/2018
+--Revision date: 11/01/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.3
 
@@ -6677,12 +6679,15 @@ END
 
 --Check for Instance version or edition changes in [Inspector].[InstanceVersionHistory]
 --Excluded from Warning level control
+SET @VersionNo = NULL;
+SET @Edition = NULL;
+
 SELECT 
 @VersionNo = CAST([VersionNo] AS VARCHAR(50)),
 @Edition = CAST([Edition] AS VARCHAR(128))
 FROM [Inspector].[InstanceVersionHistory] 
 WHERE [Servername] = @Serverlist 
-AND CAST([CollectionDatetime] AS DATE) = CAST(GETDATE() AS DATE)
+AND CAST([CollectionDatetime] AS DATE) = CAST(GETDATE() AS DATE);
 
 --If version has changed then create an entry in the advisory header
 IF @VersionNo IS NOT NULL  
