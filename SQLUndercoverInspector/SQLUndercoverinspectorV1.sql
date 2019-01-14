@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 11/01/2019
+Revision date: 14/01/2019
 Version: 1.3
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
@@ -495,6 +495,13 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[AvailableSpace_GB] DECIMAL(10,2)
 			);
 
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.DriveSpace') AND type = 1)
+			BEGIN
+				IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.DriveSpace') AND name='CIX_Servername_LogDate_Drive')
+				BEGIN 
+					CREATE CLUSTERED INDEX [CIX_Servername_LogDate_Drive] ON [Inspector].[DriveSpace] ([Servername] ASC,[Log_Date] ASC,[Drive] ASC);
+				END
+			END
 			
 			IF OBJECT_ID('Inspector.FailedAgentJobs') IS NULL
 			CREATE TABLE [Inspector].[FailedAgentJobs]
@@ -999,6 +1006,105 @@ EXEC (@SQLStatement);
 
 END
 
+
+	IF OBJECT_ID('Inspector.PowerBIBackupsview') IS NULL
+	BEGIN
+	EXEC sp_executesql N'CREATE VIEW [Inspector].[PowerBIBackupsview]
+	AS
+	WITH RawData AS 
+	(SELECT 
+	Log_Date,
+	LTRIM(RTRIM(BackupSet.Databasename)) AS Databasename, --Added trim as Leading and trailing spaces can cause misreporting
+	[FULL] AS LastFull,
+	[DIFF] AS LastDiff,
+	[LOG] AS LastLog,
+	BackupSet.AGname,
+	CASE WHEN BackupSet.AGname = ''Not in an AG'' THEN Servername
+	ELSE BackupSet.AGname END AS GroupingMethod,  
+	Servername,
+	BackupSet.IsFullRecovery,
+	BackupSet.IsSystemDB,
+	BackupSet.primary_replica,
+	BackupSet.backup_preference
+	FROM [Inspector].[BackupsCheck] BackupSet
+	WHERE CAST(GETDATE() AS DATE) >= CAST(GETDATE() AS DATE)
+	),
+	Aggregates AS (
+	SELECT 
+	MAX(Log_Date) AS Log_Date,
+	RawData.Databasename,
+	MAX(Servername) AS Servername,
+	MAX(LastFull) AS LastFull,
+	MAX(LastDiff) AS LastDiff,
+	MAX(LastLog) AS LastLog,
+	AGname,
+	GroupingMethod,
+	IsFullRecovery,
+	IsSystemDB,
+	MAX(primary_replica) AS primary_replica,
+	UPPER(backup_preference) AS backup_preference
+	FROM RawData RawData
+	GROUP BY Databasename,AGname,GroupingMethod,IsFullRecovery,IsSystemDB,backup_preference
+	),
+	Validations AS (
+	SELECT 
+	Log_Date,
+	Databasename,
+	Servername,
+	LastFull,
+	LastDiff,
+	LastLog,
+	DATEDIFF(DAY,LastFull,Log_Date) AS FullBackupAge,
+	DATEDIFF(DAY,LastDiff,Log_Date) AS DiffBackupAge,
+	DATEDIFF(MINUTE,LastLog,Log_Date) AS LogBackupAge,
+	AGname,
+	GroupingMethod,
+	IsFullRecovery,
+	IsSystemDB,
+	primary_replica,
+	backup_preference,
+	(SELECT ISNULL(CAST([Value] AS INT),8) FROM [Inspector].[Settings] WHERE [Description] = ''FullBackupThreshold'') AS FullBackupThreshold,
+	(SELECT ISNULL(CAST([Value] AS INT),365) FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') AS DiffBackupThreshold,
+	(SELECT ISNULL(CAST([Value] AS INT),60) FROM [Inspector].[Settings] WHERE [Description] = ''LogBackupThreshold'') AS LogBackupThreshold
+	FROM Aggregates
+	)
+	SELECT 
+	Log_Date,
+	Databasename,
+	Servername,
+	NULLIF(LastFull,''19000101 00:00:00'') AS LastFull,
+	NULLIF(LastDiff,''19000101 00:00:00'') AS LastDiff,
+	NULLIF(LastLog,''19000101 00:00:00'') AS LastLog,
+	FullBackupAge,
+	DiffBackupAge,
+	LogBackupAge,
+	AGname,
+	GroupingMethod,
+	IsFullRecovery,
+	IsSystemDB,
+	primary_replica,
+	backup_preference,
+	FullBackupThreshold,
+	DiffBackupThreshold,
+	LogBackupThreshold,
+	CASE 
+		WHEN FullBackupAge > FullBackupThreshold THEN 1 ELSE 0 
+	END AS FullBackupBreach,
+	CASE 
+		WHEN IsSystemDB = 1 THEN 0 
+		WHEN IsSystemDB =  0 AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NULL AND DiffBackupAge > DiffBackupThreshold THEN 0 ELSE 1
+	END AS DiffBackupBreach,
+	CASE 
+		WHEN IsSystemDB = 1 OR IsFullRecovery = 0 THEN 0 
+		WHEN (IsSystemDB =  0 AND IsFullRecovery = 1) AND LogBackupAge > LogBackupThreshold THEN 1 ELSE 0 
+	END AS LogBackupBreach,
+	CASE 
+		WHEN IsSystemDB = 1 OR IsFullRecovery = 0 THEN 1 
+		WHEN (IsSystemDB =  0 AND IsFullRecovery = 1) AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NULL THEN 2
+		WHEN (IsSystemDB =  0 AND IsFullRecovery = 1) AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NOT NULL THEN 3
+	END AS TotalBackupTypes
+	FROM Validations;'
+	END
 			
 	
 			IF OBJECT_ID('Inspector.DatabaseGrowthInfo') IS NULL
@@ -3783,7 +3889,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 11/01/2019
+--Revision date: 14/01/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.3
 
@@ -4113,15 +4219,29 @@ BEGIN
 	),
 	SpaceVariation as (
 	--CALCULATE THE DIFFERENCE BETWEEN CURRENT FREESPACE AND LAST RECORDED FREE SPACE FOR ALL ENTRIES PER DRIVE
-	SELECT Log_Date,DriveSpace.Servername,DriveSpace.Drive,Capacity_GB,(Capacity_GB-AvailableSpace_GB) as UsedSpace_GB,AvailableSpace_GB,
+	SELECT 
+	Log_Date,
+	DriveSpace.
+	Servername,
+	DriveSpace.Drive,
+	Capacity_GB,
+	(Capacity_GB-AvailableSpace_GB) as UsedSpace_GB,
+	AvailableSpace_GB,
 	LAG(Capacity_GB-AvailableSpace_GB,1,Capacity_GB-AvailableSpace_GB) OVER(PARTITION BY DriveSpace.Servername,DriveSpace.Drive ORDER BY DriveSpace.Servername,DriveSpace.Drive,Log_Date) as laggedUsedSpace,
 	TotalEntries
 	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DriveSpace] AS DriveSpace
 	INNER JOIN TotalDriveEntries ON DriveSpace.Drive = TotalDriveEntries.Drive AND DriveSpace.Servername = TotalDriveEntries.Servername
 	),
 	ApplyMedianRowNum AS (
-	SELECT Log_Date,Servername,Drive,Capacity_GB,(Capacity_GB-AvailableSpace_GB) as UsedSpace_GB,AvailableSpace_GB,
-	laggedUsedSpace,ROW_NUMBER() OVER (PARTITION BY [Drive] ORDER BY [Drive],(SELECT(UsedSpace_GB-laggedUsedSpace)) DESC) AS RowNum,
+	SELECT 
+	Servername,
+	Drive,
+	laggedUsedSpace,
+	CASE 
+		WHEN (UsedSpace_GB-laggedUsedSpace) < 0 THEN 0 
+		ELSE (UsedSpace_GB-laggedUsedSpace) 
+	END AS VarianceCalc,
+	ROW_NUMBER() OVER (PARTITION BY [Drive] ORDER BY [Drive],(SELECT(UsedSpace_GB-laggedUsedSpace)) DESC) AS RowNum,
 	TotalEntries
 	FROM SpaceVariation
 	),
@@ -4131,10 +4251,11 @@ BEGIN
 	SELECT
 	Servername, 
 	Drive,
-	CASE WHEN SUM(UsedSpace_GB-laggedUsedSpace) <= 0 THEN 0 
-	WHEN @UseMedian = 1 THEN (SELECT UsedSpace_GB-laggedUsedSpace FROM ApplyMedianRowNum Median WHERE Median.Drive = SpaceVariation.Drive AND (Median.TotalEntries/2) = Median.RowNum)
-	ELSE CAST(SUM((UsedSpace_GB-laggedUsedSpace)/TotalEntries) AS DECIMAL(10,2)) END AS AverageDailyGrowth_GB
-	FROM SpaceVariation
+	CASE 
+		WHEN @UseMedian = 1 THEN (SELECT VarianceCalc FROM ApplyMedianRowNum Median WHERE Median.Drive = SpaceVariation.Drive AND (Median.TotalEntries/2) = Median.RowNum)
+		ELSE CAST(SUM((VarianceCalc)/TotalEntries) AS DECIMAL(10,2)) 
+	END AS AverageDailyGrowth_GB
+	FROM ApplyMedianRowNum SpaceVariation
 	GROUP BY
 	Servername,
 	Drive
