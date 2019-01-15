@@ -1,4 +1,4 @@
-SET ANSI_NULLS ON
+﻿SET ANSI_NULLS ON
 SET QUOTED_IDENTIFIER ON
 GO
 
@@ -7213,7 +7213,7 @@ BEGIN
 SET @InfoHeader = ''
 <HR></HR>
 <br></br>
-<b>Informational conditions:</b> 
+<b>Informational Conditions:</b> 
 <p></p>
 ''+@InfoHeader
 END
