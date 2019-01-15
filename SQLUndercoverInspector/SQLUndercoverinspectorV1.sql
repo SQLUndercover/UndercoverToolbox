@@ -4815,11 +4815,11 @@ BEGIN
 	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 	BEGIN
 		SET @BodyLongRunningTransactions = (SELECT 
-		CASE @WarningLevel
-			WHEN NULL THEN @YellowHighlight
-			WHEN 1 THEN @RedHighlight
-			WHEN 2 THEN @YellowHighlight
-			WHEN 3 THEN @InfoHighlight
+		CASE
+			WHEN @WarningLevel IS NULL THEN @YellowHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
 		END AS [@bgcolor],
 		[Servername] AS ''td'','''',+
 		[session_id] AS ''td'','''',+
@@ -4862,11 +4862,11 @@ BEGIN
 	BEGIN 
 		SET @BodyLongRunningTransactions = 
 		(SELECT 
-		CASE @WarningLevel
-			WHEN NULL THEN @YellowHighlight
-			WHEN 1 THEN @RedHighlight
-			WHEN 2 THEN @YellowHighlight
-			WHEN 3 THEN @InfoHighlight
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @YellowHighlight
+			WHEN @WarningLevel = 1 THEN @RedHighlight
+			WHEN @WarningLevel = 2 THEN @YellowHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
 		END AS [@bgcolor],
 		@Serverlist AS ''td'','''',+
 		''Data Collection out of date'' AS ''td'','''',+
