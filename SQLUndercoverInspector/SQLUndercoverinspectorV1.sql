@@ -6012,8 +6012,8 @@ BEGIN
 	--Append html table to the report
 	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadDBOwner, '''') + ISNULL(@BodyDBOwner, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 
-	--Populate Alert header (Default Warning Level)
-	IF (@WarningLevel = 1 OR @WarningLevel IS NULL)
+	--Populate Alert header
+	IF @WarningLevel = 1
 	BEGIN 
 		IF @BodyDBOwner LIKE ''%''+@RedHighlight+''%''
 		BEGIN
@@ -6028,8 +6028,8 @@ BEGIN
 		END
 	END
 	
-	--Populate Advisory header 
-	IF @WarningLevel = 2 
+	--Populate Advisory header (Default Warning Level) 
+	IF (@WarningLevel = 2 OR @WarningLevel IS NULL)
 	BEGIN 
 		IF @BodyDBOwner LIKE ''%''+@YellowHighlight+''%''
 		BEGIN
