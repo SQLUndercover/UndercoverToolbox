@@ -224,7 +224,7 @@ SET		ServerName = Databases_Stage.ServerName,
 		LastRecorded = GETDATE()
 FROM Catalogue.Databases_Stage
 WHERE	Databases.ServerName = Databases_Stage.ServerName
-		AND Databases.DatabaseID = Databases_Stage.DatabaseID
+		AND Databases.DBName = Databases_Stage.DBName
 
 --insert jobs that are unknown to the catlogue
 INSERT INTO Catalogue.Databases
@@ -244,7 +244,7 @@ SELECT ServerName,
 FROM Catalogue.Databases_Stage
 WHERE NOT EXISTS 
 (SELECT 1 FROM Catalogue.Databases
-		WHERE DatabaseID = Databases_Stage.DatabaseID
+		WHERE DBName = Databases_Stage.DBName
 		AND Databases.ServerName = Databases_Stage.ServerName)
 
 END
@@ -562,7 +562,7 @@ BEGIN
 		[DatabaseName] [sysname] NULL
 	 CONSTRAINT [PK_AgentJobs_Stage] PRIMARY KEY CLUSTERED 
 	(
-		[JobID],[ServerName],[StepID] ASC
+		[JobID],[ServerName],[StepID], [ScheduleName] ASC
 	))
 END
 ELSE
