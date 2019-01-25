@@ -139,6 +139,11 @@ Else
 Write-Host "Auto Discover Instances: Disabled" -ForegroundColor Yellow
 }
 
+#Update Execution Audit
+Write-Host "Updating Execution Audit" -ForegroundColor Yellow
+Invoke-DbaSqlQuery -ServerInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "INSERT INTO Catalogue.ExecutionLog(ExecutionDate) VALUES(GETDATE())"
+
+
 ####################    update catalogue     ##########################################################################
 
 #get all instances
@@ -211,5 +216,10 @@ ForEach ($instance in $Instances.Tables[0].Rows)
         }
     }
 }
+
+#Update Execution Audit
+Write-Host "Updating Execution Audit" -ForegroundColor Yellow
+Invoke-DbaSqlQuery -ServerInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "UPDATE Catalogue.ExecutionLog SET CompletedSuccessfully = 1 FROM Catalogue.ExecutionLog WHERE ID = (SELECT MAX(ID) FROM Catalogue.ExecutionLog)"
+
 
 Write-Host "Interrogation Completed" -ForegroundColor Green
