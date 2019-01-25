@@ -64,8 +64,8 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 14/01/2019
-Version: 1.3
+Revision date: 25/01/2019
+Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
 URL: https://github.com/SQLUndercover/UndercoverToolbox/blob/master/SQLUndercoverInspector/SQLUndercoverinspectorV1.sql
@@ -131,8 +131,8 @@ END
 IF @Help = 1
 BEGIN 
 PRINT '
---Inspector V1.3
---Revision date: 13/12/2018
+--Inspector V1.4
+--Revision date: 25/01/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -199,7 +199,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 
 			DECLARE @SQLStatement VARCHAR(MAX) 
 			DECLARE @DatabaseFileSizesResult INT
-			DECLARE @Build VARCHAR(6) ='1.3'
+			DECLARE @Build VARCHAR(6) ='1.4'
 			DECLARE @CurrentBuild VARCHAR(6)
 			 
 			
@@ -1092,7 +1092,105 @@ END
 	END AS FullBackupBreach,
 	CASE 
 		WHEN IsSystemDB = 1 THEN 0 
-		WHEN IsSystemDB =  0 AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NULL AND DiffBackupAge > DiffBackupThreshold THEN 0 ELSE 1
+		WHEN IsSystemDB = 0 AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NULL AND DiffBackupAge > DiffBackupThreshold THEN 1 ELSE 0
+	END AS DiffBackupBreach,
+	CASE 
+		WHEN IsSystemDB = 1 OR IsFullRecovery = 0 THEN 0 
+		WHEN (IsSystemDB =  0 AND IsFullRecovery = 1) AND LogBackupAge > LogBackupThreshold THEN 1 ELSE 0 
+	END AS LogBackupBreach,
+	CASE 
+		WHEN IsSystemDB = 1 OR IsFullRecovery = 0 THEN 1 
+		WHEN (IsSystemDB =  0 AND IsFullRecovery = 1) AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NULL THEN 2
+		WHEN (IsSystemDB =  0 AND IsFullRecovery = 1) AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NOT NULL THEN 3
+	END AS TotalBackupTypes
+	FROM Validations;'
+	END
+	ELSE
+	BEGIN 
+	EXEC sp_executesql N'ALTER VIEW [Inspector].[PowerBIBackupsview]
+	AS
+	WITH RawData AS 
+	(SELECT 
+	Log_Date,
+	LTRIM(RTRIM(BackupSet.Databasename)) AS Databasename, --Added trim as Leading and trailing spaces can cause misreporting
+	[FULL] AS LastFull,
+	[DIFF] AS LastDiff,
+	[LOG] AS LastLog,
+	BackupSet.AGname,
+	CASE WHEN BackupSet.AGname = ''Not in an AG'' THEN Servername
+	ELSE BackupSet.AGname END AS GroupingMethod,  
+	Servername,
+	BackupSet.IsFullRecovery,
+	BackupSet.IsSystemDB,
+	BackupSet.primary_replica,
+	BackupSet.backup_preference
+	FROM [Inspector].[BackupsCheck] BackupSet
+	WHERE CAST(GETDATE() AS DATE) >= CAST(GETDATE() AS DATE)
+	),
+	Aggregates AS (
+	SELECT 
+	MAX(Log_Date) AS Log_Date,
+	RawData.Databasename,
+	MAX(Servername) AS Servername,
+	MAX(LastFull) AS LastFull,
+	MAX(LastDiff) AS LastDiff,
+	MAX(LastLog) AS LastLog,
+	AGname,
+	GroupingMethod,
+	IsFullRecovery,
+	IsSystemDB,
+	MAX(primary_replica) AS primary_replica,
+	UPPER(backup_preference) AS backup_preference
+	FROM RawData RawData
+	GROUP BY Databasename,AGname,GroupingMethod,IsFullRecovery,IsSystemDB,backup_preference
+	),
+	Validations AS (
+	SELECT 
+	Log_Date,
+	Databasename,
+	Servername,
+	LastFull,
+	LastDiff,
+	LastLog,
+	DATEDIFF(DAY,LastFull,Log_Date) AS FullBackupAge,
+	DATEDIFF(DAY,LastDiff,Log_Date) AS DiffBackupAge,
+	DATEDIFF(MINUTE,LastLog,Log_Date) AS LogBackupAge,
+	AGname,
+	GroupingMethod,
+	IsFullRecovery,
+	IsSystemDB,
+	primary_replica,
+	backup_preference,
+	(SELECT ISNULL(CAST([Value] AS INT),8) FROM [Inspector].[Settings] WHERE [Description] = ''FullBackupThreshold'') AS FullBackupThreshold,
+	(SELECT ISNULL(CAST([Value] AS INT),365) FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') AS DiffBackupThreshold,
+	(SELECT ISNULL(CAST([Value] AS INT),60) FROM [Inspector].[Settings] WHERE [Description] = ''LogBackupThreshold'') AS LogBackupThreshold
+	FROM Aggregates
+	)
+	SELECT 
+	Log_Date,
+	Databasename,
+	Servername,
+	NULLIF(LastFull,''19000101 00:00:00'') AS LastFull,
+	NULLIF(LastDiff,''19000101 00:00:00'') AS LastDiff,
+	NULLIF(LastLog,''19000101 00:00:00'') AS LastLog,
+	FullBackupAge,
+	DiffBackupAge,
+	LogBackupAge,
+	AGname,
+	GroupingMethod,
+	IsFullRecovery,
+	IsSystemDB,
+	primary_replica,
+	backup_preference,
+	FullBackupThreshold,
+	DiffBackupThreshold,
+	LogBackupThreshold,
+	CASE 
+		WHEN FullBackupAge > FullBackupThreshold THEN 1 ELSE 0 
+	END AS FullBackupBreach,
+	CASE 
+		WHEN IsSystemDB = 1 THEN 0 
+		WHEN IsSystemDB = 0 AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NULL AND DiffBackupAge > DiffBackupThreshold THEN 1 ELSE 0
 	END AS DiffBackupBreach,
 	CASE 
 		WHEN IsSystemDB = 1 OR IsFullRecovery = 0 THEN 0 
@@ -3889,9 +3987,9 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 14/01/2019
+--Revision date: 25/01/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
---V1.3
+--V1.4
 
 
 --Example Execute command
@@ -4009,6 +4107,7 @@ DECLARE @WarningLevel TINYINT
 DECLARE @WaningLevelFontColour VARCHAR(7)
 DECLARE @VersionNo VARCHAR(50)
 DECLARE @Edition VARCHAR(128)
+DECLARE @DatabaseGrowthCheckRunEnabled BIT
 
 DECLARE @Stack VARCHAR(255) = (SELECT [Value] from ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''SQLUndercoverInspectorEmailSubject'') 
 
@@ -4132,6 +4231,10 @@ SELECT
 FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Modules]
 WHERE ModuleConfig_Desc = ISNULL(@ModuleDesc,@ModuleConfig)
 
+IF @DatabaseGrowthCheck = 1
+BEGIN 
+    SET @DatabaseGrowthCheckRunEnabled = 1;
+END 
 
 IF ISNULL(@ModuleDesc,@ModuleConfig) != ''PeriodicBackupCheck''
 BEGIN 
@@ -6808,7 +6911,7 @@ SELECT
 @Edition = CAST([Edition] AS VARCHAR(128))
 FROM [Inspector].[InstanceVersionHistory] 
 WHERE [Servername] = @Serverlist 
-AND CAST([CollectionDatetime] AS DATE) = CAST(GETDATE() AS DATE);
+AND [CollectionDatetime] >= DATEADD(DAY,-1,GETDATE());
 
 --If version has changed then create an entry in the advisory header
 IF @VersionNo IS NOT NULL  
@@ -6879,7 +6982,7 @@ DEALLOCATE ServerCur
 
 
 
-IF @DatabaseGrowthCheck = 1 
+IF (@DatabaseGrowthCheck = 1 OR @DatabaseGrowthCheckRunEnabled = 1)
 BEGIN
 --Excluded from Warning level control	
 
@@ -7743,6 +7846,11 @@ EXEC(@SQLStatement);
 
 
 PRINT '
+===================================================================================================================================
+Our Getting started guide can be found here: https://sqlundercover.com/2018/02/19/getting-started-with-the-sqlundercover-inspector/
+===================================================================================================================================
+
+
 =====================================
 SET Schedules for the following jobs:
 =====================================
