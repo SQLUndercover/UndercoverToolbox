@@ -37,13 +37,9 @@
                                                                                                                             
 Undercover Catalogue Installation 0.2.0                                                      
 Written By David Fowler
-28/08/2018
+28/01/2019
 
 Fresh Installation and Upgrade
-
-Changes:
-Modifications to 0.1 schema to make compatible with case sensitive collations
-Hardware information added to Servers module
 
 MIT License
 ------------
@@ -1360,7 +1356,7 @@ BEGIN
 	INSERT INTO Catalogue.ConfigPoSH (ParameterName,ParameterValue)
 	VALUES	('CatalogueVersion', '0.2.0'),
 			('AutoDiscoverInstances','0'),
-			('DBAToolsRequirement', '0.9.385'),
+			('DBAToolsRequirement', '0.9.750'),
 			('AutoInstall', '0'),
 			('AutoUpdate', '0'),
 			('InstallationScriptPath', '{script path}')
@@ -1368,6 +1364,11 @@ END
 ELSE
 BEGIN
 	EXEC sp_rename 'Catalogue.configPoSH', 'ConfigPoSH'
+
+	--update the required version of dbatools to 0.9.750
+	UPDATE Catalogue.ConfigPoSH
+	SET ParameterValue = '0.9.750'
+	WHERE ParameterName = 'DBAToolsRequirement'
 END
 GO
 
@@ -1445,24 +1446,24 @@ CREATE PROC Catalogue.GetServers
 AS
 BEGIN
 
+
 SELECT 
 @@SERVERNAME AS ServerName, 
-SERVERPROPERTY('collation') AS Collation,  --nvarchar(128)
-SERVERPROPERTY('Edition') AS Edition, --nvarchar(128)
+SERVERPROPERTY('collation') AS Collation,
+SERVERPROPERTY('Edition') AS Edition, 
 SERVERPROPERTY('ProductVersion') AS VersionNo,
 sqlserver_start_time AS ServerStartTime,
 [cost threshold for parallelism] AS CostThreshold,
 [max worker threads] AS MaxWorkerThreads,
 [max degree of parallelism] AS [MaxDOP],
 cpu_count AS CPUCount,
-numa_node_count AS NUMACount,
+NULL AS NUMACount, --not implemented, needs a version check
 physical_memory_kb / 1024 AS PhysicalMemoryMB,
 [max server memory (MB)] AS MaxMemoryMB,
 [min server memory (MB)] AS MinMemoryMB,
-sql_memory_model_desc AS MemoryModel,
+NULL AS MemoryModel,  --not implemented, needs a version check
 SERVERPROPERTY('IsClustered') AS IsClustered,
 virtual_machine_type_desc AS VMType
-
 FROM sys.dm_os_sys_info,
 (
 	SELECT [max worker threads],[cost threshold for parallelism],[max degree of parallelism],[min server memory (MB)],[max server memory (MB)]
@@ -2227,6 +2228,17 @@ END
 
 GO
 
+
+-- Create Execution Log
+CREATE TABLE Catalogue.ExecutionLog
+(ID INT IDENTITY(1,1) NOT NULL,
+ExecutionDate DATETIME NULL,
+CompletedSuccessfully BIT DEFAULT 0
+	 CONSTRAINT [PK_ExecutionLog] PRIMARY KEY CLUSTERED 
+	(
+		ID ASC
+	))
+
 -------------------------------------------------------------------------------------------------------
 ------------------------------update modules table with 0.2 modules------------------------------------
 -------------------------------------------------------------------------------------------------------
@@ -2235,3 +2247,5 @@ INSERT INTO Catalogue.ConfigModules ([ModuleName], [GetProcName], [UpdateProcNam
 VALUES	('ADGroups','GetADGroups','UpdateADGroups','ADGroups_Stage','ADGroups',	1),
 		('LinkedServers','GetLinkedServers','UpdateLinkedServers','LinkedServers_Stage','LinkedServers_Servers,LinkedServers_Users',1),
 		('Tables','GetTables','UpdateTables','Tables_Stage','Tables',1)
+
+
