@@ -25,7 +25,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 Import-Module dbatools
 
 #configuration variables
-$ConfigServer = "<Configuration Server Name>"
+$ConfigServer = "<configuration server name>"
 $SQLUndercoverDatabase = "SQLUndercover"
 $ScriptVersion = "0.2.0"
 
