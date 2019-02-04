@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 25/01/2019
+Revision date: 04/02/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
@@ -1011,6 +1011,7 @@ END
 	BEGIN
 	EXEC sp_executesql N'CREATE VIEW [Inspector].[PowerBIBackupsview]
 	AS
+	--Revision Date: 04/02/2019
 	WITH RawData AS 
 	(SELECT 
 	Log_Date,
@@ -1092,7 +1093,8 @@ END
 	END AS FullBackupBreach,
 	CASE 
 		WHEN IsSystemDB = 1 THEN 0 
-		WHEN IsSystemDB = 0 AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NULL AND DiffBackupAge > DiffBackupThreshold THEN 1 ELSE 0
+		WHEN IsSystemDB = 0 AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NULL THEN 0
+		WHEN IsSystemDB = 0 AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NOT NULL AND DiffBackupAge > DiffBackupThreshold THEN 1 ELSE 0
 	END AS DiffBackupBreach,
 	CASE 
 		WHEN IsSystemDB = 1 OR IsFullRecovery = 0 THEN 0 
@@ -1109,6 +1111,7 @@ END
 	BEGIN 
 	EXEC sp_executesql N'ALTER VIEW [Inspector].[PowerBIBackupsview]
 	AS
+	--Revision Date: 04/02/2019
 	WITH RawData AS 
 	(SELECT 
 	Log_Date,
@@ -1190,7 +1193,8 @@ END
 	END AS FullBackupBreach,
 	CASE 
 		WHEN IsSystemDB = 1 THEN 0 
-		WHEN IsSystemDB = 0 AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NULL AND DiffBackupAge > DiffBackupThreshold THEN 1 ELSE 0
+		WHEN IsSystemDB = 0 AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NULL THEN 0
+		WHEN IsSystemDB = 0 AND (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'') IS NOT NULL AND DiffBackupAge > DiffBackupThreshold THEN 1 ELSE 0
 	END AS DiffBackupBreach,
 	CASE 
 		WHEN IsSystemDB = 1 OR IsFullRecovery = 0 THEN 0 
@@ -3044,7 +3048,7 @@ AS
 
 BEGIN
 
---Revision date: 11/01/2019
+--Revision date: 04/02/2019
 
 SET NOCOUNT ON;
 
@@ -3078,13 +3082,17 @@ BEGIN
 						+ PARSENAME([VersionNo],4) 
 						+ N''] to [''
 						+ PARSENAME(@Version,4) 
-						+ N'']''
+						+ N''] ''
+						+ ISNULL(N'' ''+CAST(SERVERPROPERTY(''ProductLevel'') AS NVARCHAR(6)),'''')
+						+ ISNULL(N'' ''+CAST(SERVERPROPERTY(''ProductUpdateLevel'') AS NVARCHAR(6)),'''')
 					WHEN PARSENAME([VersionNo],2) != PARSENAME(@Version,2) 
 						THEN N''Minor Version changed from [''
 						+ PARSENAME([VersionNo],2) 
 						+ N''] to [''
 						+ PARSENAME(@Version,2)
-						+ N'']''
+						+ N''] ''
+						+ ISNULL(N'' ''+CAST(SERVERPROPERTY(''ProductLevel'') AS NVARCHAR(6)),'''')
+						+ ISNULL(N'' ''+CAST(SERVERPROPERTY(''ProductUpdateLevel'') AS NVARCHAR(6)),'''')
 				 END
 			ELSE NULL
 		END AS [VersionNo],
