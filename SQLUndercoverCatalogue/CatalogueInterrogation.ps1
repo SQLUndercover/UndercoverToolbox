@@ -2,6 +2,7 @@
 SQL Undercover Catalogue Interrogation
 Written by David Fowler, 28/08/2018
 Update 0.2.0 - 28/01/2019
+Update 0.2.1 - 14/02/2019
 
 MIT License
 ------------
@@ -27,7 +28,7 @@ Import-Module dbatools
 #configuration variables
 $ConfigServer = "<configuration server name>"
 $SQLUndercoverDatabase = "SQLUndercover"
-$ScriptVersion = "0.2.0"
+$ScriptVersion = "0.2.1"
 
 Clear-Host
 
@@ -70,7 +71,7 @@ Write-Host "|                                  cKkl,                            
 Write-Host "|                                  ;c.                                      |" -ForegroundColor White -BackgroundColor Black                                                                      
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "|                           Undercover Catalogue                            |" -ForegroundColor White -BackgroundColor Black
-Write-Host "|                               version 0.2                                 |" -ForegroundColor White -BackgroundColor Black
+Write-Host "|                              version 0.2.1                                |" -ForegroundColor White -BackgroundColor Black
 Write-Host "|                          ©2019 sqlundercover.com                          |" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black

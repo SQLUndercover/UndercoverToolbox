@@ -35,16 +35,16 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-Undercover Catalogue Installation 0.2.0                                                      
+Undercover Catalogue Installation 0.2.1                                                      
 Written By David Fowler
-28/01/2019
+14/02/2019
 
 Fresh Installation and Upgrade
 
 MIT License
 ------------
 
-Copyright 2018 Sql Undrcover
+Copyright 2018 Sql Undercover
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files 
 (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, 
@@ -1380,7 +1380,7 @@ GO
 
 
 --------------------------------------------------------------------------------------------------------------
-------------------Version 0.2 Changes-------------------------------------------------------------------------
+------------------Version 0.2.1 Changes-------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------------------
 
 --Server Module Enhancements
@@ -1388,10 +1388,10 @@ GO
 --alter server table to include new fields
 
 --------------------------------------Catalogue Servers----------------------------------------------------------------
---change version number in ConfigPoSH to 0.2.0
+--change version number in ConfigPoSH to 0.2.1
 
 UPDATE Catalogue.ConfigPoSH 
-SET ParameterValue = '0.2.0'
+SET ParameterValue = '0.2.1'
 WHERE ParameterName = 'CatalogueVersion'
 GO
 
@@ -2139,7 +2139,11 @@ BEGIN
 			CAST((
 				SELECT columns.name AS ColName,
 				types.name AS DataType, 
-				columns.max_length AS Length, 
+				CASE 
+					WHEN columns.max_length = -1 THEN ''MAX''
+					WHEN types.name IN (''nchar'',''nvarchar'') THEN CAST(columns.max_length/2 AS VARCHAR)
+					ELSE CAST(columns.max_length AS VARCHAR)
+				END AS Length, 
 				columns.is_nullable AS IsNullable,
 				columns.is_identity AS IsIdentity,
 				columns.is_computed AS IsComputed
