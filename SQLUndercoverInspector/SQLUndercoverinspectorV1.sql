@@ -7022,6 +7022,7 @@ BEGIN
     <td bgcolor=''+@TableHeaderColour+''><b>Growth Increments</b></td>
     <td bgcolor=''+@TableHeaderColour+''><b>Post Growth Size MB</b></td>
     <td bgcolor=''+@TableHeaderColour+''><b>Suggested Growth Rate MB</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Growth Rate trend</b></td>
     '';
 
 
@@ -7043,11 +7044,25 @@ BEGIN
 	CASE 
 		WHEN [GrowthRate_MB] < 100 THEN 100  -- if current growth rate is less than 100MB then suggest a minimum of 100MB
 		ELSE [GrowthRate_MB] * [GrowthIncrements] 
-	END AS ''td'',''''
-	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseFileSizeHistory]
+	END AS ''td'','''',+
+	[HistoricGrowths].[LastFiveDaysGrowth] AS ''td'',''''
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseFileSizeHistory] LatestGrowths
+	CROSS APPLY (SELECT STUFF((SELECT TOP 5 '', ['' 
+		+ DATENAME(WEEKDAY,DATEADD(DAY,-1,[HistoricGrowths].[Log_Date])) 
+		+ '' '' 
+		+ CAST([GrowthRate_MB]*[GrowthIncrements] AS VARCHAR(10))
+		+'' MB]''
+		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[DatabaseFileSizeHistory] HistoricGrowths
+		WHERE [LatestGrowths].[Servername] = [HistoricGrowths].[Servername]
+		AND [LatestGrowths].[Database_id] = [HistoricGrowths].[Database_id]
+		AND [LatestGrowths].[File_id] = [HistoricGrowths].[File_id]
+		AND [HistoricGrowths].[Log_Date] >= DATEADD(DAY,-5,GETDATE())
+		ORDER BY [HistoricGrowths].[Log_Date] DESC 
+		FOR XML PATH('''')),1,1,'''')
+		) AS [HistoricGrowths](LastFiveDaysGrowth)
 	WHERE [Log_Date] >= CAST(GETDATE() AS DATE)
 	AND [GrowthIncrements] > @DatabaseGrowthsAllowedPerDay
-	ORDER BY Servername,Database_name,[File_id]
+	ORDER BY [Servername],[Database_name],[File_id]
 	FOR XML PATH(''tr''),Elements);
 
 	--Check for Database Growth Advisory Condition, then for any warnings 
