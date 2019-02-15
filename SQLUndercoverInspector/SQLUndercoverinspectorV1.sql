@@ -4123,7 +4123,7 @@ DECLARE @TotalWarningCount INT = 0
 DECLARE @TotalAdvisoryCount INT = 0
 DECLARE @WarningLevel TINYINT
 DECLARE @WaningLevelFontColour VARCHAR(7)
-DECLARE @VersionNo VARCHAR(50)
+DECLARE @VersionNo VARCHAR(128)
 DECLARE @Edition VARCHAR(128)
 DECLARE @DatabaseGrowthCheckRunEnabled BIT
 
@@ -6925,7 +6925,7 @@ SET @VersionNo = NULL;
 SET @Edition = NULL;
 
 SELECT 
-@VersionNo = CAST([VersionNo] AS VARCHAR(50)),
+@VersionNo = CAST([VersionNo] AS VARCHAR(128)),
 @Edition = CAST([Edition] AS VARCHAR(128))
 FROM [Inspector].[InstanceVersionHistory] 
 WHERE [Servername] = @Serverlist 
