@@ -788,9 +788,15 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[Servername] NVARCHAR(128) NOT NULL,
 			[Log_Date] DATETIME NOT NULL,
 			[CollectionDatetime] DATETIME NOT NULL,
-			[VersionNo] NVARCHAR(50) NULL,
+			[VersionNo] NVARCHAR(128) NULL,
 			[Edition] NVARCHAR(128) NULL
 			);
+
+			--Extend the length of the VersionNo column to NVARCHAR(128) to accomodate additionally logged information #93
+			IF (SELECT max_length FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.InstanceVersionHistory') AND name = 'VersionNo') < 256
+			BEGIN 
+				ALTER TABLE [Inspector].[InstanceVersionHistory] ALTER COLUMN [VersionNo] NVARCHAR(128);
+			END
 
 			IF OBJECT_ID('Inspector.UnusedLogshipConfig') IS NULL
 			CREATE TABLE [Inspector].[UnusedLogshipConfig] (
@@ -3048,7 +3054,7 @@ AS
 
 BEGIN
 
---Revision date: 04/02/2019
+--Revision date: 14/02/2019
 
 SET NOCOUNT ON;
 
@@ -3116,7 +3122,11 @@ BEGIN
 		) AS LastLoggedVersionInfo
 	) AS VersionCheck
 	WHERE ([VersionNo] IS NOT NULL OR [Edition] IS NOT NULL)
-	AND NOT EXISTS (SELECT 1 FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[InstanceVersionHistory] WHERE Servername = @Servername AND CAST(VersionCheck.[Log_Date] AS DATE) = CAST([InstanceVersionHistory].[Log_Date] AS DATE))
+	AND NOT EXISTS (SELECT 1 
+					FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[InstanceVersionHistory] 
+					WHERE Servername = @Servername 
+					AND CAST(VersionCheck.[Log_Date] AS DATE) = CAST([InstanceVersionHistory].[Log_Date] AS DATE) 
+					AND ([VersionNo] = [VersionCheck].[VersionNo] OR [Edition] = [VersionCheck].[Edition]))
 
 END 
 
