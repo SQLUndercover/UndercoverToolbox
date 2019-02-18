@@ -806,6 +806,22 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			Databasestate NVARCHAR(128)
 			);
 
+			IF OBJECT_ID('Inspector.ExecutionLog') IS NULL
+			BEGIN
+				CREATE TABLE [Inspector].[ExecutionLog](
+				[ID] INT IDENTITY(1,1),
+				[ExecutionDate] DATETIME NOT NULL,
+				[Servername] NVARCHAR(128) NOT NULL,
+				[ModuleConfig_Desc] VARCHAR(20) NOT NULL,
+				[Procname] NVARCHAR(128) NOT NULL,
+				[Duration] MONEY,
+				[PSCollection] BIT NOT NULL
+				); 
+
+				CREATE CLUSTERED INDEX [CIX_ExecutionLog_ID] ON [Inspector].[ExecutionLog]
+				([ID] ASC);
+			END
+
 
 			--Insert new settings for V1.2
 			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'LongRunningTransactionThreshold')
@@ -1654,6 +1670,9 @@ END
 			IF OBJECT_ID('Inspector.UnusedLogshipConfigInsert') IS NOT NULL
 			DROP PROCEDURE [Inspector].[UnusedLogshipConfigInsert];
 
+			IF OBJECT_ID('Inspector.ExecutionLogInsert') IS NOT NULL
+			DROP PROCEDURE [Inspector].[ExecutionLogInsert];
+
 			IF OBJECT_ID('Inspector.PSGetColumns') IS NOT NULL
 			DROP PROCEDURE [Inspector].[PSGetColumns];
 
@@ -1683,7 +1702,9 @@ END
 
 			IF OBJECT_ID('Inspector.PSGetInstanceVersionHistoryStage') IS NOT NULL
 			DROP PROCEDURE [Inspector].[PSGetInstanceVersionHistoryStage];
-			
+
+			IF OBJECT_ID('Inspector.CatalogueMissingLogins') IS NOT NULL
+			DROP PROCEDURE [Inspector].[CatalogueMissingLogins];
 			
 			
 
@@ -3351,6 +3372,25 @@ EXEC(@SQLStatement);
 
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[ExecutionLogInsert]
+(
+@RunDatetime DATETIME,
+@Servername NVARCHAR(128),
+@ModuleConfigDesc VARCHAR(20),
+@Procname NVARCHAR(128),
+@Duration MONEY,
+@PSCollection BIT
+)
+AS
+BEGIN
+	INSERT INTO [Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Duration,PSCollection)
+	VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Duration,@PSCollection);
+END'
+
+EXEC(@SQLStatement);
+
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[PSGetColumns]
 (
 @Tablename NVARCHAR(128)
@@ -3784,6 +3824,99 @@ END'
 
 EXEC(@SQLStatement);
 
+--Catalogue reporting procs
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[CatalogueMissingLogins]
+(
+@Servername NVARCHAR(128),
+@TableHeaderColour VARCHAR(7) = NULL,
+@HtmlOutput VARCHAR(MAX) OUTPUT,
+@WarningLevel INT OUTPUT
+)
+AS
+--Revision date: 18/02/2019
+BEGIN
+
+IF @TableHeaderColour IS NULL BEGIN SET @TableHeaderColour = ''#E6E6FA'' END;
+SET @WarningLevel = 2;
+IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
+
+IF OBJECT_ID(''tempdb.dbo.#ServerLogins'') IS NOT NULL
+DROP TABLE #ServerLogins;
+
+CREATE TABLE #ServerLogins (
+AGName NVARCHAR(128),
+LoginName NVARCHAR(128),
+ServerName NVARCHAR(128)
+);
+
+EXEC sp_executesql 
+N''INSERT INTO #ServerLogins (AGName,LoginName,ServerName)
+SELECT DISTINCT AGs.AGName, Logins.LoginName, AGs2.ServerName
+FROM (SELECT DISTINCT AGName FROM Catalogue.AvailabilityGroupsLatest WHERE ServerName = @Servername) AGList
+INNER JOIN Catalogue.AvailabilityGroupsLatest AGs ON AGList.AGName = AGs.AGName
+INNER JOIN Catalogue.LoginsLatest Logins ON AGs.ServerName = Logins.ServerName
+INNER JOIN Catalogue.AvailabilityGroupsLatest AGs2 ON AGs.AGName = AGs2.AGName
+WHERE NOT EXISTS (SELECT 1
+					FROM Catalogue.AvailabilityGroupsLatest AGs3
+					JOIN Catalogue.LoginsLatest Logins3 ON AGs3.ServerName = Logins3.ServerName
+					WHERE AGs3.AGName = AGs.AGName
+					AND AGs3.ServerName = AGs2.ServerName
+					AND Logins3.LoginName = Logins.LoginName)
+AND Logins.LoginName NOT IN (SELECT LoginName FROM Alerting.SIDCheckExclusions WHERE AGs.AGName = SIDCheckExclusions.AGName)
+
+
+SET @HtmlOutput = (
+SELECT  
+CASE 
+	WHEN @WarningLevel IS NULL THEN ''''White''''
+	WHEN @WarningLevel = 1 THEN ''''Red''''
+	WHEN @WarningLevel = 2 THEN ''''#FAFCA4''''
+	WHEN @WarningLevel = 3 THEN ''''White'''' 
+END AS [@bgcolor],
+Servername AS ''''td'''','''''''', + 
+LoginName AS ''''td'''','''''''', + 
+CreateCommand AS ''''td'''',''''''''
+FROM 
+(
+	SELECT DISTINCT 
+	#ServerLogins.ServerName, 
+	Logins.LoginName,
+	CASE 
+		WHEN Logins.LoginName LIKE ''''%\%'''' THEN ''''CREATE LOGIN '''' + QUOTENAME(Logins.LoginName) + '''' FROM WINDOWS''''
+		ELSE ''''CREATE LOGIN '''' + QUOTENAME(Logins.LoginName) + '''' WITH PASSWORD = 0x'''' + CONVERT(VARCHAR(MAX), Logins.PasswordHash, 2) + '''' HASHED, SID = 0x'''' + CONVERT(VARCHAR(MAX), Logins.sid, 2) 
+	END AS CreateCommand
+	FROM Catalogue.AvailabilityGroupsLatest AGs
+	JOIN Catalogue.LoginsLatest Logins ON AGs.ServerName = Logins.ServerName
+	JOIN #ServerLogins ON AGs.AGName = #ServerLogins.AGName AND Logins.LoginName = #ServerLogins.LoginName
+	JOIN Catalogue.UsersLatest Users ON Users.MappedLoginName = #ServerLogins.LoginName
+	JOIN Catalogue.DatabasesLatest Databases ON Users.DBName = Databases.DBName 
+													AND AGs.AGName = Databases.AGName
+	WHERE AGs.Role = ''''PRIMARY''''
+	AND #ServerLogins.ServerName = @Servername
+) AS MissingLoginInfo
+FOR XML PATH(''''tr''''),ELEMENTS);'',N''@Servername NVARCHAR(128), @WarningLevel INT, @HtmlOutput VARCHAR(MAX) OUTPUT'',
+@Servername = @Servername, @WarningLevel = @WarningLevel, @HtmlOutput = @HtmlOutput OUTPUT;
+
+
+IF @HtmlOutput IS NOT NULL 
+BEGIN 
+    SET @HtmlOutput = 
+    ''<b><A NAME = "''+REPLACE(@Servername,''\'','''')+''MissingLogins''+''"></a>Missing Logins:</b>
+    <br> <table cellpadding=0 cellspacing=0 border=0> 
+    <tr> 
+	<td bgcolor=''+@TableHeaderColour+''><b>Servername</b></font></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>LoginName</b></font></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>CreateCommand</b></font></td>	
+	''+@HtmlOutput
+	+''</table><p><A HREF = "#Warnings">Back to Top</a><p>'';
+END 
+
+
+END'
+
+EXEC(@SQLStatement);
+
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[InspectorDataCollection]
@@ -3794,7 +3927,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 13/12/2018
+--Revision date: 17/02/2019
 
 SET NOCOUNT ON;
 
@@ -3818,17 +3951,28 @@ DECLARE @AGDatabases	BIT
 DECLARE @LongRunningTransactions BIT
 DECLARE @UnusedLogshipConfig BIT
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
+DECLARE @CollectionStart DATETIME
+DECLARE @Duration MONEY
+DECLARE @LastTruncate DATE
 
     IF EXISTS (SELECT ModuleConfig_Desc FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Modules] WHERE ModuleConfig_Desc = @ModuleConfig) OR @ModuleConfig IS NULL 
     BEGIN
-
+		--Truncate the ExecutionLog daily
+		SELECT @LastTruncate = (SELECT TOP 1 CAST([ExecutionDate] AS DATE) FROM [Inspector].[ExecutionLog] ORDER BY [ID] DESC)
+ 
+		--If the most recent log is from yesterday then Truncate the log.
+		IF (@LastTruncate < CAST(GETDATE() AS DATE))
+		BEGIN 
+			TRUNCATE TABLE [Inspector].[ExecutionLog];
+		END
+		
 	   --If @ModuleConfig IS NULL check if specific server has a Moduleconfig set against it and set @ModuleConfig accordingly, if none found then set ''Default''
 	   IF @ModuleConfig IS NULL  
 	   BEGIN
 		  SELECT @ModuleConfig = ISNULL(ModuleConfig_Desc,''Default'')
 		  FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[CurrentServers]
 		  WHERE IsActive = 1 
-		  AND Servername = @@SERVERNAME;
+		  AND Servername = @Servername;
 	   END
 	   
 	   
@@ -3860,132 +4004,360 @@ DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 	   RAISERROR(''ModuleConfig selected for server: %s'',0,0,@ModuleConfig) WITH NOWAIT;
 
 	   RAISERROR(''Checking for missing Warning level/module combinations'',0,0) WITH NOWAIT;
-	   EXEC ['+@Databasename+'].[Inspector].[PopulateModuleWarningLevel];
+	   EXEC [Inspector].[PopulateModuleWarningLevel];
 
 	   IF @AGCheck = 1 
 	   BEGIN 
+		  SET @CollectionStart = GETDATE();
+
 		  RAISERROR(''Running [AGCheckInsert]'',0,0) WITH NOWAIT;
-		  EXEC ['+@Databasename+'].[Inspector].[AGCheckInsert];
+		  EXEC [Inspector].[AGCheckInsert];
+
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''AGCheckInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;
 	   END
 
 	   IF @BackupsCheck = 1 
 	   BEGIN
+		  SET @CollectionStart = GETDATE();
+
 		  RAISERROR(''Running [BackupsCheckInsert]'',0,0) WITH NOWAIT; 
-	      EXEC ['+@Databasename+'].[Inspector].[BackupsCheckInsert];
+	      EXEC [Inspector].[BackupsCheckInsert];
+
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''BackupsCheckInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;
 	   END
 
 	   IF @BackupSizesCheck = 1 
 	   BEGIN 
+		SET @CollectionStart = GETDATE();
+
 	      RAISERROR(''Running [BackupSizesByDayInsert]'',0,0) WITH NOWAIT;
-	      EXEC ['+@Databasename+'].[Inspector].[BackupSizesByDayInsert]; 		 
+	      EXEC [Inspector].[BackupSizesByDayInsert]; 		
+		  
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''BackupSizesByDayInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection; 
 	   END
 
 	   IF @DatabaseGrowthCheck = 1 
 	   BEGIN
+		SET @CollectionStart = GETDATE();
+
 	      RAISERROR(''Running [DatabaseGrowthsInsert]'',0,0) WITH NOWAIT; 
-	      EXEC ['+@Databasename+'].[Inspector].[DatabaseGrowthsInsert];		  
+	      EXEC [Inspector].[DatabaseGrowthsInsert];		
+		  
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''DatabaseGrowthsInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;  
 	   END
 
 	   IF @DatabaseFileCheck = 1 
-	   BEGIN 
+	   BEGIN
+		SET @CollectionStart = GETDATE();
+			    
 	      RAISERROR(''Running [DatabaseFilesInsert]'',0,0) WITH NOWAIT;
-	      EXEC ['+@Databasename+'].[Inspector].[DatabaseFilesInsert]; 
+	      EXEC [Inspector].[DatabaseFilesInsert]; 
+
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''DatabaseFilesInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;  
 	   END
 
 	   IF @DatabaseOwnershipCheck = 1 
 	   BEGIN 
+		SET @CollectionStart = GETDATE();
+
 	      RAISERROR(''Running [DatabaseOwnershipInsert]'',0,0) WITH NOWAIT;
-	      EXEC ['+@Databasename+'].[Inspector].[DatabaseOwnershipInsert]; 		 
+	      EXEC [Inspector].[DatabaseOwnershipInsert]; 	
+		  
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''DatabaseOwnershipInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection; 	 
 	   END
 
 	   IF @DatabaseStatesCheck = 1 
 	   BEGIN 
+		SET @CollectionStart = GETDATE();
+
 	      RAISERROR(''Running [DatabaseStatesInsert]'',0,0) WITH NOWAIT;
-	      EXEC ['+@Databasename+'].[Inspector].[DatabaseStatesInsert]; 	 
+	      EXEC [Inspector].[DatabaseStatesInsert]; 
+
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''DatabaseStatesInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;	 
 	   END
 
 	   IF @DriveSpaceCheck = 1 
 	   BEGIN 
+		SET @CollectionStart = GETDATE();
+
 	      RAISERROR(''Running [DriveSpaceInsert]'',0,0) WITH NOWAIT;
-	      EXEC ['+@Databasename+'].[Inspector].[DriveSpaceInsert]; 		 
+	      EXEC [Inspector].[DriveSpaceInsert]; 	
+		  
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''DriveSpaceInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection; 
 	   END
 
 	   IF @FailedAgentJobCheck = 1 
 	   BEGIN 
+		SET @CollectionStart = GETDATE();
+
 	      RAISERROR(''Running [FailedAgentJobsInsert]'',0,0) WITH NOWAIT;
-	      EXEC ['+@Databasename+'].[Inspector].[FailedAgentJobsInsert]; 		 
+	      EXEC [Inspector].[FailedAgentJobsInsert]; 	
+		 
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''FailedAgentJobsInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection; 
 	   END
 
 	   IF @JobOwnerCheck = 1 
 	   BEGIN 
+		SET @CollectionStart = GETDATE();
+
 	      RAISERROR(''Running [JobOwnerInsert]'',0,0) WITH NOWAIT;
-	      EXEC ['+@Databasename+'].[Inspector].[JobOwnerInsert]; 		 
+	      EXEC [Inspector].[JobOwnerInsert]; 		
+		  
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''JobOwnerInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;  
 	   END
 
 	   IF @FailedLoginsCheck = 1 
 	   BEGIN 
+		SET @CollectionStart = GETDATE();
+
 	      RAISERROR(''Running [LoginAttemptsInsert]'',0,0) WITH NOWAIT;
-	      EXEC ['+@Databasename+'].[Inspector].[LoginAttemptsInsert]; 		 
+	      EXEC [Inspector].[LoginAttemptsInsert]; 	
+		  
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''LoginAttemptsInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection; 
 	   END
 
 	   IF @TopFiveDatabaseSizeCheck = 1 
 	   BEGIN
+		SET @CollectionStart = GETDATE();
+
 	      RAISERROR(''Running [TopFiveDatabasesInsert]'',0,0) WITH NOWAIT; 
-	      EXEC ['+@Databasename+'].[Inspector].[TopFiveDatabasesInsert]; 		 
+	      EXEC [Inspector].[TopFiveDatabasesInsert]; 		
+		  
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''TopFiveDatabasesInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;	 
 	   END
 
 	   IF @ADHocDatabaseCreationCheck = 1 
-	   BEGIN 
+	   BEGIN
+	 	SET @CollectionStart = GETDATE(); 
+
 	      RAISERROR(''Running [ADHocDatabaseCreationsInsert]'',0,0) WITH NOWAIT;
-	      EXEC ['+@Databasename+'].[Inspector].[ADHocDatabaseCreationsInsert]; 		 
+	      EXEC [Inspector].[ADHocDatabaseCreationsInsert]; 		 
+
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''ADHocDatabaseCreationsInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;
 	   END
 
 	   IF @DatabaseSettings = 1 
 	   BEGIN 
+	 	SET @CollectionStart = GETDATE(); 
+
 	      RAISERROR(''Running [DatabaseSettingsInsert]'',0,0) WITH NOWAIT;
-	      EXEC ['+@Databasename+'].[Inspector].[DatabaseSettingsInsert]; 	 
+	      EXEC [Inspector].[DatabaseSettingsInsert]; 	 
+
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''DatabaseSettingsInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;
 	   END
 
 	   IF @ServerSettings = 1 
 	   BEGIN 
+	 	SET @CollectionStart = GETDATE(); 
+
 	      RAISERROR(''Running [ServerSettingsInsert]'',0,0) WITH NOWAIT;
-	      EXEC ['+@Databasename+'].[Inspector].[ServerSettingsInsert];     
+	      EXEC [Inspector].[ServerSettingsInsert]; 
+		  
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''ServerSettingsInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;	    
 	   END
 
 	   IF @SuspectPages = 1 
 	   BEGIN 
+	 	SET @CollectionStart = GETDATE();
+
 	      RAISERROR(''Running [SuspectPagesInsert]'',0,0) WITH NOWAIT;
-	      EXEC ['+@Databasename+'].[Inspector].[SuspectPagesInsert]; 	  
+	      EXEC [Inspector].[SuspectPagesInsert]; 	
+		  
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''SuspectPagesInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;  
 	   END
 
 	   IF @AGDatabases = 1 
 	   BEGIN
+	 	SET @CollectionStart = GETDATE();
+
 	      RAISERROR(''Running [AGDatabasesInsert]'',0,0) WITH NOWAIT; 
-	      EXEC ['+@Databasename+'].[Inspector].[AGDatabasesInsert];      
+	      EXEC [Inspector].[AGDatabasesInsert]; 
+
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''AGDatabasesInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;      
 	   END
 
 	   IF @LongRunningTransactions = 1 
 	   BEGIN 
+	 	SET @CollectionStart = GETDATE();
+
 	      RAISERROR(''Running [LongRunningTransactionsInsert]'',0,0) WITH NOWAIT;
-		  EXEC ['+@Databasename+'].[Inspector].[LongRunningTransactionsInsert];		
+		  EXEC [Inspector].[LongRunningTransactionsInsert];	
+		  
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''LongRunningTransactionsInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;
 	   END
 
 	   IF @UnusedLogshipConfig = 1
 	   BEGIN 
+	 	SET @CollectionStart = GETDATE();
+
 	      RAISERROR(''Running [UnusedLogshipConfigInsert]'',0,0) WITH NOWAIT;
-		  EXEC ['+@Databasename+'].[Inspector].[UnusedLogshipConfigInsert];		
+		  EXEC [Inspector].[UnusedLogshipConfigInsert];
+		  
+		  SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
+
+		  EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @CollectionStart, 
+			@Servername = @Servername, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = N''UnusedLogshipConfigInsert'', 
+			@Duration = @Duration,
+			@PSCollection = @PSCollection;		
 	   END
 
 	   RAISERROR(''Running [InstanceStartInsert]'',0,0) WITH NOWAIT;
-	   EXEC ['+@Databasename+'].[Inspector].[InstanceStartInsert]; 	   
+	   EXEC [Inspector].[InstanceStartInsert]; 	   
 
 	   RAISERROR(''Running [InstanceVersionInsert]'',0,0) WITH NOWAIT;
-	   EXEC ['+@Databasename+'].[Inspector].[InstanceVersionInsert]; 	   
+	   EXEC [Inspector].[InstanceVersionInsert]; 	   
 
 	   IF @PSCollection = 1 
 	   BEGIN 
 		RAISERROR(''Displaying executed modules list for Powershell collection'',0,0) WITH NOWAIT;
-	   	EXEC ['+@Databasename+'].[Inspector].[PSGetConfig] @Servername = @Servername, @ModuleConfig = @ModuleConfig; 
+	   	EXEC [Inspector].[PSGetConfig] @Servername = @Servername, @ModuleConfig = @ModuleConfig; 
 	   END
 
     END
@@ -4005,7 +4377,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 25/01/2019
+--Revision date: 18/02/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.4
 
@@ -4097,6 +4469,7 @@ DECLARE @LogBackupThreshold	INT = (SELECT ISNULL(CAST([Value] AS INT),60) FROM [
 DECLARE @DatabaseGrowthsAllowedPerDay	INT = (SELECT ISNULL(CAST([Value] AS INT),1) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''DatabaseGrowthsAllowedPerDay'')
 DECLARE @MAXDatabaseGrowthsAllowedPerDay	INT = (SELECT ISNULL(CAST([Value] AS INT),10) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''MAXDatabaseGrowthsAllowedPerDay'')
 DECLARE @InspectorBuild	VARCHAR(6) = (SELECT ISNULL([Value],'''') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''InspectorBuild'')
+DECLARE @ReportStart DATETIME = GETDATE();
 
 DECLARE @AGCheck	BIT 
 DECLARE @BackupsCheck	BIT 
@@ -4126,6 +4499,17 @@ DECLARE @WaningLevelFontColour VARCHAR(7)
 DECLARE @VersionNo VARCHAR(128)
 DECLARE @Edition VARCHAR(128)
 DECLARE @DatabaseGrowthCheckRunEnabled BIT
+DECLARE @Duration MONEY
+DECLARE @CatalogueInstalled BIT 
+DECLARE @CatalogueBuild	VARCHAR(10)
+DECLARE @CatalogueModuleEnabled BIT
+DECLARE @CatalogueModulename VARCHAR(20)
+DECLARE @CatalogueHtml VARCHAR(MAX)
+DECLARE @CountCatalogueWarnings INT 
+DECLARE @CatalogueLastExecution DATETIME
+DECLARE @CPUCount INT
+DECLARE @TotalRAM INT
+DECLARE @VMType NVARCHAR(60)
 
 DECLARE @Stack VARCHAR(255) = (SELECT [Value] from ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''SQLUndercoverInspectorEmailSubject'') 
 
@@ -4179,6 +4563,19 @@ IF @Theme IS NOT NULL BEGIN SET @Theme = UPPER(@Theme) END;
 IF @Theme IS NULL BEGIN SET @Theme = ''DARK'' END;
 IF @Theme NOT IN (''LIGHT'',''DARK'') BEGIN SET @Theme = ''DARK'' END;
 
+--Check if the Undercover Catalogue is installed
+IF OBJECT_ID(''Catalogue.ConfigInstances'') IS NOT NULL 
+BEGIN 
+	SET @CatalogueInstalled = 1; 
+END 
+
+--Get Catalogue build and append to the Server summary header.
+IF @CatalogueInstalled = 1 
+BEGIN 
+	EXEC sp_executesql N''SELECT @CatalogueBuild = [ParameterValue] FROM [Catalogue].[ConfigPoSH] WHERE [ParameterName] = ''''CatalogueVersion'''';'',N''@CatalogueBuild VARCHAR(10) OUTPUT'',@CatalogueBuild = @CatalogueBuild OUTPUT
+	EXEC sp_executesql N''SELECT TOP 1 @CatalogueLastExecution = [ExecutionDate] FROM [Catalogue].[ExecutionLog] WHERE [CompletedSuccessfully] = 1 ORDER BY [ID] DESC;'',N''@CatalogueLastExecution DATETIME OUTPUT'',@CatalogueLastExecution = @CatalogueLastExecution OUTPUT
+	SET @ServerSummaryHeader = ''<A NAME = "Warnings"></a><b>SQLUndercover Inspector Build: ''+ISNULL(@InspectorBuild,'''')+''<p><b>SQLUndercover Catalogue Build: ''+ISNULL(@CatalogueBuild,'''')+''</b><div style="text-align: right;"><b>Catalogue last executed: ''+CONVERT(VARCHAR(17),ISNULL(@CatalogueLastExecution,''''),113)+''</b><p><b>Report date:</b> ''+CONVERT(VARCHAR(17),GETDATE(),113)+''</div><hr><p>Server Summary:</b><br></br>'';
+END
 
 --Build beginning of the HTML 
 SET @EmailHeader = ''
@@ -4218,6 +4615,7 @@ BEGIN
 
 IF @ModuleConfig IS NULL BEGIN SET @ModuleConfig = ''Default'' END;
 IF @TableHeaderColour IS NULL BEGIN SET @TableHeaderColour = ''#E6E6FA'' END;
+
 SET @InstanceStart = NULL;
 SET @InstanceUptime = NULL;
 SET @InstanceVersionInfo = NULL;
@@ -4292,11 +4690,21 @@ SET @InstanceStart = (SELECT [InstanceStart] FROM ['+CAST(@Databasename AS VARCH
 SET @InstanceUptime = (SELECT DATEDIFF(DAY,@InstanceStart,GETDATE()));
 SELECT @InstanceVersionInfo = [VersionInfo], @PhysicalServername = [PhysicalServername] FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[InstanceVersion] WHERE Servername = @Serverlist AND Log_Date >= CAST(GETDATE() AS DATE);
 
+IF @CatalogueInstalled = 1 
+BEGIN 
+	EXEC sp_executesql N''SELECT @CPUCount = [CPUCount],@TotalRAM = ([PhysicalMemoryMB]/1000) FROM [Catalogue].[Servers] WHERE ServerName = @Serverlist'',N''@Serverlist NVARCHAR(128),@CPUCount INT OUTPUT, @TotalRAM INT OUTPUT'',@Serverlist = @Serverlist, @CPUCount = @CPUCount OUTPUT, @TotalRAM = @TotalRAM OUTPUT;
+	EXEC sp_executesql N''SELECT @VMType = CASE WHEN [VMType] = ''''NONE'''' THEN ''''Physical'''' ELSE ''''Virtual'''' END FROM [Catalogue].[Servers] WHERE ServerName = @Serverlist'',N''@Serverlist NVARCHAR(128), @VMType NVARCHAR(60) OUTPUT'',@Serverlist = @Serverlist, @VMType = @VMType OUTPUT;
+END
+
 SELECT  @EmailBody = @EmailBody + ''<hr><BR><p> <b>Server <A NAME = "''+REPLACE(@Serverlist,''\'','''')+''Servername''+''"></a>[''+@Serverlist+'']</b><BR></BR>
 Instance start: <b>''+ISNULL(CONVERT(VARCHAR(17),@InstanceStart,113),''Not Recorded'')+'' (Uptime: ''+ISNULL(CAST(@InstanceUptime AS VARCHAR(6)),''N/A'')+CASE WHEN @InstanceUptime IS NOT NULL THEN '' Days)'' ELSE '')'' END + ''</b><BR>
 Instance Version/Edition: <b>''+ISNULL(@InstanceVersionInfo,''Not Recorded'')+''</b><BR>
-Physical Servername: <b>''+ISNULL(@PhysicalServername,''Not Recorded'')+''</b><BR><p></p>
-ModuleConfig used: <b>''+ISNULL(@ModuleDesc,@ModuleConfig)+ ''</b><BR> 
+Physical Servername: <b>''+ISNULL(@PhysicalServername,''Not Recorded'')+''</b><BR>''
++ISNULL(''CPU Count: <b>''+CAST(@CPUCount AS VARCHAR(4))+''</b><BR>'','''')
++ISNULL(''Total RAM: <b>''+CAST(@TotalRAM AS VARCHAR(10))+'' GB</b><BR>'','''')
++ISNULL(''Machine type: <b>''+CAST(@VMType AS VARCHAR(10))+''</b><BR>'','''')
++''<p></p>''
++''ModuleConfig used: <b>''+ISNULL(@ModuleDesc,@ModuleConfig)+ ''</b><BR> 
 Disabled Modules: <b>''+@DisabledModules+''</b><BR></p><p></p><BR></BR>''
 
 IF @DriveSpaceCheck = 1 
@@ -5462,6 +5870,92 @@ BEGIN
 			END
 		END
 	
+	END
+
+END
+
+--Catalogue Logins Module
+IF @CatalogueInstalled = 1 
+BEGIN 
+	SET @CatalogueModulename = ''Logins''
+
+	EXEC sp_executesql N''SELECT @CatalogueModuleEnabled = [Active] FROM [Catalogue].[ConfigModules] WHERE [ModuleName] = @CatalogueModulename'',
+	N''@CatalogueModuleEnabled BIT OUTPUT, @CatalogueModulename VARCHAR(20)'',
+	@CatalogueModuleEnabled = @CatalogueModuleEnabled OUTPUT,
+	@CatalogueModulename = CatalogueModulename;
+
+	IF @CatalogueModuleEnabled = 1
+	BEGIN 
+		SET @CatalogueHtml = NULL;
+		SET @CountCatalogueWarnings = 0;
+		
+		EXEC [Inspector].[CatalogueMissingLogins] 
+		@Servername = @Serverlist,
+		@TableHeaderColour = @TableHeaderColour,
+		@HtmlOutput = @CatalogueHtml OUTPUT, 
+		@WarningLevel = @WarningLevel OUTPUT;
+		
+		IF @CatalogueHtml IS NOT NULL
+		BEGIN 
+		
+			SET @CollectionOutOfDate = 0			
+			SET @WaningLevelFontColour = CASE 
+											WHEN @WarningLevel IS NULL THEN ''White''
+											WHEN @WarningLevel = 1 THEN ''Red''
+											WHEN @WarningLevel = 2 THEN ''#e68a00'' --slightly different shade to @YellowHighlight
+											WHEN @WarningLevel = 3 THEN ''White'' 
+										 END;
+		
+			--Append html table to the report
+			SELECT  @EmailBody = @EmailBody + @CatalogueHtml + ''<p><BR><p>'' 
+		
+			--Populate Alert header
+			IF @WarningLevel = 1
+			BEGIN 
+				IF @CatalogueHtml LIKE ''%''+@RedHighlight+''%''
+				BEGIN
+					SET @CountCatalogueWarnings = (LEN(@CatalogueHtml) - LEN(REPLACE(@CatalogueHtml,@RedHighlight, '''')))/LEN(@RedHighlight)
+					SELECT @AlertHeader = @AlertHeader + 
+					CASE 
+						WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Logins</font><p>''
+						WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Login warnings <b>(Data collection out of Date)</b></font><p>''  
+					END
+					SET @Importance = ''High'' 
+					SET @TotalWarningCount = @TotalWarningCount + @CountCatalogueWarnings
+				END
+			END
+			
+			--Populate Advisory header 
+			IF (@WarningLevel = 2 OR @WarningLevel IS NULL)
+			BEGIN 
+				IF @CatalogueHtml LIKE ''%''+@YellowHighlight+''%''
+				BEGIN
+					SET @CountCatalogueWarnings = (LEN(@CatalogueHtml) - LEN(REPLACE(@CatalogueHtml,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+					SELECT @AdvisoryHeader = @AdvisoryHeader + 
+					CASE 
+						WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Logins</font><p>''
+						WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Login warnings <b>(Data collection out of Date)</b></font><p>''  
+					END
+					SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountCatalogueWarnings
+				END
+			END
+			
+			--Populate Info header (Default Warning Level)
+			IF @WarningLevel = 3 
+			BEGIN 
+				IF @CatalogueHtml LIKE ''%''+@InfoHighlight+''%''
+				BEGIN 
+					SET @CountCatalogueWarnings = (LEN(@CatalogueHtml) - LEN(REPLACE(@CatalogueHtml,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+					SELECT @InfoHeader = @InfoHeader + 
+					CASE 
+						WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Logins</font><p>''
+						WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Login warnings <b>(Data collection out of Date)</b></font><p>''  
+					END
+				END
+			
+			END
+					
+		END 
 	END
 
 END
@@ -7486,6 +7980,17 @@ IF @EmailRedWarningsOnly = 1
 			@body_format = ''HTML'' 
 	END
 END
+
+SET @Duration = CAST(DATEDIFF(MILLISECOND,@ReportStart,GETDATE()) AS MONEY)/1000;
+IF @ModuleDesc IS NULL BEGIN SET @ModuleDesc = @ModuleConfig END
+
+EXEC [Inspector].[ExecutionLogInsert] 
+@RunDatetime = @ReportStart, 
+@Servername = @@SERVERNAME, 
+@ModuleConfigDesc = @ModuleDesc,
+@Procname = N''SQLUnderCoverInspectorReport'', 
+@Duration = @Duration,
+@PSCollection = @PSCollection;
 
 --Report Data cleanup
 DELETE FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ReportData]
