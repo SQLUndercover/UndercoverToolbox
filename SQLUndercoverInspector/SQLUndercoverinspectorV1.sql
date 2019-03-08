@@ -4030,7 +4030,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 (
 @Servername NVARCHAR(128),
 @TableHeaderColour VARCHAR(7) = NULL,
-@WaningLevelFontColour VARCHAR(7) = NULL,
+@WarningLevelFontColour VARCHAR(7) = NULL,
 @HtmlOutput VARCHAR(MAX) OUTPUT
 )
 AS
@@ -4066,7 +4066,7 @@ AND EXISTS (SELECT 1 FROM [Catalogue].[ExecutionLog] WHERE [ExecutionDate] >= DA
 
 SET @HtmlOutput = (
 SELECT  
-@WaningLevelFontColour AS [@bgcolor],
+@WarningLevelFontColour AS [@bgcolor],
 Servername AS ''''td'''','''''''', + 
 LoginName AS ''''td'''','''''''', + 
 CreateCommand AS ''''td'''',''''''''
@@ -4088,8 +4088,8 @@ FROM
 	WHERE AGs.Role = ''''PRIMARY''''
 	AND #ServerLogins.ServerName = @Servername
 ) AS MissingLoginInfo
-FOR XML PATH(''''tr''''),ELEMENTS);'',N''@Servername NVARCHAR(128), @WarningLevel INT, @HtmlOutput VARCHAR(MAX) OUTPUT'',
-@Servername = @Servername, @WaningLevelFontColour = @WaningLevelFontColour, @HtmlOutput = @HtmlOutput OUTPUT;
+FOR XML PATH(''''tr''''),ELEMENTS);'',N''@Servername NVARCHAR(128), @WarningLevelFontColour VARCHAR(7), @HtmlOutput VARCHAR(MAX) OUTPUT'',
+@Servername = @Servername, @WarningLevelFontColour = @WarningLevelFontColour, @HtmlOutput = @HtmlOutput OUTPUT;
 
 
 IF @HtmlOutput IS NOT NULL 
@@ -4688,7 +4688,7 @@ DECLARE @UnusedLogshipConfig BIT
 DECLARE @TotalWarningCount INT = 0
 DECLARE @TotalAdvisoryCount INT = 0
 DECLARE @WarningLevel TINYINT
-DECLARE @WaningLevelFontColour VARCHAR(7)
+DECLARE @WarningLevelFontColour VARCHAR(7)
 DECLARE @VersionNo VARCHAR(128)
 DECLARE @Edition VARCHAR(128)
 DECLARE @DatabaseGrowthCheckRunEnabled BIT
@@ -5106,7 +5106,7 @@ BEGIN
 	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
 	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @RedHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -5191,8 +5191,8 @@ BEGIN
 			SET @CountAGCheck = (LEN(@BodyAGCheck) - LEN(REPLACE(@BodyAGCheck,@RedHighlight, '''')))/LEN(@RedHighlight)
 			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountAGCheck
@@ -5207,8 +5207,8 @@ BEGIN
 			SET @CountAGCheck = (LEN(@BodyAGCheck) - LEN(REPLACE(@BodyAGCheck,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountAGCheck
 		END
@@ -5222,8 +5222,8 @@ BEGIN
 			SET @CountAGCheck = (LEN(@BodyAGCheck) - LEN(REPLACE(@BodyAGCheck,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 		END
 	
@@ -5241,7 +5241,7 @@ BEGIN
 	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
 	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @RedHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -5324,8 +5324,8 @@ BEGIN
 			SET @CountSuspectPages = (LEN(@BodySuspectPages) - LEN(REPLACE(@BodySuspectPages,@RedHighlight, '''')))/LEN(@RedHighlight)
 			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountSuspectPages
@@ -5340,8 +5340,8 @@ BEGIN
 			SET @CountSuspectPages = (LEN(@BodySuspectPages) - LEN(REPLACE(@BodySuspectPages,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountSuspectPages
 		END
@@ -5355,8 +5355,8 @@ BEGIN
 			SET @CountSuspectPages = (LEN(@BodySuspectPages) - LEN(REPLACE(@BodySuspectPages,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''SuspectPages''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountSuspectPages AS VARCHAR(5))+'') Suspect page warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 		END
 	
@@ -5374,7 +5374,7 @@ BEGIN
 	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
 	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @YellowHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -5457,8 +5457,8 @@ BEGIN
 			SET @CountAGDatabases = (LEN(@BodyAGDatabases) - LEN(REPLACE(@BodyAGDatabases,@RedHighlight, '''')))/LEN(@RedHighlight)
 			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountAGDatabases
@@ -5473,8 +5473,8 @@ BEGIN
 			SET @CountAGDatabases = (LEN(@BodyAGDatabases) - LEN(REPLACE(@BodyAGDatabases,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountAGDatabases
 		END
@@ -5488,8 +5488,8 @@ BEGIN
 			SET @CountAGDatabases = (LEN(@BodyAGDatabases) - LEN(REPLACE(@BodyAGDatabases,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AGDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGDatabases AS VARCHAR(5))+'') Databases not joined to an Availability group <b>(Data collection out of Date)</b></font><p>''  
 			END
 		END
 	
@@ -5506,7 +5506,7 @@ BEGIN
 	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
 	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @YellowHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -5625,8 +5625,8 @@ BEGIN
 			SET @CountLongRunningTransactions = (LEN(@BodyLongRunningTransactions) - LEN(REPLACE(@BodyLongRunningTransactions,@RedHighlight, '''')))/LEN(@RedHighlight)
 			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''   
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Long running transactions <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''   
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Long running transactions <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountLongRunningTransactions
@@ -5641,8 +5641,8 @@ BEGIN
 			SET @CountLongRunningTransactions = (LEN(@BodyLongRunningTransactions) - LEN(REPLACE(@BodyLongRunningTransactions,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''   
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Long running transactions <b>(Data collection out of Date)</b></font><p>''  		
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''   
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Long running transactions <b>(Data collection out of Date)</b></font><p>''  		
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountLongRunningTransactions
 		END
@@ -5656,8 +5656,8 @@ BEGIN
 			SET @CountLongRunningTransactions = (LEN(@BodyLongRunningTransactions) - LEN(REPLACE(@BodyLongRunningTransactions,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''   
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Long running transactions <b>(Data collection out of Date)</b></font><p>''  		
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Transactions that exceed ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+ '' seconds duration</font><p>''   
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''LongRunningTransactions''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountLongRunningTransactions AS VARCHAR(5))+'') Long running transactions <b>(Data collection out of Date)</b></font><p>''  		
 			END
 		END
 	
@@ -5675,7 +5675,7 @@ BEGIN
 	--Warning level 1 (Red) only controls states: ''Restoring'',''RECOVERING'',''OFFLINE'',''SNAPSHOT (more than 10 days old)''
 	IF  @WarningLevel > 3 BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @YellowHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -5755,8 +5755,8 @@ BEGIN
 		SELECT @AlertHeader = @AlertHeader + 
 		CASE --@SuspectAlertText takes precedence over the standard red warning as these states are more critical that the warning level ones.
 			WHEN @CollectionOutOfDate = 0 AND @SuspectAlertText IS NOT NULL THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= ''+@RedHighlight+''>  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State warnings ''+ISNULL(@SuspectAlertText,'''')+''</font></b><p>''
-			WHEN @CollectionOutOfDate = 0 AND @SuspectAlertText IS NULL AND @WarningLevel = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State Advisories including any of the following states: (Restoring, Recovering, Offline, Snapshot (more than 10 days old))</font><p>'' 
-			WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State warnings <b>(Data collection out of Date)</b></font><p>''  
+			WHEN @CollectionOutOfDate = 0 AND @SuspectAlertText IS NULL AND @WarningLevel = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State Advisories including any of the following states: (Restoring, Recovering, Offline, Snapshot (more than 10 days old))</font><p>'' 
+			WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State warnings <b>(Data collection out of Date)</b></font><p>''  
 		END
 		SET @Importance = ''High'' ;
 		SET @TotalWarningCount = @TotalWarningCount + @CountDatabaseStates;
@@ -5770,8 +5770,8 @@ BEGIN
 			SET @CountDatabaseStates = (LEN(@BodyDatabaseStates) - LEN(REPLACE(@BodyDatabaseStates,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State Advisories including any of the following states: (Restoring, Recovering, Offline, Snapshot (more than 10 days old))</font><p>''        
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State warnings <b>(Data collection out of Date)</b></font><p>''  		
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State Advisories including any of the following states: (Restoring, Recovering, Offline, Snapshot (more than 10 days old))</font><p>''        
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State warnings <b>(Data collection out of Date)</b></font><p>''  		
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountDatabaseStates;
 		END
@@ -5785,8 +5785,8 @@ BEGIN
 			SET @CountDatabaseStates = (LEN(@BodyDatabaseStates) - LEN(REPLACE(@BodyDatabaseStates,@InfoHighlight, '''')))/LEN(@InfoHighlight);
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State Advisories including any of the following states: (Restoring, Recovering, Offline, Snapshot (more than 10 days old))</font><p>''        
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State warnings <b>(Data collection out of Date)</b></font><p>''  		
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State Advisories including any of the following states: (Restoring, Recovering, Offline, Snapshot (more than 10 days old))</font><p>''        
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DatabaseState''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDatabaseStates AS VARCHAR(5))+'') Database State warnings <b>(Data collection out of Date)</b></font><p>''  		
 			END
 		END
 	
@@ -5805,7 +5805,7 @@ BEGIN
 	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
 	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @RedHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -5897,8 +5897,8 @@ BEGIN
 			SET @CountFailedJobsTotals = (LEN(@BodyFailedJobsTotals) - LEN(REPLACE(@BodyFailedJobsTotals,@RedHighlight, '''')))/LEN(@RedHighlight)
 			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings</font><p>''
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountFailedJobsTotals
@@ -5913,8 +5913,8 @@ BEGIN
 			SET @CountFailedJobsTotals = (LEN(@BodyFailedJobsTotals) - LEN(REPLACE(@BodyFailedJobsTotals,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings</font><p>''
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings <b>(Data collection out of Date)</b></font><p>''  		
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings <b>(Data collection out of Date)</b></font><p>''  		
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountFailedJobsTotals
 		END
@@ -5928,8 +5928,8 @@ BEGIN
 			SET @CountFailedJobsTotals = (LEN(@BodyFailedJobsTotals) - LEN(REPLACE(@BodyFailedJobsTotals,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedJob''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountFailedJobsTotals AS VARCHAR(5))+'') Failed Job warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 		END
 	
@@ -5947,7 +5947,7 @@ BEGIN
 	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
 	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @InfoHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -6035,8 +6035,8 @@ BEGIN
 			SET @CountLoginAttempts = (LEN(@BodyLoginAttempts) - LEN(REPLACE(@BodyLoginAttempts,@RedHighlight, '''')))/LEN(@RedHighlight)
 			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings</font><p>''
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountLoginAttempts
@@ -6051,8 +6051,8 @@ BEGIN
 			SET @CountLoginAttempts = (LEN(@BodyLoginAttempts) - LEN(REPLACE(@BodyLoginAttempts,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings</font><p>''
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings <b>(Data collection out of Date)</b></font><p>'' 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings <b>(Data collection out of Date)</b></font><p>'' 
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountLoginAttempts
 		END
@@ -6066,8 +6066,8 @@ BEGIN
 			SET @CountLoginAttempts = (LEN(@BodyLoginAttempts) - LEN(REPLACE(@BodyLoginAttempts,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings</font><p>''
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings <b>(Data collection out of Date)</b></font><p>'' 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''FailedLogin''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountLoginAttempts AS VARCHAR(5))+'') Failed Login warnings <b>(Data collection out of Date)</b></font><p>'' 
 			END
 		END
 	
@@ -6086,7 +6086,7 @@ BEGIN
 	EXEC sp_executesql N''SELECT @CatalogueModuleEnabled = [Active] FROM [Catalogue].[ConfigModules] WHERE [ModuleName] = @CatalogueModulename'',
 	N''@CatalogueModuleEnabled BIT OUTPUT, @CatalogueModulename VARCHAR(20)'',
 	@CatalogueModuleEnabled = @CatalogueModuleEnabled OUTPUT,
-	@CatalogueModulename = CatalogueModulename;
+	@CatalogueModulename = @CatalogueModulename;
 
 	--Check if the Inspector is enabled to report on the Catalogue module
 	SET @CatalogueModuleReport = (SELECT [Enabled] FROM [Inspector].[CatalogueModules] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''CatalogueMissingLogins'')
@@ -6102,7 +6102,7 @@ BEGIN
 			SET @CountCatalogueWarnings = 0;
 
 			SET @CollectionOutOfDate = 0			
-			SET @WaningLevelFontColour = CASE 
+			SET @WarningLevelFontColour = CASE 
 											WHEN @WarningLevel IS NULL THEN @InfoHighlight
 											WHEN @WarningLevel = 1 THEN @RedHighlight
 											WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -6112,7 +6112,7 @@ BEGIN
 			EXEC [Inspector].[CatalogueMissingLogins] 
 			@Servername = @Serverlist,
 			@TableHeaderColour = @TableHeaderColour,
-			@WaningLevelFontColour = @WaningLevelFontColour,
+			@WarningLevelFontColour = @WarningLevelFontColour,
 			@HtmlOutput = @CatalogueHtml OUTPUT;
 			
 			IF @CatalogueHtml IS NOT NULL
@@ -6129,8 +6129,8 @@ BEGIN
 						SET @CountCatalogueWarnings = (LEN(@CatalogueHtml) - LEN(REPLACE(@CatalogueHtml,@RedHighlight, '''')))/LEN(@RedHighlight)
 						SELECT @AlertHeader = @AlertHeader + 
 						CASE 
-							WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Logins</font><p>''
-							WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Login warnings <b>(Data collection out of Date)</b></font><p>''  
+							WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Logins</font><p>''
+							WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Login warnings <b>(Data collection out of Date)</b></font><p>''  
 						END
 						SET @Importance = ''High'' 
 						SET @TotalWarningCount = @TotalWarningCount + @CountCatalogueWarnings
@@ -6138,30 +6138,30 @@ BEGIN
 				END
 				
 				--Populate Advisory header 
-				IF (@WarningLevel = 2 OR @WarningLevel IS NULL)
+				IF @WarningLevel = 2 
 				BEGIN 
 					IF @CatalogueHtml LIKE ''%''+@YellowHighlight+''%''
 					BEGIN
 						SET @CountCatalogueWarnings = (LEN(@CatalogueHtml) - LEN(REPLACE(@CatalogueHtml,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 						SELECT @AdvisoryHeader = @AdvisoryHeader + 
 						CASE 
-							WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Logins</font><p>''
-							WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Login warnings <b>(Data collection out of Date)</b></font><p>''  
+							WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Logins</font><p>''
+							WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Login warnings <b>(Data collection out of Date)</b></font><p>''  
 						END
 						SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountCatalogueWarnings
 					END
 				END
 				
 				--Populate Info header (Default Warning Level)
-				IF @WarningLevel = 3 
+				IF (@WarningLevel = 3 OR @WarningLevel IS NULL) 
 				BEGIN 
 					IF @CatalogueHtml LIKE ''%''+@InfoHighlight+''%''
 					BEGIN 
 						SET @CountCatalogueWarnings = (LEN(@CatalogueHtml) - LEN(REPLACE(@CatalogueHtml,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 						SELECT @InfoHeader = @InfoHeader + 
 						CASE 
-							WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Logins</font><p>''
-							WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Login warnings <b>(Data collection out of Date)</b></font><p>''  
+							WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Logins</font><p>''
+							WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''MissingLogins''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Missing Login warnings <b>(Data collection out of Date)</b></font><p>''  
 						END
 					END
 				
@@ -6184,7 +6184,7 @@ BEGIN
 	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
 	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @YellowHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -6266,8 +6266,8 @@ BEGIN
 			SET @CountJobOwner = (LEN(@BodyJobOwner) - LEN(REPLACE(@BodyJobOwner,@RedHighlight, '''')))/LEN(@RedHighlight)
 			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent jobs where the Owner is not ''+ISNULL(REPLACE(REPLACE(@AgentJobOwnerExclusions,'' '',''''),'','','', ''),''[N/A - No Exclusions Set]'')+''</font><p>'' 
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent Job Owner warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent jobs where the Owner is not ''+ISNULL(REPLACE(REPLACE(@AgentJobOwnerExclusions,'' '',''''),'','','', ''),''[N/A - No Exclusions Set]'')+''</font><p>'' 
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent Job Owner warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountJobOwner
@@ -6282,8 +6282,8 @@ BEGIN
 			SET @CountJobOwner = (LEN(@BodyJobOwner) - LEN(REPLACE(@BodyJobOwner,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent jobs where the Owner is not ''+ISNULL(REPLACE(REPLACE(@AgentJobOwnerExclusions,'' '',''''),'','','', ''),''[N/A - No Exclusions Set]'')+''</font><p>'' 
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent Job Owner warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent jobs where the Owner is not ''+ISNULL(REPLACE(REPLACE(@AgentJobOwnerExclusions,'' '',''''),'','','', ''),''[N/A - No Exclusions Set]'')+''</font><p>'' 
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent Job Owner warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountJobOwner
 		END
@@ -6297,8 +6297,8 @@ BEGIN
 			SET @CountJobOwner = (LEN(@BodyJobOwner) - LEN(REPLACE(@BodyJobOwner,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent jobs where the Owner is not ''+ISNULL(REPLACE(REPLACE(@AgentJobOwnerExclusions,'' '',''''),'','','', ''),''[N/A - No Exclusions Set]'')+''</font><p>'' 
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent Job Owner warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent jobs where the Owner is not ''+ISNULL(REPLACE(REPLACE(@AgentJobOwnerExclusions,'' '',''''),'','','', ''),''[N/A - No Exclusions Set]'')+''</font><p>'' 
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''JobOwner''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountJobOwner AS VARCHAR(5))+'') Agent Job Owner warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 		END
 	
@@ -6363,7 +6363,7 @@ BEGIN
 	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
 	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @RedHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -6450,8 +6450,8 @@ BEGIN
 			SET @CountDatabaseFiles = (LEN(@BodyDatabaseFiles) - LEN(REPLACE(@BodyDatabaseFiles,@RedHighlight, '''')))/LEN(@RedHighlight)
 			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives <b>(Data collection out of Date)</b></font><p>''   
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives <b>(Data collection out of Date)</b></font><p>''   
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountDatabaseFiles
@@ -6466,8 +6466,8 @@ BEGIN
 			SET @CountDatabaseFiles = (LEN(@BodyDatabaseFiles) - LEN(REPLACE(@BodyDatabaseFiles,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives <b>(Data collection out of Date)</b></font><p>''   
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives <b>(Data collection out of Date)</b></font><p>''   
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountDatabaseFiles
 		END
@@ -6481,8 +6481,8 @@ BEGIN
 			SET @CountDatabaseFiles = (LEN(@BodyDatabaseFiles) - LEN(REPLACE(@BodyDatabaseFiles,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives <b>(Data collection out of Date)</b></font><p>''   
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DataLogFiles''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDatabaseFiles AS VARCHAR(5))+'') Data or Log files on incorrect drives <b>(Data collection out of Date)</b></font><p>''   
 			END
 		END
 	
@@ -6767,7 +6767,7 @@ BEGIN
 	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
 	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @YellowHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -6857,8 +6857,8 @@ BEGIN
 			SET @CountDBOwner = (LEN(@BodyDBOwner) - LEN(REPLACE(@BodyDBOwner,@RedHighlight, '''')))/LEN(@RedHighlight)
 			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+''</font><p>''
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+'' <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+''</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+'' <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountDBOwner
@@ -6873,8 +6873,8 @@ BEGIN
 			SET @CountDBOwner = (LEN(@BodyDBOwner) - LEN(REPLACE(@BodyDBOwner,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+''</font><p>''
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+'' <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+''</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+'' <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountDBOwner
 		END
@@ -6888,8 +6888,8 @@ BEGIN
 			SET @CountDBOwner = (LEN(@BodyDBOwner) - LEN(REPLACE(@BodyDBOwner,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+''</font><p>''
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+'' <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+''</font><p>''
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBowner''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDBOwner AS VARCHAR(5))+'') Databases where the Owner is not ''+ISNULL(@DatabaseOwnerExclusions,''[N/A - No Exclusions Set]'')+'' <b>(Data collection out of Date)</b></font><p>''  
 			END
 		END
 	
@@ -6973,7 +6973,7 @@ BEGIN
 	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
 	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @YellowHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -7056,8 +7056,8 @@ BEGIN
 			SET @CountAdHocDatabases = (LEN(@BodyAdHocDatabases) - LEN(REPLACE(@BodyAdHocDatabases,@RedHighlight, '''')))/LEN(@RedHighlight)
 			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations in the last 7 days</font><p>''     
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations <b>(Data collection out of Date)</b></font><p>'' 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations in the last 7 days</font><p>''     
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations <b>(Data collection out of Date)</b></font><p>'' 
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountAdHocDatabases
@@ -7072,8 +7072,8 @@ BEGIN
 			SET @CountAdHocDatabases = (LEN(@BodyAdHocDatabases) - LEN(REPLACE(@BodyAdHocDatabases,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations in the last 7 days</font><p>''     
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations <b>(Data collection out of Date)</b></font><p>'' 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations in the last 7 days</font><p>''     
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations <b>(Data collection out of Date)</b></font><p>'' 
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountAdHocDatabases
 		END
@@ -7087,8 +7087,8 @@ BEGIN
 			SET @CountAdHocDatabases = (LEN(@BodyAdHocDatabases) - LEN(REPLACE(@BodyAdHocDatabases,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations in the last 7 days</font><p>''     
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations <b>(Data collection out of Date)</b></font><p>'' 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations in the last 7 days</font><p>''     
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ADHocDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdHocDatabases AS VARCHAR(5))+'') Potential AD Hoc Database creations <b>(Data collection out of Date)</b></font><p>'' 
 			END
 		END
 	
@@ -7107,7 +7107,7 @@ BEGIN
 	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
 	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @YellowHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -7318,8 +7318,8 @@ BEGIN
 			SET @CountDBSettings = (LEN(@BodyDatabaseSettings) - LEN(REPLACE(@BodyDatabaseSettings,@RedHighlight, '''')))/LEN(@RedHighlight)
 			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database Auto Close or Auto Shrink settings enabled or Auto Update Stats Disabled</font><p>''	
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database setting warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database Auto Close or Auto Shrink settings enabled or Auto Update Stats Disabled</font><p>''	
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database setting warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountDBSettings
@@ -7334,8 +7334,8 @@ BEGIN
 			SET @CountDBSettings = (LEN(@BodyDatabaseSettings) - LEN(REPLACE(@BodyDatabaseSettings,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database Auto Close or Auto Shrink settings enabled or Auto Update Stats Disabled</font><p>''	
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database setting warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database Auto Close or Auto Shrink settings enabled or Auto Update Stats Disabled</font><p>''	
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database setting warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountDBSettings
 		END
@@ -7349,8 +7349,8 @@ BEGIN
 			SET @CountDBSettings = (LEN(@BodyDatabaseSettings) - LEN(REPLACE(@BodyDatabaseSettings,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database Auto Close or Auto Shrink settings enabled or Auto Update Stats Disabled</font><p>''	
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database setting warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database Auto Close or Auto Shrink settings enabled or Auto Update Stats Disabled</font><p>''	
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DBSettings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountDBSettings AS VARCHAR(5))+'') Database setting warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 		END
 	
@@ -7368,7 +7368,7 @@ BEGIN
 	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
 	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @YellowHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -7463,8 +7463,8 @@ BEGIN
 			SET @CountServerSettings = (LEN(@BodyServerSettings) - LEN(REPLACE(@BodyServerSettings,@RedHighlight, '''')))/LEN(@RedHighlight)
 			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values</font><p>''	
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Server Settings warnings <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values</font><p>''	
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Server Settings warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountServerSettings
@@ -7479,8 +7479,8 @@ BEGIN
 			SET @CountServerSettings = (LEN(@BodyServerSettings) - LEN(REPLACE(@BodyServerSettings,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values</font><p>''	
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Server Settings warnings <b>(Data collection out of Date)</b></font><p>'' 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values</font><p>''	
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Server Settings warnings <b>(Data collection out of Date)</b></font><p>'' 
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountServerSettings
 		END
@@ -7494,8 +7494,8 @@ BEGIN
 			SET @CountServerSettings = (LEN(@BodyServerSettings) - LEN(REPLACE(@BodyServerSettings,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values</font><p>''	
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Server Settings warnings <b>(Data collection out of Date)</b></font><p>'' 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values</font><p>''	
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''ServerSettings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountServerSettings AS VARCHAR(5))+'') Server Settings warnings <b>(Data collection out of Date)</b></font><p>'' 
 			END
 		END
 	
@@ -7513,7 +7513,7 @@ BEGIN
 	--If warning level is equal to 0 or greater than 3 set to the Inspector default value
 	IF (@WarningLevel = 0 OR @WarningLevel > 3) BEGIN SET @WarningLevel = NULL END 
 	
-	SET @WaningLevelFontColour = CASE 
+	SET @WarningLevelFontColour = CASE 
 									WHEN @WarningLevel IS NULL THEN @YellowHighlight
 									WHEN @WarningLevel = 1 THEN @RedHighlight
 									WHEN @WarningLevel = 2 THEN @YellowHighlight
@@ -7594,8 +7594,8 @@ BEGIN
 			SET @CountUnusedLogshipConfig = (LEN(@BodyUnusedLogshipConfig) - LEN(REPLACE(@BodyUnusedLogshipConfig,@RedHighlight, '''')))/LEN(@RedHighlight)
 			SELECT @AlertHeader = @AlertHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping configs present</font><p>''     
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping config <b>(Data collection out of Date)</b></font><p>'' 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping configs present</font><p>''     
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping config <b>(Data collection out of Date)</b></font><p>'' 
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountUnusedLogshipConfig
@@ -7610,8 +7610,8 @@ BEGIN
 			SET @CountUnusedLogshipConfig = (LEN(@BodyUnusedLogshipConfig) - LEN(REPLACE(@BodyUnusedLogshipConfig,@YellowHighlight, '''')))/LEN(@YellowHighlight)
 			SELECT @AdvisoryHeader = @AdvisoryHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping configs present</font><p>''     
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping config <b>(Data collection out of Date)</b></font><p>'' 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping configs present</font><p>''     
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping config <b>(Data collection out of Date)</b></font><p>'' 
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountUnusedLogshipConfig
 		END
@@ -7625,8 +7625,8 @@ BEGIN
 			SET @CountUnusedLogshipConfig = (LEN(@BodyUnusedLogshipConfig) - LEN(REPLACE(@BodyUnusedLogshipConfig,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = @InfoHeader + 
 			CASE 
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping configs present</font><p>''     
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WaningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping config <b>(Data collection out of Date)</b></font><p>'' 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping configs present</font><p>''     
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''UnusedLogshipConfig''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountUnusedLogshipConfig AS VARCHAR(5))+'') Unused secondary log shipping config <b>(Data collection out of Date)</b></font><p>'' 
 			END
 		END
 	
