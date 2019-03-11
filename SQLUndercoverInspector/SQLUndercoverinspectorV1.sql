@@ -4067,7 +4067,7 @@ AND EXISTS (SELECT 1 FROM [Catalogue].[ExecutionLog] WHERE [ExecutionDate] >= DA
 SET @HtmlOutput = (
 SELECT  
 @WarningLevelFontColour AS [@bgcolor],
-Servername AS ''''td'''','''''''', + 
+ServerName AS ''''td'''','''''''', + 
 LoginName AS ''''td'''','''''''', + 
 CreateCommand AS ''''td'''',''''''''
 FROM 
@@ -4077,7 +4077,7 @@ FROM
 	Logins.LoginName,
 	CASE 
 		WHEN Logins.LoginName LIKE ''''%\%'''' THEN ''''CREATE LOGIN '''' + QUOTENAME(Logins.LoginName) + '''' FROM WINDOWS''''
-		ELSE ''''CREATE LOGIN '''' + QUOTENAME(Logins.LoginName) + '''' WITH PASSWORD = 0x'''' + CONVERT(VARCHAR(MAX), Logins.PasswordHash, 2) + '''' HASHED, SID = 0x'''' + CONVERT(VARCHAR(MAX), Logins.sid, 2) 
+		ELSE ''''CREATE LOGIN '''' + QUOTENAME(Logins.LoginName) + '''' WITH PASSWORD = 0x'''' + CONVERT(VARCHAR(MAX), Logins.PasswordHash, 2) + '''' HASHED, SID = 0x'''' + CONVERT(VARCHAR(MAX), Logins.SID, 2) 
 	END AS CreateCommand
 	FROM Catalogue.AvailabilityGroups AGs
 	JOIN Catalogue.Logins Logins ON AGs.ServerName = Logins.ServerName
