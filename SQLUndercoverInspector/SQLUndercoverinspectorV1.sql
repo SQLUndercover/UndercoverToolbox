@@ -4031,11 +4031,29 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 @Servername NVARCHAR(128),
 @TableHeaderColour VARCHAR(7) = NULL,
 @WarningLevelFontColour VARCHAR(7) = NULL,
-@HtmlOutput VARCHAR(MAX) OUTPUT
+@HtmlOutput VARCHAR(MAX) OUTPUT,
+@ModuleConfig VARCHAR(20),
+@PSCollection BIT
 )
 AS
---Revision date: 08/03/2019
+--Revision date: 15/03/2019
 BEGIN
+SET NOCOUNT ON;
+
+DECLARE @PreReqsEnabled INT
+DECLARE @ReportStart DATETIME = GETDATE();
+DECLARE @Duration MONEY
+
+--Ensure that all modules required for this check are enabled
+EXEC sp_executesql N''SELECT @EnabledCount = COUNT([Active]) FROM [Catalogue].[ConfigModules] WHERE ModuleName IN (''''Availability Groups'''',''''Databases'''',''''Logins'''',''''Users'''') AND [Active] = 1;'',
+N''@EnabledCount INT OUTPUT'',@EnabledCount = @PreReqsEnabled OUTPUT
+
+
+IF @PreReqsEnabled < 4
+BEGIN 
+	RAISERROR(''PreRequisites for this module are not enabled in the Catalogue'',0,0) WITH NOWAIT;
+	RETURN;
+END 
 
 IF @TableHeaderColour IS NULL BEGIN SET @TableHeaderColour = ''#E6E6FA'' END;
 
@@ -4047,6 +4065,7 @@ AGName NVARCHAR(128),
 LoginName NVARCHAR(128),
 ServerName NVARCHAR(128)
 );
+
 
 EXEC sp_executesql 
 N''INSERT INTO #ServerLogins (AGName,LoginName,ServerName)
@@ -4062,6 +4081,9 @@ WHERE NOT EXISTS (SELECT 1
 					AND AGs3.ServerName = AGs2.ServerName
 					AND Logins3.LoginName = Logins.LoginName)
 AND Logins.LoginName NOT IN (SELECT [LoginName] FROM [Inspector].[CatalogueSIDExclusions] WHERE [AGs].[AGName] = [CatalogueSIDExclusions].[AGName])
+AND AGs.LastRecorded >= DATEADD(DAY,-1,GETDATE())
+AND Logins.LastRecorded >= DATEADD(DAY,-1,GETDATE())
+AND AGs2.LastRecorded >= DATEADD(DAY,-1,GETDATE())
 AND EXISTS (SELECT 1 FROM [Catalogue].[ExecutionLog] WHERE [ExecutionDate] >= DATEADD(DAY,-1,GETDATE()))
 
 SET @HtmlOutput = (
@@ -4087,6 +4109,10 @@ FROM
 													AND AGs.AGName = Databases.AGName
 	WHERE AGs.Role = ''''PRIMARY''''
 	AND #ServerLogins.ServerName = @Servername
+	AND AGs.LastRecorded >= DATEADD(DAY,-1,GETDATE())
+	AND Logins.LastRecorded >= DATEADD(DAY,-1,GETDATE())
+	AND Users.LastRecorded >= DATEADD(DAY,-1,GETDATE())
+	AND Databases.LastRecorded >= DATEADD(DAY,-1,GETDATE())
 ) AS MissingLoginInfo
 FOR XML PATH(''''tr''''),ELEMENTS);'',N''@Servername NVARCHAR(128), @WarningLevelFontColour VARCHAR(7), @HtmlOutput VARCHAR(MAX) OUTPUT'',
 @Servername = @Servername, @WarningLevelFontColour = @WarningLevelFontColour, @HtmlOutput = @HtmlOutput OUTPUT;
@@ -4105,6 +4131,15 @@ BEGIN
 	+''</table><p><A HREF = "#Warnings">Back to Top</a><p>'';
 END 
 
+SET @Duration = CAST(DATEDIFF(MILLISECOND,@ReportStart,GETDATE()) AS MONEY)/1000;
+
+EXEC [Inspector].[ExecutionLogInsert] 
+@RunDatetime = @ReportStart, 
+@Servername = @Servername, 
+@ModuleConfigDesc = @ModuleConfig,
+@Procname = N''CatalogueMissingLogins'', 
+@Duration = @Duration,
+@PSCollection = @PSCollection;
 
 END'
 
@@ -4570,7 +4605,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 07/03/2019
+--Revision date: 15/03/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.4
 
@@ -4656,6 +4691,7 @@ WarningPriority TINYINT
 );
 
 DECLARE @ModuleConfig VARCHAR(20) 
+DECLARE @ModuleConfigDetermined VARCHAR(20)
 DECLARE @FreeSpaceRemainingPercent	INT = (SELECT ISNULL(CAST([Value] AS INT),10) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''FreeSpaceRemainingPercent'')
 DECLARE @DaysUntilDriveFullThreshold	INT = (SELECT ISNULL(CAST([Value] AS INT),56) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''DaysUntilDriveFullThreshold'')
 DECLARE @FullBackupThreshold	INT = (SELECT ISNULL(CAST([Value] AS INT),8) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''FullBackupThreshold'')
@@ -4816,7 +4852,8 @@ FETCH NEXT FROM ServerCur INTO @Serverlist,@ModuleConfig,@TableHeaderColour
 WHILE @@FETCH_STATUS = 0 
 BEGIN
 
-IF @ModuleConfig IS NULL BEGIN SET @ModuleConfig = ''Default'' END;
+--Set Defaults if no ModuleConfig and/or tableheader colour specified in the CurrentServers table
+IF @ModuleConfig IS NULL BEGIN SET @ModuleConfig = ''Default'' END; 
 IF @TableHeaderColour IS NULL BEGIN SET @TableHeaderColour = ''#E6E6FA'' END;
 
 SET @InstanceStart = NULL;
@@ -4848,7 +4885,9 @@ SELECT
 @LongRunningTransactions = ISNULL(LongRunningTransactions,0),
 @UnusedLogshipConfig = ISNULL(UnusedLogshipConfig,0)
 FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Modules]
-WHERE ModuleConfig_Desc = ISNULL(@ModuleDesc,@ModuleConfig)
+WHERE ModuleConfig_Desc = ISNULL(@ModuleDesc,@ModuleConfig);
+
+SET @ModuleConfigDetermined = ISNULL(@ModuleDesc,@ModuleConfig); 
 
 IF @DatabaseGrowthCheck = 1
 BEGIN 
@@ -6139,13 +6178,15 @@ BEGIN
 			@Servername = @Serverlist,
 			@TableHeaderColour = @TableHeaderColour,
 			@WarningLevelFontColour = @WarningLevelFontColour,
+			@PSCollection = @PSCollection,
+			@ModuleConfig = @ModuleConfigDetermined,
 			@HtmlOutput = @CatalogueHtml OUTPUT;
 			
 			IF @CatalogueHtml IS NOT NULL
 			BEGIN 
 						
 				--Append html table to the report
-				SELECT  @EmailBody = @EmailBody + @CatalogueHtml + ''<p><BR><p>'' 
+				SELECT  @EmailBody = @EmailBody + ISNULL(@CatalogueHtml,'''') + ''<p><BR><p>'' 
 			
 				--Populate Alert header
 				IF @WarningLevel = 1
@@ -8212,9 +8253,11 @@ SET @EmailBody = @EmailBody + ''
 </html>
 ''
 
-SET @EmailBody = Replace(Replace(@EmailBody,''&lt;'',''<''),''&gt;'',''>'')
+SET @EmailBody = Replace(Replace(@EmailBody,''&lt;'',''<''),''&gt;'',''>'');
 
-SET @EmailBody = @EmailHeader + @EmailBody 
+SET @EmailBody = @EmailHeader + @EmailBody;
+
+IF @ModuleDesc IS NULL BEGIN SET @ModuleDesc = ''NULL'' END;
 
 IF @TestMode = 1 OR (@RecipientsList IS NULL OR @RecipientsList = '''')
 BEGIN
@@ -8387,7 +8430,8 @@ EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId, @step_name=N''Report'
 @TestMode = 0, 
 @ModuleDesc = NULL,
 @EmailRedWarningsOnly = 0, 
-@Theme = ''''Dark'''';
+@Theme = ''''Dark'''',
+@NoClutter = 0;
 
 /*
 @TestMode : 0 = Log to Inspector.ReportData, 1 = Email report.
