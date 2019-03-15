@@ -339,7 +339,8 @@ function Invoke-SQLUndercoverInspector {
                 @ModuleDesc = $ModuleConfig,
                 @EmailRedWarningsOnly = 0,
                 @Theme = 'Dark',
-                @PSCollection = 1          
+                @PSCollection = 1,
+                @NoClutter = 1     
 "@
             $CentralConnection.Query($ReportQry)
             

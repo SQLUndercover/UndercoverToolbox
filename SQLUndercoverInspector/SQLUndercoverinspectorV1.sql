@@ -4596,7 +4596,8 @@ CREATE PROCEDURE [Inspector].[SQLUnderCoverInspectorReport]
 @ModuleDesc VARCHAR(20)	= NULL,
 @EmailRedWarningsOnly BIT = 0,
 @Theme VARCHAR(5) = ''Dark'',
-@PSCollection BIT = 0
+@PSCollection BIT = 0,
+@NoClutter BIT = 0
 )
 AS 
 BEGIN
@@ -4616,7 +4617,8 @@ CREATE PROCEDURE [Inspector].[SQLUnderCoverInspectorReport]
 @ModuleDesc VARCHAR(20)	= NULL,
 @EmailRedWarningsOnly BIT = 0,
 @Theme VARCHAR(5) = ''Dark'',
-@PSCollection BIT = 0
+@PSCollection BIT = 0,
+@NoClutter BIT = 0
 )
 AS 
 BEGIN
@@ -5181,8 +5183,12 @@ BEGIN
 	END
 
 	--Append html table to the report
-	SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadAGCheck, '''') + ISNULL(@BodyAGCheck, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-	
+	SELECT  @EmailBody = @EmailBody + 
+	CASE 
+		WHEN @BodyAGCheck LIKE ''%HADR IS NOT ENABLED ON THIS SERVER OR YOU HAVE NO AVAILABILITY GROUPS%'' AND @NoClutter = 1 THEN ''''
+		ELSE ISNULL(@TableHeadAGCheck, '''') + ISNULL(@BodyAGCheck, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	END
+
 	--Populate Alert header (Default Warning Level)
 	IF (@WarningLevel = 1 OR @WarningLevel IS NULL)
 	BEGIN 
@@ -5314,8 +5320,12 @@ BEGIN
 		END
 	
 	--Append html table to the report
-	SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadSuspectPages,'''') + ISNULL(@BodySuspectPages, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-	
+	SELECT  @EmailBody = @EmailBody + 
+	CASE 
+		WHEN @BodySuspectPages LIKE ''%No Suspect pages found%'' AND @NoClutter = 1 THEN ''''
+		ELSE ISNULL(@TableHeadSuspectPages,'''') + ISNULL(@BodySuspectPages, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	END
+
 	--Populate Alert header (Default Warning Level)
 	IF (@WarningLevel = 1 OR @WarningLevel IS NULL)
 	BEGIN 
@@ -5447,8 +5457,12 @@ BEGIN
 	END
 
 	--Append html table to the report
-	SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadAGDatabases,'''') + ISNULL(@BodyAGDatabases, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-	
+	SELECT  @EmailBody = @EmailBody + 
+	CASE 
+		WHEN @BodyAGDatabases LIKE ''%No Databases marked as AG and not joined%'' AND @NoClutter = 1 THEN ''''
+		ELSE ISNULL(@TableHeadAGDatabases,'''') + ISNULL(@BodyAGDatabases, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	END
+
 	--Populate Alert header
 	IF @WarningLevel = 1
 	BEGIN 
@@ -5615,8 +5629,12 @@ BEGIN
 	END
 
 	--Append html table to the report
-	SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadLongRunningTransactions, '''') + ISNULL(@BodyLongRunningTransactions, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
-	
+	SELECT  @EmailBody = @EmailBody + 
+	CASE 
+		WHEN @BodyLongRunningTransactions LIKE ''%No Long running transactions%'' AND @NoClutter = 1 THEN ''''
+		ELSE ISNULL(@TableHeadLongRunningTransactions, '''') + ISNULL(@BodyLongRunningTransactions, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	END
+
 	--Populate Alert header
 	IF @WarningLevel = 1
 	BEGIN 
@@ -5887,7 +5905,11 @@ BEGIN
 	END
 
 	--Append html table to the report
-	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadFailedJobsTotals,'''') + ISNULL(@BodyFailedJobsTotals, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	SELECT  @EmailBody = @EmailBody + 
+	CASE 
+		WHEN @BodyFailedJobsTotals LIKE ''%No Failed Jobs present%'' AND @NoClutter = 1 THEN ''''
+		ELSE ISNULL(@TableHeadFailedJobsTotals,'''') + ISNULL(@BodyFailedJobsTotals, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	END
 
 --Populate Alert header (Default Warning Level)
 	IF (@WarningLevel = 1 OR @WarningLevel IS NULL)
@@ -6025,7 +6047,11 @@ BEGIN
 	END
 
 	--Append html table to the report
-	SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadLoginAttempts, '''') + ISNULL(@BodyLoginAttempts, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	SELECT  @EmailBody = @EmailBody + 
+	CASE 
+		WHEN @BodyLoginAttempts LIKE ''%No Failed Logins present%'' AND @NoClutter = 1 THEN ''''
+		ELSE ISNULL(@TableHeadLoginAttempts, '''') + ISNULL(@BodyLoginAttempts, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	END
 
 	--Populate Alert header
 	IF @WarningLevel = 1
@@ -6256,7 +6282,11 @@ BEGIN
     END
 
 	--Append html table to the report
-	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadJobOwner, '''') + ISNULL(@BodyJobOwner, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	SELECT  @EmailBody = @EmailBody + 
+	CASE 
+		WHEN @BodyJobOwner LIKE ''%No Job Owner issues present%'' AND @NoClutter = 1 THEN ''''
+		ELSE ISNULL(@TableHeadJobOwner, '''') + ISNULL(@BodyJobOwner, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	END
 
 	--Populate Alert header
 	IF @WarningLevel = 1 
@@ -6440,7 +6470,11 @@ BEGIN
 	END
 
 	--Append html table to the report
-	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseFiles, '''') + ISNULL(@BodyDatabaseFiles, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>''
+	SELECT  @EmailBody = @EmailBody + 
+	CASE 
+		WHEN @BodyDatabaseFiles LIKE ''%No Database File issues present%'' AND @NoClutter = 1 THEN ''''
+		ELSE ISNULL(@TableHeadDatabaseFiles, '''') + ISNULL(@BodyDatabaseFiles, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>''
+	END
 
 	--Populate Alert header (Default Warning Level)
 	IF (@WarningLevel = 1 OR @WarningLevel IS NULL)
@@ -6709,12 +6743,17 @@ BEGIN
 		--Count Backup Warnings
 		SET @CountBackupsReport = (LEN(@BodyBackupsReport) - LEN(REPLACE(@BodyBackupsReport,@RedHighlight, '''')))/LEN(@RedHighlight)
 		
-		SELECT  @EmailBody = @EmailBody + ISNULL(@TableHeadBackupsReport, '''') + ISNULL(@BodyBackupsReport, '''') +''</table><p><font style="color: Black; background-color: ''+@RedHighlight+''">Warning Highlight Thresholds:</font><br>
+		--Append html table to the report
+		SELECT  @EmailBody = @EmailBody + 
+		CASE 
+			WHEN @BodyBackupsReport LIKE ''%No backup issues present%'' AND @NoClutter = 1 THEN ''''
+			ELSE ISNULL(@TableHeadBackupsReport, '''') + ISNULL(@BodyBackupsReport, '''') +''</table><p><font style="color: Black; background-color: ''+@RedHighlight+''">Warning Highlight Thresholds:</font><br>
 		Last FULL backup older than <b>''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Day/s</b><br>
 		''+ CASE WHEN @DiffBackupThreshold IS NOT NULL THEN ''Last DIFF backup older than <b>''+ CAST(@DiffBackupThreshold AS VARCHAR(3))+'' Day/s</b><br>'' ELSE ''DIFF backups excluded from check</b><br>'' END +
 		''Last Log backup older than <b>''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minute/s</b><br>
 		Databases Excluded for this server: <b>''+(SELECT CAST(COUNT(Servername) AS VARCHAR(6)) FROM [Inspector].[BackupsCheckExcludes] WHERE Servername = @Serverlist AND ([SuppressUntil] IS NULL OR [SuppressUntil] >= GETDATE()))+''</b></p></b>''
 		+ ISNULL(REPLACE(@TableTail,''</table>'',''''),'''') +''<p><BR><p>''
+		END
 
 
 		IF @BodyBackupsReport LIKE ''%''+@RedHighlight+''%''		
@@ -6846,8 +6885,11 @@ BEGIN
 		SET @CollectionOutOfDate = 1;
 	END
 
-	--Append html table to the report
-	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadDBOwner, '''') + ISNULL(@BodyDBOwner, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	SELECT  @EmailBody = @EmailBody + 
+	CASE 
+		WHEN @BodyDBOwner LIKE ''%No Database Ownership issues present%'' AND @NoClutter = 1 THEN ''''
+		ELSE ISNULL(@TableHeadDBOwner, '''') + ISNULL(@BodyDBOwner, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
+	END
 
 	--Populate Alert header
 	IF @WarningLevel = 1
@@ -7046,7 +7088,11 @@ BEGIN
 	END
 
 	--Append html table to the report
-	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadAdHocDatabases, '''') +ISNULL(@BodyAdHocDatabases, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>''
+	SELECT  @EmailBody = @EmailBody + 
+	CASE 
+		WHEN @BodyAdHocDatabases LIKE ''%No Ad hoc database creations present%'' AND @NoClutter = 1 THEN ''''
+		ELSE ISNULL(@TableHeadAdHocDatabases, '''') +ISNULL(@BodyAdHocDatabases, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>''
+	END
 
 	--Populate Alert header
 	IF @WarningLevel = 1
@@ -7584,7 +7630,11 @@ BEGIN
 	END
 
 	--Append html table to the report
-	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadUnusedLogshipConfig, '''') +ISNULL(@BodyUnusedLogshipConfig, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>''
+	SELECT  @EmailBody = @EmailBody + 
+	CASE 
+		WHEN @BodyUnusedLogshipConfig LIKE ''%No unused log shipping config present%'' AND @NoClutter = 1 THEN ''''
+		ELSE ISNULL(@TableHeadUnusedLogshipConfig, '''') +ISNULL(@BodyUnusedLogshipConfig, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>''
+	END
 
 	--Populate Alert header
 	IF @WarningLevel = 1
