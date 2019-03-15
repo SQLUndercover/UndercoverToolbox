@@ -5992,7 +5992,7 @@ BEGIN
 	'';
 
 	IF (SELECT MAX(Log_Date) 
-	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck] 
+	FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[LoginAttempts]
 	WHERE Servername = @Serverlist) >= CAST(GETDATE() AS DATE)
 	BEGIN
 		SET @BodyLoginAttempts = 
