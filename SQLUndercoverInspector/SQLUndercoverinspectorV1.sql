@@ -947,7 +947,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[CatalogueModulesList].[Module],
 				CASE WHEN [ModuleConfig_Desc] = 'Default' THEN 1 ELSE 0 END AS [Enabled]
 				FROM [Inspector].[Modules]
-				CROSS JOIN (SELECT [Module] FROM (VALUES('CatalogueMissingLogins')) ModuleList(Module)) AS CatalogueModulesList
+				CROSS JOIN (SELECT [Module] FROM (VALUES('CatalogueMissingLogins'),('CatalogueDroppedTables'),('CatalogueDroppedDatabases')) ModuleList(Module)) AS CatalogueModulesList
 				WHERE NOT EXISTS (SELECT 1 FROM [Inspector].[CatalogueModules] WHERE [ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] AND [Module] = [CatalogueModulesList].[Module])
 			END
 			ELSE 
@@ -959,7 +959,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[CatalogueModulesList].[Module],
 				CASE WHEN [ModuleConfig_Desc] = 'Default' THEN 1 ELSE 0 END AS [Enabled]
 				FROM [Inspector].[Modules]
-				CROSS JOIN (SELECT [Module] FROM (VALUES('CatalogueMissingLogins')) ModuleList(Module)) AS CatalogueModulesList
+				CROSS JOIN (SELECT [Module] FROM (VALUES('CatalogueMissingLogins'),('CatalogueDroppedTables'),('CatalogueDroppedDatabases')) ModuleList(Module)) AS CatalogueModulesList
 				WHERE NOT EXISTS (SELECT 1 FROM [Inspector].[CatalogueModules] WHERE [ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] AND [Module] = [CatalogueModulesList].[Module])
 			END 
 
@@ -1830,6 +1830,12 @@ END
 			IF OBJECT_ID('Inspector.CatalogueMissingLogins') IS NOT NULL
 			DROP PROCEDURE [Inspector].[CatalogueMissingLogins];
 
+			IF OBJECT_ID('Inspector.CatalogueDroppedTables') IS NOT NULL 
+			DROP PROCEDURE [Inspector].[CatalogueDroppedTables];
+
+			IF OBJECT_ID('Inspector.CatalogueDroppedDatabases') IS NOT NULL 
+			DROP PROCEDURE [Inspector].[CatalogueDroppedDatabases];
+
 			IF OBJECT_ID('Inspector.ResetHtmlColors') IS NOT NULL
 			DROP PROCEDURE [Inspector].[ResetHtmlColors];
 
@@ -2168,7 +2174,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN
 
---Revision date: 08/03/2019
+--Revision date: 16/03/2019
 
 /*
 These modules are excluded from warning level control:
@@ -2228,7 +2234,7 @@ BackupSizesCheck
    [Modules].[ModuleConfig_Desc],
    [CatalogueModulesList].[Module]
    FROM [Inspector].[Modules]
-   CROSS JOIN (SELECT [Module] FROM (VALUES(''CatalogueMissingLogins'')) ModuleList(Module)) AS CatalogueModulesList
+   CROSS JOIN (SELECT [Module] FROM (VALUES(''CatalogueMissingLogins''),(''CatalogueDroppedTables''),(''CatalogueDroppedDatabases'')) ModuleList(Module)) AS CatalogueModulesList
    WHERE NOT EXISTS (SELECT 1 
 					FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[ModuleWarningLevel] 
 					WHERE [ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] 
@@ -4145,6 +4151,154 @@ END'
 
 EXEC(@SQLStatement);
 
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[CatalogueDroppedTables]
+(
+@Servername NVARCHAR(128),
+@TableHeaderColour VARCHAR(7) = NULL,
+@WarningLevelFontColour VARCHAR(7) = NULL,
+@HtmlOutput VARCHAR(MAX) OUTPUT,
+@ModuleConfig VARCHAR(20),
+@PSCollection BIT
+)
+AS
+--Revision date: 16/03/2019
+BEGIN
+
+DECLARE @LastestExecution DATETIME
+DECLARE @ReportStart DATETIME = GETDATE();
+DECLARE @Duration MONEY
+
+IF @TableHeaderColour IS NULL BEGIN SET @TableHeaderColour = ''#E6E6FA'' END;
+
+EXEC sp_executesql N''SELECT @LastestExecution = MAX(ExecutionDate) FROM [Catalogue].[ExecutionLog];'',
+N''@LastestExecution DATETIME OUTPUT'',@LastestExecution = @LastestExecution OUTPUT;
+
+EXEC sp_executesql 
+N''
+SET @HtmlOutput = (
+SELECT 
+@WarningLevelFontColour AS [@bgcolor],
+CatalogueTables.ServerName AS ''''td'''','''''''', +
+CatalogueTables.DatabaseName AS ''''td'''','''''''', +
+CatalogueTables.SchemaName AS ''''td'''','''''''', +
+CatalogueTables.TableName AS ''''td'''','''''''', +
+CONVERT(VARCHAR(17),CatalogueTables.LastRecorded,113) AS ''''td'''','''''''' 
+FROM [Inspector].[CurrentServers] InspectorServers
+INNER JOIN [Catalogue].[Tables] CatalogueTables ON CatalogueTables.ServerName = InspectorServers.Servername 
+WHERE CatalogueTables.ServerName = @Servername
+AND [CatalogueTables].[LastRecorded] >= DATEADD(DAY,-1,GETDATE())
+AND [CatalogueTables].[LastRecorded] < @LastestExecution
+AND [DatabaseName] != ''''tempdb''''
+AND NOT EXISTS (SELECT 1 FROM [Catalogue].[Databases] CatalogueDatabases 
+				WHERE CatalogueDatabases.ServerName = InspectorServers.Servername 
+				AND  CatalogueDatabases.DBName= CatalogueTables.DatabaseName 
+				AND  [CatalogueDatabases].[LastRecorded] < @LastestExecution)
+FOR XML PATH(''''tr''''),ELEMENTS);'',N''@Servername NVARCHAR(128), @WarningLevelFontColour VARCHAR(7), @LastestExecution DATETIME,@HtmlOutput VARCHAR(MAX) OUTPUT'',
+@Servername = @Servername, @WarningLevelFontColour = @WarningLevelFontColour,@LastestExecution = @LastestExecution,@HtmlOutput = @HtmlOutput OUTPUT;
+
+
+IF @HtmlOutput IS NOT NULL 
+BEGIN 
+    SET @HtmlOutput = 
+    ''<b><A NAME = "''+REPLACE(@Servername,''\'','''')+''DroppedTables''+''"></a>Tables dropped in the last 24hrs:</b>
+    <br> <table cellpadding=0 cellspacing=0 border=0> 
+    <tr> 
+	<td bgcolor=''+@TableHeaderColour+''><b>Servername</b></font></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Database name</b></font></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Schema name</b></font></td>	
+	<td bgcolor=''+@TableHeaderColour+''><b>Table name</b></font></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>LastSeenByCatalogue</b></font></td>
+	''+@HtmlOutput
+	+''</table><p><A HREF = "#Warnings">Back to Top</a><p>'';
+END 
+
+SET @Duration = CAST(DATEDIFF(MILLISECOND,@ReportStart,GETDATE()) AS MONEY)/1000;
+
+EXEC [Inspector].[ExecutionLogInsert] 
+@RunDatetime = @ReportStart, 
+@Servername = @Servername, 
+@ModuleConfigDesc = @ModuleConfig,
+@Procname = N''CatalogueDroppedTables'', 
+@Duration = @Duration,
+@PSCollection = @PSCollection;
+
+END'
+
+EXEC(@SQLStatement);
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[CatalogueDroppedDatabases]
+(
+@Servername NVARCHAR(128),
+@TableHeaderColour VARCHAR(7) = NULL,
+@WarningLevelFontColour VARCHAR(7) = NULL,
+@HtmlOutput VARCHAR(MAX) OUTPUT,
+@ModuleConfig VARCHAR(20),
+@PSCollection BIT
+)
+AS
+--Revision date: 16/03/2019
+BEGIN
+
+DECLARE @LastestExecution DATETIME
+DECLARE @ReportStart DATETIME = GETDATE();
+DECLARE @Duration MONEY
+
+IF @TableHeaderColour IS NULL BEGIN SET @TableHeaderColour = ''#E6E6FA'' END;
+
+EXEC sp_executesql N''SELECT @LastestExecution = MAX(ExecutionDate) FROM [Catalogue].[ExecutionLog];'',
+N''@LastestExecution DATETIME OUTPUT'',@LastestExecution = @LastestExecution OUTPUT;
+
+EXEC sp_executesql 
+N''
+SET @HtmlOutput = (
+SELECT 
+@WarningLevelFontColour AS [@bgcolor], 
+CatalogueDatabases.ServerName AS ''''td'''','''''''', +
+CatalogueDatabases.DBName AS ''''td'''','''''''', +
+ISNULL(AGName,N''''Not in an AG'''') AS ''''td'''','''''''', +
+CatalogueDatabases.FilePaths AS ''''td'''','''''''', +
+DATEDIFF(DAY,FirstRecorded,LastRecorded) AS ''''td'''','''''''', +
+CONVERT(VARCHAR(17),CatalogueDatabases.LastRecorded,113) AS ''''td'''',''''''''
+FROM [Catalogue].[Databases] CatalogueDatabases
+INNER JOIN [Inspector].[CurrentServers] InspectorServers ON CatalogueDatabases.ServerName = InspectorServers.Servername 
+WHERE CatalogueDatabases.ServerName = @Servername
+AND [CatalogueDatabases].[LastRecorded] >= DATEADD(DAY,-1,GETDATE())
+AND [CatalogueDatabases].[LastRecorded] < @LastestExecution
+FOR XML PATH(''''tr''''),ELEMENTS);'',N''@Servername NVARCHAR(128), @WarningLevelFontColour VARCHAR(7), @LastestExecution DATETIME,@HtmlOutput VARCHAR(MAX) OUTPUT'',
+@Servername = @Servername, @WarningLevelFontColour = @WarningLevelFontColour,@LastestExecution = @LastestExecution,@HtmlOutput = @HtmlOutput OUTPUT;
+
+
+IF @HtmlOutput IS NOT NULL 
+BEGIN 
+    SET @HtmlOutput = 
+    ''<b><A NAME = "''+REPLACE(@Servername,''\'','''')+''DroppedDatabases''+''"></a>Databases dropped in the last 24hrs:</b>
+    <br> <table cellpadding=0 cellspacing=0 border=0> 
+    <tr> 
+	<td bgcolor=''+@TableHeaderColour+''><b>Servername</b></font></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Database name</b></font></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>AG name</b></font></td>	
+	<td bgcolor=''+@TableHeaderColour+''><b>File paths</b></font></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>DaysSeenByCatalogue</b></font></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>LastSeenByCatalogue</b></font></td>
+	''+@HtmlOutput
+	+''</table><p><A HREF = "#Warnings">Back to Top</a><p>'';
+END 
+
+SET @Duration = CAST(DATEDIFF(MILLISECOND,@ReportStart,GETDATE()) AS MONEY)/1000;
+
+EXEC [Inspector].[ExecutionLogInsert] 
+@RunDatetime = @ReportStart, 
+@Servername = @Servername, 
+@ModuleConfigDesc = @ModuleConfig,
+@Procname = N''CatalogueDroppedDatabases'', 
+@Duration = @Duration,
+@PSCollection = @PSCollection;
+
+END'
+
+EXEC(@SQLStatement);
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[InspectorDataCollection]
@@ -4605,7 +4759,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 15/03/2019
+--Revision date: 16/03/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.4
 
@@ -6241,6 +6395,206 @@ BEGIN
 
 END
 
+
+--Catalogue Dropped Tables Module
+IF @CatalogueInstalled = 1 
+BEGIN 
+
+	--Check if the Catalogue module is enabled
+	SET @CatalogueModulename = ''Tables''
+
+	EXEC sp_executesql N''SELECT @CatalogueModuleEnabled = [Active] FROM [Catalogue].[ConfigModules] WHERE [ModuleName] = @CatalogueModulename'',
+	N''@CatalogueModuleEnabled BIT OUTPUT, @CatalogueModulename VARCHAR(20)'',
+	@CatalogueModuleEnabled = @CatalogueModuleEnabled OUTPUT,
+	@CatalogueModulename = @CatalogueModulename;
+
+	--Check if the Inspector is enabled to report on the Catalogue module
+	SET @CatalogueModuleReport = (SELECT [Enabled] FROM [Inspector].[CatalogueModules] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''CatalogueDroppedTables'')
+
+	IF (@CatalogueModuleEnabled = 1 AND @CatalogueModuleReport = 1)
+	BEGIN 
+		IF @CatalogueLastExecution >= DATEADD(DAY,-1,@ReportStart)
+		BEGIN
+
+			SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''CatalogueDroppedTables'')
+			
+			SET @CatalogueHtml = NULL;
+			SET @CountCatalogueWarnings = 0;
+
+			SET @CollectionOutOfDate = 0			
+			SET @WarningLevelFontColour = CASE 
+											WHEN @WarningLevel IS NULL THEN @InfoHighlight
+											WHEN @WarningLevel = 1 THEN @RedHighlight
+											WHEN @WarningLevel = 2 THEN @YellowHighlight
+											WHEN @WarningLevel = 3 THEN @InfoHighlight 
+										 END;
+			
+			EXEC [Inspector].[CatalogueDroppedTables] 
+			@Servername = @Serverlist,
+			@TableHeaderColour = @TableHeaderColour,
+			@WarningLevelFontColour = @WarningLevelFontColour,
+			@PSCollection = @PSCollection,
+			@ModuleConfig = @ModuleConfigDetermined,
+			@HtmlOutput = @CatalogueHtml OUTPUT;
+			
+			IF @CatalogueHtml IS NOT NULL
+			BEGIN 
+						
+				--Append html table to the report
+				SELECT  @EmailBody = @EmailBody + ISNULL(@CatalogueHtml,'''') + ''<p><BR><p>'' 
+			
+				--Populate Alert header
+				IF @WarningLevel = 1
+				BEGIN 
+					IF @CatalogueHtml LIKE ''%''+@RedHighlight+''%''
+					BEGIN
+						SET @CountCatalogueWarnings = (LEN(@CatalogueHtml) - LEN(REPLACE(@CatalogueHtml,@RedHighlight, '''')))/LEN(@RedHighlight)
+						SELECT @AlertHeader = @AlertHeader + 
+						CASE 
+							WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DroppedTables''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Dropped tables</font><p>''
+							WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DroppedTables''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Dropped tables <b>(Data collection out of Date)</b></font><p>''  
+						END
+						SET @Importance = ''High'' 
+						SET @TotalWarningCount = @TotalWarningCount + @CountCatalogueWarnings
+					END
+				END
+				
+				--Populate Advisory header 
+				IF @WarningLevel = 2 
+				BEGIN 
+					IF @CatalogueHtml LIKE ''%''+@YellowHighlight+''%''
+					BEGIN
+						SET @CountCatalogueWarnings = (LEN(@CatalogueHtml) - LEN(REPLACE(@CatalogueHtml,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+						SELECT @AdvisoryHeader = @AdvisoryHeader + 
+						CASE 
+							WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DroppedTables''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Dropped tables</font><p>''
+							WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DroppedTables''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Dropped tables warnings <b>(Data collection out of Date)</b></font><p>''  
+						END
+						SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountCatalogueWarnings
+					END
+				END
+				
+				--Populate Info header (Default Warning Level)
+				IF (@WarningLevel = 3 OR @WarningLevel IS NULL) 
+				BEGIN 
+					IF @CatalogueHtml LIKE ''%''+@InfoHighlight+''%''
+					BEGIN 
+						SET @CountCatalogueWarnings = (LEN(@CatalogueHtml) - LEN(REPLACE(@CatalogueHtml,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+						SELECT @InfoHeader = @InfoHeader + 
+						CASE 
+							WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DroppedTables''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Dropped tables</font><p>''
+							WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DroppedTables''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Dropped tables warnings <b>(Data collection out of Date)</b></font><p>''  
+						END
+					END
+				
+				END
+						
+			END 
+
+		END
+	END
+
+END
+
+--Catalogue Dropped Databases Module
+IF @CatalogueInstalled = 1 
+BEGIN 
+
+	--Check if the Catalogue module is enabled
+	SET @CatalogueModulename = ''Databases''
+
+	EXEC sp_executesql N''SELECT @CatalogueModuleEnabled = [Active] FROM [Catalogue].[ConfigModules] WHERE [ModuleName] = @CatalogueModulename'',
+	N''@CatalogueModuleEnabled BIT OUTPUT, @CatalogueModulename VARCHAR(20)'',
+	@CatalogueModuleEnabled = @CatalogueModuleEnabled OUTPUT,
+	@CatalogueModulename = @CatalogueModulename;
+
+	--Check if the Inspector is enabled to report on the Catalogue module
+	SET @CatalogueModuleReport = (SELECT [Enabled] FROM [Inspector].[CatalogueModules] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''CatalogueDroppedDatabases'')
+
+	IF (@CatalogueModuleEnabled = 1 AND @CatalogueModuleReport = 1)
+	BEGIN 
+		IF @CatalogueLastExecution >= DATEADD(DAY,-1,@ReportStart)
+		BEGIN
+
+			SET @WarningLevel = (SELECT [WarningLevel] FROM [Inspector].[ModuleWarningLevel] WHERE [ModuleConfig_Desc] = ISNULL(@ModuleDesc,@ModuleConfig) AND [Module] = ''CatalogueDroppedDatabases'')
+			
+			SET @CatalogueHtml = NULL;
+			SET @CountCatalogueWarnings = 0;
+
+			SET @CollectionOutOfDate = 0			
+			SET @WarningLevelFontColour = CASE 
+											WHEN @WarningLevel IS NULL THEN @InfoHighlight
+											WHEN @WarningLevel = 1 THEN @RedHighlight
+											WHEN @WarningLevel = 2 THEN @YellowHighlight
+											WHEN @WarningLevel = 3 THEN @InfoHighlight 
+										 END;
+			
+			EXEC [Inspector].[CatalogueDroppedDatabases] 
+			@Servername = @Serverlist,
+			@TableHeaderColour = @TableHeaderColour,
+			@WarningLevelFontColour = @WarningLevelFontColour,
+			@PSCollection = @PSCollection,
+			@ModuleConfig = @ModuleConfigDetermined,
+			@HtmlOutput = @CatalogueHtml OUTPUT;
+			
+			IF @CatalogueHtml IS NOT NULL
+			BEGIN 
+						
+				--Append html table to the report
+				SELECT  @EmailBody = @EmailBody + ISNULL(@CatalogueHtml,'''') + ''<p><BR><p>'' 
+			
+				--Populate Alert header
+				IF @WarningLevel = 1
+				BEGIN 
+					IF @CatalogueHtml LIKE ''%''+@RedHighlight+''%''
+					BEGIN
+						SET @CountCatalogueWarnings = (LEN(@CatalogueHtml) - LEN(REPLACE(@CatalogueHtml,@RedHighlight, '''')))/LEN(@RedHighlight)
+						SELECT @AlertHeader = @AlertHeader + 
+						CASE 
+							WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DroppedDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Dropped databases</font><p>''
+							WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DroppedDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Dropped databases <b>(Data collection out of Date)</b></font><p>''  
+						END
+						SET @Importance = ''High'' 
+						SET @TotalWarningCount = @TotalWarningCount + @CountCatalogueWarnings
+					END
+				END
+				
+				--Populate Advisory header 
+				IF @WarningLevel = 2 
+				BEGIN 
+					IF @CatalogueHtml LIKE ''%''+@YellowHighlight+''%''
+					BEGIN
+						SET @CountCatalogueWarnings = (LEN(@CatalogueHtml) - LEN(REPLACE(@CatalogueHtml,@YellowHighlight, '''')))/LEN(@YellowHighlight)
+						SELECT @AdvisoryHeader = @AdvisoryHeader + 
+						CASE 
+							WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DroppedDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Dropped databases</font><p>''
+							WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DroppedDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Dropped databases warnings <b>(Data collection out of Date)</b></font><p>''  
+						END
+						SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountCatalogueWarnings
+					END
+				END
+				
+				--Populate Info header (Default Warning Level)
+				IF (@WarningLevel = 3 OR @WarningLevel IS NULL) 
+				BEGIN 
+					IF @CatalogueHtml LIKE ''%''+@InfoHighlight+''%''
+					BEGIN 
+						SET @CountCatalogueWarnings = (LEN(@CatalogueHtml) - LEN(REPLACE(@CatalogueHtml,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+						SELECT @InfoHeader = @InfoHeader + 
+						CASE 
+							WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DroppedDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Dropped databases</font><p>''
+							WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DroppedDatabases''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountCatalogueWarnings AS VARCHAR(5))+'') Dropped databases warnings <b>(Data collection out of Date)</b></font><p>''  
+						END
+					END
+				
+				END
+						
+			END 
+
+		END
+	END
+
+END
 
 IF @JobOwnerCheck = 1 
 BEGIN
