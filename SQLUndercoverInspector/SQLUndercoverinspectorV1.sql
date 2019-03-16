@@ -937,8 +937,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				ALTER TABLE [Inspector].[CatalogueModules] ADD CONSTRAINT [FK_CatalogueModules_ModuleConfig_Desc]
 				FOREIGN KEY (ModuleConfig_Desc) REFERENCES [Inspector].[Modules](ModuleConfig_Desc);
 				
-				ALTER TABLE [Inspector].[CatalogueModules]
-				ADD CONSTRAINT [CatalogueModules_ModuleConfig_Desc] UNIQUE ([ModuleConfig_Desc]);
+				ALTER TABLE [Inspector].[CatalogueModules] ADD CONSTRAINT [UC_CatalogueModules_ModuleConfig_Module] UNIQUE (ModuleConfig_Desc,Module);
 
 				--One off population
 				INSERT INTO [Inspector].[CatalogueModules] ([ModuleConfig_Desc],[Module],[Enabled])
