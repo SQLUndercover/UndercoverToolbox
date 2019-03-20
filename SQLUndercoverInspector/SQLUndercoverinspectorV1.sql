@@ -1181,15 +1181,17 @@ END
 	[DIFF] AS LastDiff,
 	[LOG] AS LastLog,
 	BackupSet.AGname,
-	CASE WHEN BackupSet.AGname = ''Not in an AG'' THEN Servername
+	CASE WHEN BackupSet.AGname = ''Not in an AG'' THEN BackupSet.Servername
 	ELSE BackupSet.AGname END AS GroupingMethod,  
-	Servername,
+	BackupSet.Servername,
 	BackupSet.IsFullRecovery,
 	BackupSet.IsSystemDB,
 	BackupSet.primary_replica,
 	BackupSet.backup_preference
 	FROM [Inspector].[BackupsCheck] BackupSet
+	INNER JOIN [Inspector].[CurrentServers] ON BackupSet.Servername = CurrentServers.Servername
 	WHERE CAST(GETDATE() AS DATE) >= CAST(GETDATE() AS DATE)
+	AND CurrentServers.IsActive = 1
 	AND NOT EXISTS (SELECT 1 
 		FROM [Inspector].[BackupsCheckExcludes] 
 		WHERE [Servername] = [BackupSet].[Servername] 
@@ -1287,15 +1289,17 @@ END
 	[DIFF] AS LastDiff,
 	[LOG] AS LastLog,
 	BackupSet.AGname,
-	CASE WHEN BackupSet.AGname = ''Not in an AG'' THEN Servername
+	CASE WHEN BackupSet.AGname = ''Not in an AG'' THEN BackupSet.Servername
 	ELSE BackupSet.AGname END AS GroupingMethod,  
-	Servername,
+	BackupSet.Servername,
 	BackupSet.IsFullRecovery,
 	BackupSet.IsSystemDB,
 	BackupSet.primary_replica,
 	BackupSet.backup_preference
 	FROM [Inspector].[BackupsCheck] BackupSet
+	INNER JOIN [Inspector].[CurrentServers] ON BackupSet.Servername = CurrentServers.Servername
 	WHERE CAST(GETDATE() AS DATE) >= CAST(GETDATE() AS DATE)
+	AND CurrentServers.IsActive = 1
 	AND NOT EXISTS (SELECT 1 
 		FROM [Inspector].[BackupsCheckExcludes] 
 		WHERE [Servername] = [BackupSet].[Servername] 
