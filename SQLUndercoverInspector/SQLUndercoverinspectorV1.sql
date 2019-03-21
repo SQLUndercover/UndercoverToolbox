@@ -690,7 +690,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			--Insert Module warning level descriptions (new feature for V1.3)
 			EXEC sp_executesql N'
 			INSERT INTO [Inspector].[ModuleWarnings] ([WarningLevel],[WarningDesc],[HighlightHtmlColor],[GradientLeftHtmlColor],[GradientRightHtmlColor])
-			VALUES(NULL,''InspectorDefault'',NULL,NULL,NULL),(1,''Red'',''#F78181'',''#000000'',''#F78181''),(2,''Yellow'',''#FAFCA4'',''#000000'',''#FAFCA4''),(3,''Information (white)'',''#FEFFFF'',''#000000'',''#FEFFFF'');';
+			VALUES(NULL,''InspectorDefault'',NULL,NULL,NULL),(1,''Red'',''#fc5858'',''#000000'',''#fc5858''),(2,''Yellow'',''#FAFCA4'',''#000000'',''#FAFCA4''),(3,''Information (white)'',''#FEFFFF'',''#000000'',''#FEFFFF'');';
 
 			ALTER TABLE [Inspector].[ModuleWarnings] ADD CONSTRAINT [UC_WarningLevel] UNIQUE CLUSTERED 
 			([WarningLevel] ASC);
@@ -718,7 +718,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 
 				EXEC sp_executesql N'
 				UPDATE [Inspector].[ModuleWarnings] 
-				SET [HighlightHtmlColor] = ''#F78181''
+				SET [HighlightHtmlColor] = ''#fc5858''
 				WHERE [WarningLevel] = 1;
 
 				UPDATE [Inspector].[ModuleWarnings] 
@@ -757,7 +757,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 
 			EXEC sp_executesql N'
 			UPDATE [Inspector].[ModuleWarnings] 
-			SET [GradientRightHtmlColor] = ''#F78181''
+			SET [GradientRightHtmlColor] = ''#fc5858''
 			WHERE [WarningLevel] = 1;
 
 			UPDATE [Inspector].[ModuleWarnings] 
@@ -3580,7 +3580,7 @@ BEGIN
 	SET 
 	[HighlightHtmlColor] = CASE 
 							WHEN [WarningLevel] IS NULL THEN NULL 
-							WHEN [WarningLevel] = 1 THEN ''#F78181'' 
+							WHEN [WarningLevel] = 1 THEN ''#fc5858'' 
 							WHEN [WarningLevel] = 2 THEN ''#FAFCA4''
 							WHEN [WarningLevel] = 3 THEN ''#FEFFFF''
 						   END,
@@ -3590,7 +3590,7 @@ BEGIN
 							 END,
 	[GradientRightHtmlColor] = CASE 
 								WHEN [WarningLevel] IS NULL THEN NULL 
-								WHEN [WarningLevel] = 1 THEN ''#F78181'' 
+								WHEN [WarningLevel] = 1 THEN ''#fc5858'' 
 								WHEN [WarningLevel] = 2 THEN ''#FAFCA4''
 								WHEN [WarningLevel] = 3 THEN ''#FEFFFF''
 							   END
@@ -4762,7 +4762,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 16/03/2019
+--Revision date: 21/03/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.4
 
@@ -4915,7 +4915,7 @@ DECLARE @AlertHeader VARCHAR(MAX) = '''';
 DECLARE @AdvisoryHeader VARCHAR(MAX) = '''';
 DECLARE @InfoHeader VARCHAR(MAX) = '''';
 DECLARE @RecipientsList VARCHAR(1000) = (SELECT Recipients FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[EmailRecipients] WHERE [Description] = @EmailDistributionGroup)
-DECLARE @RedHighlight VARCHAR(7) = (SELECT ISNULL(NULLIF([HighlightHtmlColor],''''),''#F78181'') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ModuleWarnings] WHERE [WarningLevel] = 1);
+DECLARE @RedHighlight VARCHAR(7) = (SELECT ISNULL(NULLIF([HighlightHtmlColor],''''),''#fc5858'') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ModuleWarnings] WHERE [WarningLevel] = 1);
 DECLARE @YellowHighlight VARCHAR(7) = (SELECT ISNULL(NULLIF([HighlightHtmlColor],''''),''#FAFCA4'') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ModuleWarnings] WHERE [WarningLevel] = 2);
 DECLARE @InfoHighlight VARCHAR(7) = (SELECT ISNULL(NULLIF([HighlightHtmlColor],''''),''#FEFFFF'') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ModuleWarnings] WHERE [WarningLevel] = 3);
 DECLARE @GradientLeftRedHighlight VARCHAR(7) = (SELECT ISNULL(NULLIF([GradientLeftHtmlColor],''''),CASE WHEN @Theme = ''LIGHT'' THEN ''#FFFFFF'' ELSE ''#000000'' END) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ModuleWarnings] WHERE [WarningLevel] = 1);
@@ -4937,6 +4937,11 @@ DECLARE @PhysicalServername NVARCHAR(128)
 DECLARE @ReportDataRetention INT = (SELECT ISNULL(NULLIF(CAST([Value] AS INT),''''),30) from ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''ReportDataRetention'');
 DECLARE @CollectionOutOfDate BIT
 
+/*
+--Internal use only
+DECLARE @DriveExtensionRequest VARCHAR(4000)
+DECLARE @DriveExtensionRequestStage VARCHAR(MAX) = ''''
+*/
 
 IF @ModuleDesc IS NULL 
 BEGIN 
@@ -5247,9 +5252,14 @@ BEGIN
 				  
 	IF @BodyDriveSpace LIKE ''%''+@RedHighlight+''%''		
 	BEGIN 
-		SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''">''+@Serverlist+''</a><font color= ''+@RedHighlight+''>  - has (''+CAST(@CountDriveSpace AS VARCHAR(5))+'') Drive Space warnings</font><p>''	  
-		SET @Importance = ''High'' 
-		SET @TotalWarningCount = @TotalWarningCount + @CountDriveSpace
+		SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''">''+@Serverlist+''</a><font color= ''+@RedHighlight+''>  - has (''+CAST(@CountDriveSpace AS VARCHAR(5))+'') Drive Space warnings</font><p>'';	  
+		SET @Importance = ''High'' ;
+		SET @TotalWarningCount = @TotalWarningCount + @CountDriveSpace;
+		/*
+		--Internal use only
+		EXEC [Inspector].[DriveExtensionRequest] @html = @BodyDriveSpace, @RedHighlight = @RedHighlight,@Email = 0, @EmailOutput = @DriveExtensionRequest OUTPUT;
+		SET @DriveExtensionRequestStage = @DriveExtensionRequestStage + @DriveExtensionRequest;
+		*/
 	END
 		
 	--Count Drive space Yellow Highlights	
@@ -8161,8 +8171,13 @@ END
 CLOSE ServerCur
 DEALLOCATE ServerCur
 
-
-
+/*
+--Internal use Only
+IF @DriveExtensionRequest IS NOT NULL 
+BEGIN 
+	EXEC [Inspector].[DriveExtensionRequest] @html = @DriveExtensionRequestStage, @RedHighlight = @RedHighlight,@Email = 1, @EmailOutput = @DriveExtensionRequest OUTPUT;
+END
+*/
 
 IF (@DatabaseGrowthCheck = 1 OR @DatabaseGrowthCheckRunEnabled = 1)
 BEGIN
