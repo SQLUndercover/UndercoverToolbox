@@ -2143,7 +2143,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 28/06/2018
+--Revision date: 21/03/2019
 
 DECLARE @Retention INT = (SELECT Value From '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'')
 
@@ -2156,14 +2156,25 @@ IF NOT EXISTS (SELECT Log_Date FROM '+@LinkedServername+'['+@Databasename+'].[In
 	BEGIN
 		--RECORD THE DRIVE SPACE CAPACITY AND AVAILABLE SPACE PER DAY
 		INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DriveSpace] (Servername, Log_Date, Drive, Capacity_GB, AvailableSpace_GB)
-		SELECT DISTINCT
+		SELECT 
 		@@SERVERNAME,
 		GETDATE(),
 		UPPER(volumestats.volume_mount_point) AS Drive,
 		CAST((CAST(volumestats.total_bytes AS DECIMAL(20,2)))/1024/1024/1024 AS DECIMAL(10,2)) Capacity_GB,
 		CAST((CAST(volumestats.available_bytes AS DECIMAL(20,2)))/1024/1024/1024 AS DECIMAL(10,2)) AS AvailableSpace_GB
-		FROM sys.master_files masterfiles
-		CROSS APPLY sys.dm_os_volume_stats(masterfiles.database_id, file_id) volumestats
+		FROM 
+		(
+			SELECT 
+			MIN([database_id]) AS [database_id],
+			MIN([file_id]) as [file_id]
+			FROM sys.master_files
+			GROUP BY 
+			CASE 
+				WHEN LEFT(physical_name,2) = ''\\'' THEN LEFT(physical_name,CHARINDEX(''\'',physical_name,3))
+				ELSE LEFT(physical_name,3)
+			END
+		) DistinctDrives
+		CROSS APPLY sys.dm_os_volume_stats([DistinctDrives].[database_id],[DistinctDrives].[file_id]) volumestats
 	END
 
 END'
