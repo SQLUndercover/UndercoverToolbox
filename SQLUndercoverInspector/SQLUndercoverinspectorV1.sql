@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 21/03/2019
+Revision date: 23/03/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
@@ -76,7 +76,7 @@ URL: https://github.com/SQLUndercover/UndercoverToolbox/blob/master/SQLUndercove
 MIT License
 ------------
 
-Copyright 2018 Sql Undercover
+Copyright 2019 Sql Undercover
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files 
 (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, 
@@ -4773,7 +4773,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 21/03/2019
+--Revision date: 23/03/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.4
 
@@ -4901,6 +4901,7 @@ DECLARE @DatabaseGrowthCheckRunEnabled BIT
 DECLARE @Duration MONEY
 DECLARE @CatalogueInstalled BIT 
 DECLARE @CatalogueBuild	VARCHAR(10)
+DECLARE @MinCatalogueBuild VARCHAR(10) = ''0.2.0''
 DECLARE @CatalogueModuleEnabled BIT
 DECLARE @CatalogueModulename VARCHAR(20)
 DECLARE @CatalogueHtml VARCHAR(MAX)
@@ -4976,7 +4977,9 @@ IF @Theme IS NULL BEGIN SET @Theme = ''DARK'' END;
 IF @Theme NOT IN (''LIGHT'',''DARK'') BEGIN SET @Theme = ''DARK'' END;
 
 --Check if the Undercover Catalogue is installed
-IF OBJECT_ID(''Catalogue.ConfigInstances'') IS NOT NULL 
+IF (OBJECT_ID(''Catalogue.ConfigInstances'') IS NOT NULL 
+AND OBJECT_ID(''Catalogue.ConfigPoSH'') IS NOT NULL 
+AND OBJECT_ID(''Catalogue.ExecutionLog'') IS NOT NULL)
 BEGIN 
 	SET @CatalogueInstalled = 1; 
 END 
@@ -4986,7 +4989,7 @@ IF @CatalogueInstalled = 1
 BEGIN 
 	EXEC sp_executesql N''SELECT @CatalogueBuild = [ParameterValue] FROM [Catalogue].[ConfigPoSH] WHERE [ParameterName] = ''''CatalogueVersion'''';'',N''@CatalogueBuild VARCHAR(10) OUTPUT'',@CatalogueBuild = @CatalogueBuild OUTPUT
 	EXEC sp_executesql N''SELECT TOP 1 @CatalogueLastExecution = [ExecutionDate] FROM [Catalogue].[ExecutionLog] WHERE [CompletedSuccessfully] = 1 ORDER BY [ID] DESC;'',N''@CatalogueLastExecution DATETIME OUTPUT'',@CatalogueLastExecution = @CatalogueLastExecution OUTPUT
-	SET @ServerSummaryHeader = ''<A NAME = "Warnings"></a><b>SQLUndercover Inspector Build: ''+ISNULL(@InspectorBuild,'''')+''<p><b>SQLUndercover Catalogue Build: ''+ISNULL(@CatalogueBuild,'''')+''</b><div style="text-align: right;"><b>Catalogue last executed: ''+ISNULL(CONVERT(VARCHAR(17),NULLIF(@CatalogueLastExecution,''1900-01-01 00:00:00.000''),113),''N/A'')+''</b><p><b>Report date:</b> ''+CONVERT(VARCHAR(17),GETDATE(),113)+''</div><hr><p>Server Summary:</b><br></br>'';
+	SET @ServerSummaryHeader = ''<A NAME = "Warnings"></a><b>SQLUndercover Inspector Build: ''+ISNULL(@InspectorBuild,'''')+''<p><b>SQLUndercover Catalogue Build: ''+ISNULL(@CatalogueBuild,'''')+ISNULL(CASE WHEN @CatalogueBuild < @MinCatalogueBuild THEN '' (Incompatible)'' ELSE'''' END,'''')+''</b><div style="text-align: right;"><b>Catalogue last executed: ''+ISNULL(CONVERT(VARCHAR(17),NULLIF(@CatalogueLastExecution,''1900-01-01 00:00:00.000''),113),''N/A'')+''</b><p><b>Report date:</b> ''+CONVERT(VARCHAR(17),GETDATE(),113)+''</div><hr><p>Server Summary:</b><br></br>'';
 END
 
 --Build beginning of the HTML 
@@ -5105,7 +5108,7 @@ SET @InstanceStart = (SELECT [InstanceStart] FROM ['+CAST(@Databasename AS VARCH
 SET @InstanceUptime = (SELECT DATEDIFF(DAY,@InstanceStart,GETDATE()));
 SELECT @InstanceVersionInfo = [VersionInfo], @PhysicalServername = [PhysicalServername] FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[InstanceVersion] WHERE Servername = @Serverlist AND Log_Date >= CAST(GETDATE() AS DATE);
 
-IF @CatalogueInstalled = 1 
+IF @CatalogueInstalled = 1 AND @CatalogueBuild > @MinCatalogueBuild 
 BEGIN 
 	EXEC sp_executesql N''SELECT @CPUCount = [CPUCount],@TotalRAM = ([PhysicalMemoryMB]/1000) FROM [Catalogue].[Servers] WHERE ServerName = @Serverlist'',N''@Serverlist NVARCHAR(128),@CPUCount INT OUTPUT, @TotalRAM INT OUTPUT'',@Serverlist = @Serverlist, @CPUCount = @CPUCount OUTPUT, @TotalRAM = @TotalRAM OUTPUT;
 	EXEC sp_executesql N''SELECT @VMType = CASE WHEN [VMType] = ''''NONE'''' THEN ''''Physical'''' ELSE ''''Virtual'''' END FROM [Catalogue].[Servers] WHERE ServerName = @Serverlist'',N''@Serverlist NVARCHAR(128), @VMType NVARCHAR(60) OUTPUT'',@Serverlist = @Serverlist, @VMType = @VMType OUTPUT;
@@ -6320,7 +6323,7 @@ END
 
 
 --Catalogue Logins Module
-IF @CatalogueInstalled = 1 
+IF @CatalogueInstalled = 1 AND @CatalogueBuild > @MinCatalogueBuild 
 BEGIN 
 
 	--Check if the Catalogue module is enabled
@@ -6421,7 +6424,7 @@ END
 
 
 --Catalogue Dropped Tables Module
-IF @CatalogueInstalled = 1 
+IF @CatalogueInstalled = 1 AND @CatalogueBuild > @MinCatalogueBuild 
 BEGIN 
 
 	--Check if the Catalogue module is enabled
@@ -6521,7 +6524,7 @@ BEGIN
 END
 
 --Catalogue Dropped Databases Module
-IF @CatalogueInstalled = 1 
+IF @CatalogueInstalled = 1 AND @CatalogueBuild > @MinCatalogueBuild 
 BEGIN 
 
 	--Check if the Catalogue module is enabled
