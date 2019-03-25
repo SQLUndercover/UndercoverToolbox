@@ -490,7 +490,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			(
 			[Servername] NVARCHAR(128),
 			[Log_Date] DATETIME,
-			[Drive] NVARCHAR(3),
+			[Drive] NVARCHAR(20),
 			[Capacity_GB] DECIMAL(10,2),
 			[AvailableSpace_GB] DECIMAL(10,2)
 			);
@@ -502,7 +502,20 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 					CREATE CLUSTERED INDEX [CIX_Servername_LogDate_Drive] ON [Inspector].[DriveSpace] ([Servername] ASC,[Log_Date] ASC,[Drive] ASC);
 				END
 			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.DriveSpace') AND name = 'IX_DriveSpace_Servername_Drive_Capacity_GB_Log_Date')
+			BEGIN 
+				CREATE NONCLUSTERED INDEX [IX_DriveSpace_Servername_Drive_Capacity_GB_Log_Date] ON [Inspector].[DriveSpace]
+				(Servername ASC,Drive ASC,Capacity_GB ASC,Log_Date DESC) INCLUDE (AvailableSpace_GB);
+			END
+
+			--Increase column length to accomodate shared storage names such as \\ClusterStorage
+			IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DriveSpace') AND [name] = 'Drive' AND max_length = 6)
+			BEGIN 
+				ALTER TABLE [Inspector].[DriveSpace] ALTER COLUMN [Drive] NVARCHAR(20);
+			END
 			
+
 			IF OBJECT_ID('Inspector.FailedAgentJobs') IS NULL
 			CREATE TABLE [Inspector].[FailedAgentJobs]
 			(
@@ -1841,6 +1854,9 @@ END
 
 			IF OBJECT_ID('Inspector.ResetHtmlColors') IS NOT NULL
 			DROP PROCEDURE [Inspector].[ResetHtmlColors];
+
+			IF OBJECT_ID('Inspector.DriveCapacityHistory') IS NOT NULL 
+			DROP PROCEDURE [Inspector].[DriveCapacityHistory];
 
 			IF OBJECT_ID('Inspector.PSGetColumns') IS NOT NULL
 			DROP PROCEDURE [Inspector].[PSGetColumns];
@@ -3606,6 +3622,45 @@ BEGIN
 								WHEN [WarningLevel] = 3 THEN ''#FEFFFF''
 							   END
 END'	
+
+EXEC(@SQLStatement);
+
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[DriveCapacityHistory]
+(
+@Servername NVARCHAR(128),
+@Drive VARCHAR(20)
+)
+AS
+BEGIN
+--Revision date 25/03/2019
+
+SELECT 
+Servername,
+Log_Date,
+Drive,
+Capacity_GB,
+AvailableSpace_GB,
+DATEDIFF(DAY,LEAD(Log_Date,1,Log_Date) OVER(Partition by Drive ORDER BY Log_Date DESC),Log_Date) AS DaysSinceCapacityChange,
+Capacity_GB-LEAD(Capacity_GB,1,Capacity_GB) OVER(Partition by Drive ORDER BY Log_Date DESC) AS CapacityChange
+FROM 
+(
+	SELECT 
+	Servername,
+	Log_Date,
+	Drive,
+	Capacity_GB,
+	AvailableSpace_GB,
+	ROW_NUMBER() OVER(Partition by Capacity_GB,Drive ORDER BY Log_Date DESC) as CapacityChange
+	FROM [Inspector].[DriveSpace] 
+	WHERE Drive = @Drive
+	AND Servername = @Servername
+) CapacityChanges
+WHERE CapacityChange = 1
+ORDER BY Log_Date DESC
+
+END'
 
 EXEC(@SQLStatement);
 
