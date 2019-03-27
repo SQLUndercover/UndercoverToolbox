@@ -1637,8 +1637,7 @@ END
 			(''SuspectPages''),
 			(''TopFiveDatabases''),
 			(''ModuleWarningLevel''),
-			(''UnusedLogshipConfig''),
-			(''CatalogueModules'')
+			(''UnusedLogshipConfig'')
 			) InspectorTables (Tablename);'
 			END
 			ELSE 
@@ -1678,8 +1677,7 @@ END
 			(''SuspectPages''),
 			(''TopFiveDatabases''),
 			(''ModuleWarningLevel''),
-			(''UnusedLogshipConfig''),
-			(''CatalogueModules'')
+			(''UnusedLogshipConfig'')
 			) InspectorTables (Tablename);'
 			END
 						
@@ -4084,14 +4082,14 @@ BEGIN
 	IF @SortOrder = 0 
 	BEGIN 
 		SELECT Tablename,TruncateTable,ReseedTable 
-		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0), (6,''Modules'',0,1),(7,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''Modules'',0,1),(6,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder ASC;
 	END
 
 	IF @SortOrder = 1 
 	BEGIN 
 		SELECT Tablename,TruncateTable,ReseedTable 
-		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0), (6,''Modules'',0,1),(7,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''Modules'',0,1),(6,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder DESC;
 	END
 
