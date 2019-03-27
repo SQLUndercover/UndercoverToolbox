@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 23/03/2019
+Revision date: 27/03/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
@@ -2275,7 +2275,7 @@ END'
 EXEC(@SQLStatement);
 
 --Run Proc for the first time to populate the Warning Level table
-EXEC [Inspector].[PopulateModuleWarningLevel];
+EXEC sp_executesql N'EXEC [Inspector].[PopulateModuleWarningLevel];';
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[FailedAgentJobsInsert]
