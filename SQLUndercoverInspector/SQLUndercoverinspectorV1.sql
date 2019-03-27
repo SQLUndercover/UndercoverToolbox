@@ -2159,7 +2159,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 21/03/2019
+--Revision date: 27/03/2019
 
 DECLARE @Retention INT = (SELECT Value From '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'')
 
@@ -2175,7 +2175,7 @@ IF NOT EXISTS (SELECT Log_Date FROM '+@LinkedServername+'['+@Databasename+'].[In
 		SELECT 
 		@@SERVERNAME,
 		GETDATE(),
-		UPPER(volumestats.volume_mount_point) AS Drive,
+		CAST(UPPER(volumestats.volume_mount_point) AS NVARCHAR(20)) AS Drive,
 		CAST((CAST(volumestats.total_bytes AS DECIMAL(20,2)))/1024/1024/1024 AS DECIMAL(10,2)) Capacity_GB,
 		CAST((CAST(volumestats.available_bytes AS DECIMAL(20,2)))/1024/1024/1024 AS DECIMAL(10,2)) AS AvailableSpace_GB
 		FROM 
