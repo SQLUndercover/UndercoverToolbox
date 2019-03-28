@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 27/03/2019
+Revision date: 28/03/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 
@@ -108,7 +108,7 @@ CREATE PROCEDURE [Inspector].[InspectorSetup]
 @DriveLetterExcludes			  VARCHAR(10) = NULL, -- Exclude Drive letters from showing Yellow Advisory warnings when @FreeSpaceRemainingPercent has been reached/exceeded e.g C,D (Comma Delimited)
 @DatabaseGrowthsAllowedPerDay	  TINYINT = 1,  -- Total Database Growths acceptable for a 24hour period If exceeded a Yellow Advisory condition will be shown
 @MAXDatabaseGrowthsAllowedPerDay  TINYINT = 10, -- MAX Database Growths for a 24 hour period If equal or exceeded a Red Warning condition will be shown
-@AgentJobOwnerExclusions VARCHAR(50) = 'sa',  --Exclude agent jobs with these owners (Comma delimited)
+@AgentJobOwnerExclusions VARCHAR(255) = 'sa',  --Exclude agent jobs with these owners (Comma delimited)
 @FullBackupThreshold TINYINT = 8,		-- X Days older than Getdate()
 @DiffBackupThreshold TINYINT = 2,		-- X Days older than Getdate() 
 @LogBackupThreshold  TINYINT = 20,		-- X Minutes older than Getdate()
@@ -127,12 +127,17 @@ BEGIN
 	RETURN;
 END
 
+IF (DB_ID(@Databasename) IS NULL AND @Help = 0)
+BEGIN 
+	RAISERROR('Please enter a valid database name',11,0) WITH NOWAIT;
+	RETURN;
+END
 
 IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 21/03/2019
+--Revision date: 28/03/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -1076,64 +1081,39 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 --Populate config
 IF @InitialSetup = 1 
 BEGIN
---Truncate tables - Settings,Modules,EmailConfig,ModuleWarnings,ModuleWarningLevel,EmailRecipients
+--Truncate tables - Settings,Modules,EmailConfig,ModuleWarnings,ModuleWarningLevel,EmailRecipients,CatalogueModules
 TRUNCATE TABLE [Inspector].[Settings];
 TRUNCATE TABLE [Inspector].[EmailConfig];
 TRUNCATE TABLE [Inspector].[ModuleWarnings];
 TRUNCATE TABLE [Inspector].[ModuleWarningLevel];
 TRUNCATE TABLE [Inspector].[EmailRecipients];
+TRUNCATE TABLE [Inspector].[CatalogueModules];
 DELETE FROM [Inspector].[Modules];
-DBCC CHECKIDENT ('Inspector.Modules', RESEED, 0);
-
+DBCC CHECKIDENT ('Inspector.Modules', RESEED, 0) WITH NO_INFOMSGS;
+ 
 --Insert Settings into Inspector Base tables  
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+EXEC sp_executesql N'
 INSERT INTO [Inspector].[Settings] ([Description],[Value])
-VALUES  (''SQLUndercoverInspectorEmailSubject'','''+@StackNameForEmailSubject+''');
-
-		
-INSERT INTO [Inspector].[Settings] ([Description],[Value])
-VALUES	(''DriveSpaceRetentionPeriodInDays'','+CAST(@DriveSpaceHistoryRetentionInDays AS VARCHAR(6))+'),
-		(''FullBackupThreshold'','+CAST(@FullBackupThreshold AS VARCHAR(3))+'),
-		(''DiffBackupThreshold'','+CAST(@DiffBackupThreshold AS VARCHAR(3))+'),
-		(''LogBackupThreshold'' ,'+CAST(@LogBackupThreshold AS VARCHAR(6))+'),
-		(''DaysUntilDriveFullThreshold'' ,'+CAST(@DaysUntilDriveFullThreshold AS VARCHAR(4))+'),
-		(''FreeSpaceRemainingPercent'','+CAST(@FreeSpaceRemainingPercent AS VARCHAR(3))+'),
-		(''DatabaseGrowthsAllowedPerDay'','+CAST(@DatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'),
-		(''MAXDatabaseGrowthsAllowedPerDay'','+CAST(@MAXDatabaseGrowthsAllowedPerDay AS VARCHAR(5))+'),
-		(''LongRunningTransactionThreshold'','+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+'),
-		(''ReportDataRetention'',''30'');
-
-
-INSERT INTO [Inspector].[Settings] ([Description],[Value])
-VALUES	(''BackupsPath'','''+ISNULL(@BackupsPath,'NULL')+'''),
+VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
+		(''DriveSpaceRetentionPeriodInDays'',@DriveSpaceHistoryRetentionInDays),
+		(''FullBackupThreshold'',@FullBackupThreshold),
+		(''DiffBackupThreshold'',@DiffBackupThreshold),
+		(''LogBackupThreshold'' ,@LogBackupThreshold),
+		(''DaysUntilDriveFullThreshold'' ,@DaysUntilDriveFullThreshold),
+		(''FreeSpaceRemainingPercent'',@FreeSpaceRemainingPercent),
+		(''DatabaseGrowthsAllowedPerDay'',@DatabaseGrowthsAllowedPerDay),
+		(''MAXDatabaseGrowthsAllowedPerDay'',@MAXDatabaseGrowthsAllowedPerDay),
+		(''LongRunningTransactionThreshold'',@LongRunningTransactionThreshold),
+		(''ReportDataRetention'',''30''),
+		(''BackupsPath'',@BackupsPath),
 		(''EmailBannerURL'',''http://bit.ly/InspectorEmailBanner''),
 		(''PSEmailBannerURL'',''http://bit.ly/PSInspectorEmailBanner''),
-		(''DatabaseOwnerExclusions'','''+@DatabaseOwnerExclusions+'''),
-		(''AgentJobOwnerExclusions'','''+@AgentJobOwnerExclusions+'''),
-		'+CASE 
-			WHEN @LinkedServernameParam IS NULL 
-			THEN 
-			'(''LinkedServername'',NULL)
-			'
-			ELSE
-			'(''LinkedServername'','''+@LinkedServernameParam+''');
-			'
-			END+';
-
-INSERT INTO [Inspector].[Settings] ([Description],[Value])
-VALUES	(''InspectorBuild'','''+@Build+'''),
-'+CASE 
-			WHEN @DriveLetterExcludes IS NULL 
-			THEN 
-			'(''DriveSpaceDriveLetterExcludes'',NULL)
-			'
-			ELSE
-			'(''DriveSpaceDriveLetterExcludes'','''+@DriveLetterExcludes+''');
-			'
-			END+
-		'
+		(''DatabaseOwnerExclusions'',@DatabaseOwnerExclusions),
+		(''AgentJobOwnerExclusions'',@AgentJobOwnerExclusions),
+		(''LinkedServername'',@LinkedServernameParam),
+		(''InspectorBuild'',@Build),
+		(''DriveSpaceDriveLetterExcludes'',@DriveLetterExcludes);
 		
-
 
 INSERT INTO [Inspector].[Modules] (ModuleConfig_Desc,AGCheck,BackupsCheck,BackupSizesCheck,DatabaseGrowthCheck,DatabaseFileCheck,DatabaseOwnershipCheck,
 					   DatabaseStatesCheck,DriveSpaceCheck,FailedAgentJobCheck,JobOwnerCheck,FailedLoginsCheck,TopFiveDatabaseSizeCheck,
@@ -1144,8 +1124,45 @@ INSERT INTO [Inspector].[EmailConfig] (ModuleConfig_Desc,EmailSubject)
 VALUES (''Default'',''SQLUndercover Inspector check ''),(''PeriodicBackupCheck'',''SQLUndercover Backups Report'');
 
 INSERT INTO [Inspector].[ModuleWarnings] ([WarningLevel],[WarningDesc])
-VALUES(NULL,''InspectorDefault''),(1,''Red''),(2,''Yellow''),(3,''Information (white)'');
+VALUES(NULL,''InspectorDefault''),(1,''Red''),(2,''Yellow''),(3,''Information (white)'');',
+N'@StackNameForEmailSubject VARCHAR(255),
+@EmailRecipientList VARCHAR(1000),
+@DriveSpaceHistoryRetentionInDays VARCHAR(6),
+@FullBackupThreshold VARCHAR(3),
+@DiffBackupThreshold VARCHAR(3),
+@LogBackupThreshold VARCHAR(6),
+@DaysUntilDriveFullThreshold VARCHAR(4),
+@FreeSpaceRemainingPercent VARCHAR(3),
+@DatabaseGrowthsAllowedPerDay VARCHAR(5),
+@MAXDatabaseGrowthsAllowedPerDay VARCHAR(5),
+@LongRunningTransactionThreshold VARCHAR(8),
+@BackupsPath VARCHAR(255),
+@DatabaseOwnerExclusions VARCHAR(255),
+@AgentJobOwnerExclusions VARCHAR(255),
+@DriveLetterExcludes VARCHAR(10),
+@LinkedServernameParam NVARCHAR(128),
+@Build VARCHAR(6)',
+@StackNameForEmailSubject = @StackNameForEmailSubject,
+@EmailRecipientList = @EmailRecipientList,
+@DriveSpaceHistoryRetentionInDays = @DriveSpaceHistoryRetentionInDays,
+@FullBackupThreshold = @FullBackupThreshold,
+@DiffBackupThreshold = @DiffBackupThreshold,
+@LogBackupThreshold = @LogBackupThreshold,
+@DaysUntilDriveFullThreshold = @DaysUntilDriveFullThreshold,
+@FreeSpaceRemainingPercent = @FreeSpaceRemainingPercent,
+@DatabaseGrowthsAllowedPerDay = @DatabaseGrowthsAllowedPerDay,
+@MAXDatabaseGrowthsAllowedPerDay = @MAXDatabaseGrowthsAllowedPerDay,
+@LongRunningTransactionThreshold = @LongRunningTransactionThreshold,
+@BackupsPath = @BackupsPath,
+@DatabaseOwnerExclusions = @DatabaseOwnerExclusions,
+@AgentJobOwnerExclusions = @AgentJobOwnerExclusions,
+@DriveLetterExcludes = @DriveLetterExcludes,
+@LinkedServernameParam = @LinkedServernameParam,
+@Build = @Build;
 
+
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
 INSERT INTO '+CAST(@LinkedServername AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] (Servername,IsActive,ModuleConfig_Desc)
@@ -1161,22 +1178,22 @@ SELECT @@SERVERNAME,1,NULL
 WHERE NOT EXISTS (SELECT Servername FROM '+CAST(@LinkedServername AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] WHERE Servername = @@Servername)
 END
 '
-+
-CASE 
-WHEN @EmailRecipientList IS NULL 
-THEN 
-'INSERT INTO [Inspector].[EmailRecipients] (Description)
-VALUES (''DBA'');
-'
-ELSE
-'
-INSERT INTO [Inspector].[EmailRecipients] (Description,Recipients)
-VALUES (''DBA'','''+@EmailRecipientList+''');
 
-'
+EXEC(@SQLStatement);
+
+
+IF @EmailRecipientList IS NULL 
+BEGIN
+	EXEC sp_executesql N'
+	INSERT INTO [Inspector].[EmailRecipients] (Description)
+	VALUES (''DBA'');';
 END
-
-EXEC (@SQLStatement);
+ELSE 
+BEGIN
+	EXEC sp_executesql N'
+	INSERT INTO [Inspector].[EmailRecipients] (Description,Recipients)
+	VALUES (''DBA'',@EmailRecipientList);',N'@EmailRecipientList VARCHAR(1000)',@EmailRecipientList = @EmailRecipientList;
+END
 
 END
 
