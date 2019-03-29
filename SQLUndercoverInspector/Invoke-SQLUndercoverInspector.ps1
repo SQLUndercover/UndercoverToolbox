@@ -20,7 +20,17 @@ function Invoke-SQLUndercoverInspector {
         [Parameter(Position = 3, ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
         [Alias('Module')]
-        [String]$ModuleConfig = 'NULL'
+        [String]$ModuleConfig = 'NULL',
+
+        [Parameter(Position = 4, ValueFromPipelineByPropertyName)]
+        [ValidateNotNullOrEmpty()]
+        [Alias('ClutterOff')]
+        [Bool]$NoClutter = $false,
+
+        [Parameter(Position = 5, ValueFromPipelineByPropertyName)]
+        [ValidateNotNullOrEmpty()]
+        [Alias('WarningsOnly')]
+        [Bool]$ShowWarningsOnly = $false
     )
     
     begin {
@@ -332,15 +342,15 @@ function Invoke-SQLUndercoverInspector {
             
         }
 
-            Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$CentralServer] - Executing [Inspector].[SQLUnderCoverInspectorReport] @EmailDistribution 'DBA', @ModuleDesc = $ModuleConfig, @EmailRedWarningsOnly = 0, @Theme = 'Dark', @PSCollection = 1"
+            Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$CentralServer] - Executing [Inspector].[SQLUnderCoverInspectorReport] @EmailDistribution 'DBA', @ModuleDesc = $ModuleConfig, @EmailRedWarningsOnly = $(IF($ShowWarningsOnly -eq $false){0} ELSE{1}), @Theme = 'Dark', @PSCollection = 1,@NoClutter = $(IF($NoClutter -eq $false){0} ELSE{1})"
             $ReportQry = @"
             EXEC [$LoggingDb].[Inspector].[SQLUnderCoverInspectorReport]
                 @EmailDistributionGroup = 'DBA',
                 @ModuleDesc = $ModuleConfig,
-                @EmailRedWarningsOnly = 0,
+                @EmailRedWarningsOnly = $(IF($ShowWarningsOnly -eq $false){0} ELSE{1}),
                 @Theme = 'Dark',
                 @PSCollection = 1,
-                @NoClutter = 1     
+                @NoClutter = $(IF($NoClutter -eq $false){0} ELSE{1});   
 "@
             $CentralConnection.Query($ReportQry)
             
