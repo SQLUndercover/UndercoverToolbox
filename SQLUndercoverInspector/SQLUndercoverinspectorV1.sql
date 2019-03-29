@@ -64,9 +64,10 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 28/03/2019
+Revision date: 29/03/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
+			 Creates [Inspector].[InspectorSetup] stored procedure.
 
 URL: https://github.com/SQLUndercover/UndercoverToolbox/blob/master/SQLUndercoverInspector/SQLUndercoverinspectorV1.sql
 
@@ -137,7 +138,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 28/03/2019
+--Revision date: 29/03/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -4843,7 +4844,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 26/03/2019
+--Revision date: 29/03/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.4
 
@@ -6399,7 +6400,7 @@ END
 
 
 --Catalogue Logins Module
-IF @CatalogueInstalled = 1 AND @CatalogueBuild >= @MinCatalogueBuild 
+IF (@CatalogueInstalled = 1 AND @CatalogueBuild >= @MinCatalogueBuild AND ISNULL(@ModuleDesc,@ModuleConfig) != ''PeriodicBackupCheck'')
 BEGIN 
 
 	--Check if the Catalogue module is enabled
@@ -6500,7 +6501,7 @@ END
 
 
 --Catalogue Dropped Tables Module
-IF @CatalogueInstalled = 1 AND @CatalogueBuild >= @MinCatalogueBuild 
+IF (@CatalogueInstalled = 1 AND @CatalogueBuild >= @MinCatalogueBuild AND ISNULL(@ModuleDesc,@ModuleConfig) != ''PeriodicBackupCheck'')
 BEGIN 
 
 	--Check if the Catalogue module is enabled
@@ -6600,7 +6601,7 @@ BEGIN
 END
 
 --Catalogue Dropped Databases Module
-IF @CatalogueInstalled = 1 AND @CatalogueBuild >= @MinCatalogueBuild 
+IF (@CatalogueInstalled = 1 AND @CatalogueBuild >= @MinCatalogueBuild AND ISNULL(@ModuleDesc,@ModuleConfig) != ''PeriodicBackupCheck'')
 BEGIN 
 
 	--Check if the Catalogue module is enabled
