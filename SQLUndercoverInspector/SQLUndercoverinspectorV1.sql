@@ -5184,7 +5184,7 @@ SET @InstanceStart = (SELECT [InstanceStart] FROM ['+CAST(@Databasename AS VARCH
 SET @InstanceUptime = (SELECT DATEDIFF(DAY,@InstanceStart,GETDATE()));
 SELECT @InstanceVersionInfo = [VersionInfo], @PhysicalServername = [PhysicalServername] FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[InstanceVersion] WHERE Servername = @Serverlist AND Log_Date >= CAST(GETDATE() AS DATE);
 
-IF @CatalogueInstalled = 1 AND @CatalogueBuild > @MinCatalogueBuild 
+IF @CatalogueInstalled = 1 AND @CatalogueBuild >= @MinCatalogueBuild 
 BEGIN 
 	EXEC sp_executesql N''SELECT @CPUCount = [CPUCount],@TotalRAM = ([PhysicalMemoryMB]/1000) FROM [Catalogue].[Servers] WHERE ServerName = @Serverlist'',N''@Serverlist NVARCHAR(128),@CPUCount INT OUTPUT, @TotalRAM INT OUTPUT'',@Serverlist = @Serverlist, @CPUCount = @CPUCount OUTPUT, @TotalRAM = @TotalRAM OUTPUT;
 	EXEC sp_executesql N''SELECT @VMType = CASE WHEN [VMType] = ''''NONE'''' THEN ''''Physical'''' ELSE ''''Virtual'''' END FROM [Catalogue].[Servers] WHERE ServerName = @Serverlist'',N''@Serverlist NVARCHAR(128), @VMType NVARCHAR(60) OUTPUT'',@Serverlist = @Serverlist, @VMType = @VMType OUTPUT;
@@ -6399,7 +6399,7 @@ END
 
 
 --Catalogue Logins Module
-IF @CatalogueInstalled = 1 AND @CatalogueBuild > @MinCatalogueBuild 
+IF @CatalogueInstalled = 1 AND @CatalogueBuild >= @MinCatalogueBuild 
 BEGIN 
 
 	--Check if the Catalogue module is enabled
@@ -6500,7 +6500,7 @@ END
 
 
 --Catalogue Dropped Tables Module
-IF @CatalogueInstalled = 1 AND @CatalogueBuild > @MinCatalogueBuild 
+IF @CatalogueInstalled = 1 AND @CatalogueBuild >= @MinCatalogueBuild 
 BEGIN 
 
 	--Check if the Catalogue module is enabled
@@ -6600,7 +6600,7 @@ BEGIN
 END
 
 --Catalogue Dropped Databases Module
-IF @CatalogueInstalled = 1 AND @CatalogueBuild > @MinCatalogueBuild 
+IF @CatalogueInstalled = 1 AND @CatalogueBuild >= @MinCatalogueBuild 
 BEGIN 
 
 	--Check if the Catalogue module is enabled
