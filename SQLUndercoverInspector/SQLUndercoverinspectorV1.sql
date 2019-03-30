@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 29/03/2019
+Revision date: 30/03/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -138,7 +138,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 29/03/2019
+--Revision date: 30/03/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -4844,7 +4844,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 29/03/2019
+--Revision date: 30/03/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.4
 
@@ -8183,32 +8183,34 @@ BEGIN
 
 END
 
-
---Check for Instance version or edition changes in [Inspector].[InstanceVersionHistory]
---Excluded from Warning level control
-SET @VersionNo = NULL;
-SET @Edition = NULL;
-
-SELECT 
-@VersionNo = CAST([VersionNo] AS VARCHAR(128)),
-@Edition = CAST([Edition] AS VARCHAR(128))
-FROM [Inspector].[InstanceVersionHistory] 
-WHERE [Servername] = @Serverlist 
-AND [CollectionDatetime] >= DATEADD(DAY,-1,GETDATE());
-
---If version has changed then create an entry in the advisory header
-IF @VersionNo IS NOT NULL  
-BEGIN 
-	SET @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Servername''+''">''+@Serverlist+''</a><font color=''+@AdvisoryHighlight+''> - SQL ''+@VersionNo+''</font><p>'';
-END
-
---If Edition has changed then create an entry in the advisory header
-IF @Edition IS NOT NULL
+--Only populate the Advisory header with Version/Edition changes if this run is not the PeriodicBackupCheck
+IF ISNULL(@ModuleDesc,@ModuleConfig) != ''PeriodicBackupCheck''
 BEGIN
-	SET @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Servername''+''">''+@Serverlist+''</a><font color=''+@AdvisoryHighlight+''> - SQL ''+@Edition+''</font><p>'';
+	--Check for Instance version or edition changes in [Inspector].[InstanceVersionHistory]
+	--Excluded from Warning level control
+	SET @VersionNo = NULL;
+	SET @Edition = NULL;
+
+	SELECT 
+	@VersionNo = CAST([VersionNo] AS VARCHAR(128)),
+	@Edition = CAST([Edition] AS VARCHAR(128))
+	FROM [Inspector].[InstanceVersionHistory] 
+	WHERE [Servername] = @Serverlist 
+	AND [CollectionDatetime] >= DATEADD(DAY,-1,GETDATE());
+
+	--If version has changed then create an entry in the advisory header
+	IF @VersionNo IS NOT NULL  
+	BEGIN 
+		SET @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Servername''+''">''+@Serverlist+''</a><font color=''+@AdvisoryHighlight+''> - SQL ''+@VersionNo+''</font><p>'';
+	END
+
+	--If Edition has changed then create an entry in the advisory header
+	IF @Edition IS NOT NULL
+	BEGIN
+		SET @AdvisoryHeader = @AdvisoryHeader + ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''Servername''+''">''+@Serverlist+''</a><font color=''+@AdvisoryHighlight+''> - SQL ''+@Edition+''</font><p>'';
+	END
+
 END
-
-
 
 IF @AlertHeader LIKE ''%''+@Serverlist+''%''
 BEGIN
