@@ -7126,12 +7126,16 @@ BEGIN
 	IsFullRecovery CHAR(1),
 	Serverlist VARCHAR(1000),
 	primary_replica NVARCHAR(128),
-	backup_preference NVARCHAR(60)
+	backup_preference NVARCHAR(60),
+	NamedInstance BIT
 	);
 
 	DECLARE @BodyBackupsReport VARCHAR(MAX)
 	DECLARE @TableHeadBackupsReport VARCHAR(1000)
 	DECLARE @CountBackupsReport INT
+	DECLARE @NamedInstance BIT
+
+	IF @Serverlist LIKE ''%\%'' BEGIN SET @NamedInstance = 1 END ELSE BEGIN SET @NamedInstance = 0 END;
 
 	SET @TableHeadBackupsReport = ''
     <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''Backup''+''"></a>The following Databases are missing database backups:</b>
@@ -7265,6 +7269,7 @@ BEGIN
 		FROM #Validations
 		WHERE ([FullState] != ''OK'' OR ([DiffState] != ''OK'' AND [DiffState] != ''N/A'') OR ([LogState] != ''OK'' AND [LogState] != ''N/A''))
 		AND Serverlist like ''%''+@Serverlist+''%''
+		AND NamedInstance = @NamedInstance
 		ORDER BY Databasename ASC
 		FOR XML PATH(''tr''),ELEMENTS);
 		  
