@@ -98,8 +98,8 @@ CREATE PROCEDURE [Inspector].[InspectorSetup]
 @LinkedServername NVARCHAR(128) = NULL,  --Name of the Linked Server , SET to NULL if you are not using Linked Servers for this solution
 									     --Run against the Target of the linked server First!! then the remaining servers you want to monitor.
 @Databasename NVARCHAR(128) = NULL,	--Name of the Logging Database
-@DataDrive VARCHAR(7) = NULL,	--List Data Drives here (Maximum of 4 - comma delimited e.g 'P,Q,R,S')
-@LogDrive VARCHAR(7)= NULL, 	--List Log Drives here (Maximum of 4 - comma delimited e.g 'T,U,V,W')
+@DataDrive VARCHAR(50) = NULL,	--List Data Drives here (Comma delimited e.g 'P,Q,R,S')
+@LogDrive VARCHAR(50)= NULL, 	--List Log Drives here (Comma delimited e.g 'T,U,V,W')
 @StackNameForEmailSubject VARCHAR(255) = 'SQLUndercover',	  --Specify the name for this stack that you want to show in the email subject
 @EmailRecipientList VARCHAR(1000) = NULL,	  -- This will populate the EmailRecipients table for 'DBA'
 @BackupsPath VARCHAR(255) = NULL,	  -- Backup Drive and path
@@ -144,8 +144,8 @@ PRINT '
 EXEC [Inspector].[InspectorSetup]
 --Required Parameters (No defaults)							     
 @Databasename = '''+DB_NAME()+''',	
-@DataDrive = ''S'',	
-@LogDrive = ''T'',	
+@DataDrive = '''+@DataDrive+''',	
+@LogDrive = '''+@LogDrive+''',	
 --Optional Parameters (Defaults Specified), ignored when @InitialSetup = 0
 @BackupsPath = ''F:\Backups\'',
 @LinkedServername = NULL,  
@@ -195,8 +195,6 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 	SET  @DataDrive = REPLACE(@DataDrive,' ','')
 	SET  @LogDrive  = REPLACE(@LogDrive,' ','')
 
-	IF LEN(@DataDrive) <= 7 AND LEN(@LogDrive) <= 7
-	BEGIN
 		IF DB_NAME() = @Databasename
 		BEGIN
 			IF @LinkedServername IS NULL OR EXISTS (SELECT name FROM sys.servers WHERE name = @LinkedServername)
@@ -994,6 +992,20 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				VALUES ('ReportDataRetention','30');
 			END
 
+			--New setting for V1.4
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'DataDrives')
+			BEGIN
+				INSERT INTO [Inspector].[Settings] ([Description],[Value]) 
+				VALUES ('DataDrives',@DataDrive);
+			END
+
+			--New setting for V1.4
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'LogDrives')
+			BEGIN
+				INSERT INTO [Inspector].[Settings] ([Description],[Value]) 
+				VALUES ('LogDrives',@LogDrive);
+			END
+
 
 			--New Setting for 1.2 - Powershell banner.
 			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'PSEmailBannerURL')
@@ -1113,7 +1125,9 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''AgentJobOwnerExclusions'',@AgentJobOwnerExclusions),
 		(''LinkedServername'',@LinkedServernameParam),
 		(''InspectorBuild'',@Build),
-		(''DriveSpaceDriveLetterExcludes'',@DriveLetterExcludes);
+		(''DriveSpaceDriveLetterExcludes'',@DriveLetterExcludes),
+		(''DataDrives'',@DataDrive),
+		(''LogDrives'',@LogDrive);
 		
 
 INSERT INTO [Inspector].[Modules] (ModuleConfig_Desc,AGCheck,BackupsCheck,BackupSizesCheck,DatabaseGrowthCheck,DatabaseFileCheck,DatabaseOwnershipCheck,
@@ -1141,6 +1155,8 @@ N'@StackNameForEmailSubject VARCHAR(255),
 @DatabaseOwnerExclusions VARCHAR(255),
 @AgentJobOwnerExclusions VARCHAR(255),
 @DriveLetterExcludes VARCHAR(10),
+@DataDrive VARCHAR(50),
+@LogDrive VARCHAR(50),
 @LinkedServernameParam NVARCHAR(128),
 @Build VARCHAR(6)',
 @StackNameForEmailSubject = @StackNameForEmailSubject,
@@ -1158,6 +1174,8 @@ N'@StackNameForEmailSubject VARCHAR(255),
 @DatabaseOwnerExclusions = @DatabaseOwnerExclusions,
 @AgentJobOwnerExclusions = @AgentJobOwnerExclusions,
 @DriveLetterExcludes = @DriveLetterExcludes,
+@DataDrive = @DataDrive,
+@LogDrive = @LogDrive,
 @LinkedServernameParam = @LinkedServernameParam,
 @Build = @Build;
 
@@ -2021,73 +2039,57 @@ END;'
 EXEC(@SQLStatement);
 
 
-
-DECLARE @DataDriveWhereClause VARCHAR(255)
-DECLARE @LogDriveWhereClause VARCHAR(255)  	
-
-DECLARE @DataDriveLength INT = LEN(REPLACE(@DataDrive,',',''))
-DECLARE @RemainingDataWhereClause VARCHAR(MAX) 
-
-  IF @DataDriveLength > 1 
-  BEGIN 
-	IF @Compatibility = 0 
-		BEGIN
-			SET @RemainingDataWhereClause = (SELECT ' OR physical_name LIKE '''+[StringElement]+'%''' FROM master.dbo.fn_SplitString(RIGHT(@DataDrive,LEN(@DataDrive)-2),',') RemainingWhereClause FOR XML PATH(''))
-		END
-			IF @Compatibility = 1
-			BEGIN
-				SET @RemainingDataWhereClause= (SELECT ' OR physical_name LIKE '''+[value]+'%''' FROM STRING_SPLIT(RIGHT(@DataDrive,LEN(@DataDrive)-2),',') RemainingWhereClause FOR XML PATH(''))
-			END
-
-  SET @DataDriveWhereClause =  ''+REPLICATE('(',@DataDriveLength) --Total clauses required
-  +'physical_name LIKE '''+SUBSTRING(@DataDrive,1,1)+'%''' 
-  + @RemainingDataWhereClause +REPLICATE(')',@DataDriveLength-1) + ' AND physical_name LIKE ''%.ldf'') OR '
-  END
-  ELSE
-  BEGIN
-  SET @DataDriveWhereClause = '(physical_name LIKE '''+@DataDrive+'%'' AND physical_name LIKE ''%.ldf'') OR '
-  END
-
-DECLARE @LogDriveLength INT = LEN(REPLACE(@LogDrive,',',''))
-DECLARE @RemainingLogWhereClause VARCHAR(MAX)
-
-  IF @LogDriveLength > 1 
-  BEGIN 
-  	IF @Compatibility = 0 
-		BEGIN
-			SET @RemainingLogWhereClause = (SELECT ' OR physical_name LIKE '''+[StringElement]+'%''' FROM master.dbo.fn_SplitString(RIGHT(@LogDrive,LEN(@DataDrive)-2),',') RemainingWhereClause FOR XML PATH(''))
-		END
-			IF @Compatibility = 1
-			BEGIN
-				SET @RemainingLogWhereClause= (SELECT ' OR physical_name LIKE '''+[value]+'%''' FROM STRING_SPLIT(RIGHT(@LogDrive,LEN(@LogDrive)-2),',') RemainingWhereClause FOR XML PATH(''))
-			END
-							    
-  SET @LogDriveWhereClause = ''+REPLICATE('(',@LogDriveLength) --Total clauses required
-  +'physical_name LIKE '''+SUBSTRING(@LogDrive,1,1)+'%''' 
-  + @RemainingLogWhereClause +REPLICATE(')',@LogDriveLength-1) + ' AND physical_name LIKE ''%.mdf'')'
-  END
-  ELSE
-  BEGIN
-  SET @LogDriveWhereClause = '(physical_name LIKE '''+@LogDrive+'%'' AND physical_name LIKE ''%.mdf'')'
-  END
-
-
-
-
 SET @SQLStatement = 
 'CREATE PROCEDURE [Inspector].[DatabaseFilesInsert]
 AS
 BEGIN
 
---Revision date: 28/06/2018
+--Revision date: 06/04/2019
 
 SET NOCOUNT ON;
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
+DECLARE @DataDrives VARCHAR(255) = (SELECT NULLIF([Value],'''') FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] WHERE [Description] = ''DataDrives'');
+DECLARE @LogDrives VARCHAR(255) = (SELECT NULLIF([Value],'''') FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] WHERE [Description] = ''LogDrives'');
+
+IF OBJECT_ID(''tempdb.dbo.#SplitDrives'') IS NOT NULL 
+DROP TABLE #SplitDrives;
+
+CREATE TABLE #SplitDrives (
+DriveType CHAR(4),
+DriveLabel NVARCHAR(20)
+);
+
 
 DELETE 
 FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFiles]
 WHERE Servername = @Servername;
+
+INSERT INTO #SplitDrives (DriveType,DriveLabel)
+'+CASE 
+	WHEN @Compatibility = 0 THEN 'SELECT ''Data'',[StringElement] FROM master.dbo.fn_SplitString(@DataDrives,'','')'
+	ELSE 'SELECT ''Data'',[value] FROM STRING_SPLIT(@DataDrives,'','')'
+  END +'
+UNION ALL
+'+CASE 
+	WHEN @Compatibility = 0 THEN 'SELECT ''Log'',[StringElement] FROM master.dbo.fn_SplitString(@LogDrives,'','')'
+	ELSE 'SELECT ''Log'',[value] FROM STRING_SPLIT(@LogDrives,'','')'
+  END +';
+
+
+--Remove any duplicate drive letters i.e C:\ labelled as both Data and Log
+DELETE FROM #SplitDrives
+WHERE DriveLabel IN 
+(
+	SELECT DriveLabel 
+	FROM #SplitDrives DataDrives
+	WHERE DriveType = ''Data'' 
+	INTERSECT
+	SELECT DriveLabel
+	FROM #SplitDrives LogDrives
+	WHERE DriveType = ''Log'' 
+);
+
 
 INSERT INTO  '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFiles] (Servername,Log_Date,Databasename,FileType,FilePath)
 SELECT
@@ -2097,12 +2099,21 @@ DB_NAME(database_id),
 type_desc,
 physical_name 
 FROM sys.master_files
-WHERE 
-'+ @DataDriveWhereClause + '
-'
-+@LogDriveWhereClause +
- '
-ORDER BY DB_NAME(Database_ID) ASC
+INNER JOIN (SELECT DriveLabel FROM #SplitDrives WHERE DriveType = ''Data'') AS DataDrives ON physical_name LIKE DriveLabel+''%''
+WHERE physical_name LIKE ''%.ldf''
+
+UNION ALL
+
+SELECT
+@Servername,
+GETDATE(),
+DB_NAME(database_id),
+type_desc,
+physical_name 
+FROM sys.master_files
+INNER JOIN (SELECT DriveLabel FROM #SplitDrives WHERE DriveType = ''Log'') AS DataDrives ON physical_name LIKE DriveLabel+''%''
+WHERE physical_name LIKE ''%.mdf'';
+
 
 IF NOT EXISTS (SELECT Servername
 			FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFiles]
@@ -9184,41 +9195,6 @@ VALUES (GETDATE(),CASE WHEN @InitialSetup = 0 THEN 1 ELSE 0 END,CAST(@CurrentBui
 
 
 --Inspector Information
-
-IF @Compatibility = 0 
-	SET @SQLStatement = 
-'IF EXISTS(SELECT [StringElement] 
-			FROM master.dbo.fn_SplitString('''+@DataDrive+''','','')
-			WHERE [StringElement] IN (SELECT [StringElement] 
-					FROM master.dbo.fn_SplitString('''+@LogDrive+''','','')
-					) )'
-
-IF @Compatibility = 1
-	SET @SQLStatement =
-'IF EXISTS(SELECT [value] 
-			FROM STRING_SPLIT('''+@DataDrive+''','','')
-			WHERE [value] IN (SELECT [value] 
-					FROM STRING_SPLIT('''+@LogDrive+''','','')
-					) )'
-
-SET @SQLStatement = @SQLStatement + CHAR(13)+CHAR(10) +
-'BEGIN 
-PRINT 
-''
-=========================================
-=============== WARNING!! ===============
-=========================================
-
-@DataDrive AND @LogDrive Contain one or more Drive letters that are the same, this will cause uneccesary Alerts it is recommended that you Disable Module ''''DatabaseFileCheck''''
-To Disable - Update ['+@Databasename+'].[Inspector].[Modules] setting DatabaseFileCheck to 0
-_______________________________________________________________________________________________________________________________________________________________________________
-
-''
-END
-'
-EXEC(@SQLStatement);
-
-
 PRINT '
 ===================================================================================================================================
 Our Getting started guide can be found here: https://sqlundercover.com/2018/02/19/getting-started-with-the-sqlundercover-inspector/
@@ -9270,17 +9246,11 @@ BEGIN
 RAISERROR('Linked Server name is incorrect - Please correct the name and try again',11,0) WITH NOWAIT;
 END
 END
-
 ELSE 
 BEGIN 
 RAISERROR('Please double check your database context, this script needs to be executed against the database [%s]',11,0,@Databasename) WITH NOWAIT;
 END
 
-END
-ELSE
-BEGIN
-RAISERROR('@DataDrive And/Or @LogDrive cannot have more than 4 drive letters specified',11,1)
-END
 
 END
 ELSE
