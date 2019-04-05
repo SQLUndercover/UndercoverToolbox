@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 30/03/2019
+Revision date: 05/04/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -138,7 +138,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 30/03/2019
+--Revision date: 05/04/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -3908,7 +3908,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 )
 AS 
 BEGIN 
---Revision date: 14/09/2018
+--Revision date: 05/04/2019
 
 SET NOCOUNT ON;
 
@@ -3922,19 +3922,15 @@ AND NOT EXISTS (SELECT 1
 				WHERE Base.Servername = Stage.Servername
 				AND Base.Databasename = Stage.Databasename)
 
---Update any changes (do not update Is_AG as this should be controlled via the table)
-UPDATE AGDatabases
-SET [Is_AG] = Stage.[Is_AG],
+
+--Update any changes and set LastUpdated Datetime (Is_AG is not updated , this is controlled within the Central Table)
+UPDATE Base
+SET 
 [Is_AGJoined] = Stage.[Is_AGJoined],
 [LastUpdated] = GETDATE()
 FROM [Inspector].[PSAGDatabasesStage] Stage
-WHERE Stage.Servername = @Servername
-AND EXISTS (SELECT 1 
-				FROM [Inspector].[AGDatabases] Base
-				WHERE Base.Servername = Stage.Servername
-				AND Base.Databasename = Stage.Databasename
-				AND Base.[Is_AGJoined] = Stage.[Is_AGJoined]
-				);
+INNER JOIN [Inspector].[AGDatabases] Base ON Base.Servername = Stage.Servername	AND Base.Databasename = Stage.Databasename
+WHERE Stage.Servername = @Servername;
 
 
 END'
@@ -4844,7 +4840,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 30/03/2019
+--Revision date: 05/04/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.4
 
