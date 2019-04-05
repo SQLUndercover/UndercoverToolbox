@@ -1874,6 +1874,12 @@ END
 			IF OBJECT_ID('Inspector.DriveCapacityHistory') IS NOT NULL 
 			DROP PROCEDURE [Inspector].[DriveCapacityHistory];
 
+			IF OBJECT_ID('Inspector.SuppressAdHocDatabase') IS NOT NULL 
+			DROP PROCEDURE [Inspector].[SuppressAdHocDatabase];
+
+			IF OBJECT_ID('Inspector.SuppressAGDatabase') IS NOT NULL 
+			DROP PROCEDURE [Inspector].[SuppressAGDatabase];
+
 			IF OBJECT_ID('Inspector.PSGetColumns') IS NOT NULL
 			DROP PROCEDURE [Inspector].[PSGetColumns];
 
@@ -3679,6 +3685,49 @@ ORDER BY Log_Date DESC
 END'
 
 EXEC(@SQLStatement);
+
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[SuppressAdHocDatabase]
+(
+@Databasename NVARCHAR(128),
+@Servername NVARCHAR(128)
+)
+AS 
+BEGIN 
+--Revision date: 05/04/2019
+SET NOCOUNT ON;
+
+	UPDATE [Inspector].[ADHocDatabaseSupression] 
+	SET [Suppress] = 1 
+	WHERE [Databasename] = @Databasename 
+	AND [Servername] = @Servername;
+
+END'
+
+EXEC(@SQLStatement);
+
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[SuppressAGDatabase]
+(
+@Databasename NVARCHAR(128),
+@Servername NVARCHAR(128)
+)
+AS 
+BEGIN 
+--Revision date: 05/04/2019
+SET NOCOUNT ON;
+
+	UPDATE [Inspector].[AGDatabases] 
+	SET [Is_AG] = 0
+	WHERE [Databasename] = @Databasename 
+	AND [Servername] = @Servername;
+
+END'
+
+EXEC(@SQLStatement);
+
 
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
@@ -5695,6 +5744,7 @@ BEGIN
 	<td bgcolor=''+@TableHeaderColour+''><b>Server name</b></td>
 	<td bgcolor=''+@TableHeaderColour+''><b>Last Checked</b></td>
 	<td bgcolor=''+@TableHeaderColour+''><b>Database name</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Suppress database</b></td>
 	'';
 
 	IF (SELECT MAX(LastUpdated) 
@@ -5711,7 +5761,8 @@ BEGIN
 		END AS [@bgcolor],
 		[Servername] AS ''td'','''', +
 		CONVERT(VARCHAR(17),[LastUpdated],113) AS ''td'','''', +
-		[Databasename] AS ''td'',''''
+		[Databasename] AS ''td'','''', +
+		''EXEC [Inspector].[SuppressAGDatabase] @Databasename = ''''''+Databasename+'''''', @Servername = ''''''+@Serverlist+'''''';'' AS ''td'',''''
 		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGDatabases]
 		WHERE [Is_AG] = 1
 		AND [Is_AGJoined] = 0
@@ -5726,6 +5777,7 @@ BEGIN
 			''#FFFFFF'' AS [@bgcolor], 
 			@Serverlist AS ''td'','''', +
 			''No Databases marked as AG and not joined'' AS ''td'','''', +
+			''N/A'' AS ''td'','''',+
 			''N/A'' AS ''td'',''''
 			FOR XML PATH(''tr''),ELEMENTS);
 		END
@@ -5742,6 +5794,7 @@ BEGIN
 		END AS [@bgcolor], 
 		@Serverlist AS ''td'','''', + 
 		''Data Collection out of date'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', +
 		''N/A'' AS ''td'',''''
 		FOR XML PATH(''tr''),Elements);
 
@@ -7527,6 +7580,7 @@ BEGIN
     <tr> 
     <td bgcolor=''+@TableHeaderColour+''><b>Database name</b></td>
     <td bgcolor=''+@TableHeaderColour+''><b>Create date</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Suppress database</b></td>
     '';
 
 	IF (SELECT MAX(Log_Date) 
@@ -7542,7 +7596,8 @@ BEGIN
 			WHEN @WarningLevel = 3 THEN @InfoHighlight
 		END AS [@bgcolor],
 		Databasename AS ''td'','''', + 
-		CONVERT(VARCHAR(17),Create_Date,113) AS ''td'',''''
+		CONVERT(VARCHAR(17),Create_Date,113) AS ''td'','''', +
+		''EXEC [Inspector].[SuppressAdHocDatabase] @Databasename = ''''''+Databasename+'''''', @Servername = ''''''+@Serverlist+'''''';'' AS ''td'',''''
 		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ADHocDatabaseCreations]
 		WHERE Servername = @Serverlist
 		AND Databasename != ''No Ad hoc database creations present''
@@ -7560,6 +7615,7 @@ BEGIN
 			(SELECT 
 			''#FFFFFF''  AS [@bgcolor],
 			''No Ad hoc database creations present'' AS ''td'','''', + 
+			''N/A'' AS ''td'','''', +
 			''N/A'' AS ''td'',''''
 			FOR XML PATH(''tr''),ELEMENTS);
 		END
@@ -7575,6 +7631,7 @@ BEGIN
 			WHEN @WarningLevel = 3 THEN @InfoHighlight
 		END AS [@bgcolor],
 		''Data Collection out of date'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', +
 		''N/A'' AS ''td'',''''
 		FOR XML PATH(''tr''),ELEMENTS);
 
