@@ -2181,7 +2181,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 27/03/2019
+--Revision date: 05/04/2019
 
 DECLARE @Retention INT = (SELECT Value From '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'')
 
@@ -2194,7 +2194,7 @@ IF NOT EXISTS (SELECT Log_Date FROM '+@LinkedServername+'['+@Databasename+'].[In
 	BEGIN
 		--RECORD THE DRIVE SPACE CAPACITY AND AVAILABLE SPACE PER DAY
 		INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[DriveSpace] (Servername, Log_Date, Drive, Capacity_GB, AvailableSpace_GB)
-		SELECT 
+		SELECT DISTINCT
 		@@SERVERNAME,
 		GETDATE(),
 		CAST(UPPER(volumestats.volume_mount_point) AS NVARCHAR(20)) AS Drive,
@@ -2207,10 +2207,7 @@ IF NOT EXISTS (SELECT Log_Date FROM '+@LinkedServername+'['+@Databasename+'].[In
 			MIN([file_id]) as [file_id]
 			FROM sys.master_files
 			GROUP BY 
-			CASE 
-				WHEN LEFT(physical_name,2) = ''\\'' THEN LEFT(physical_name,CHARINDEX(''\'',physical_name,3))
-				ELSE LEFT(physical_name,3)
-			END
+			SUBSTRING(physical_name,1,LEN(physical_name)-CHARINDEX(''\'',REVERSE(physical_name))+1)
 		) DistinctDrives
 		CROSS APPLY sys.dm_os_volume_stats([DistinctDrives].[database_id],[DistinctDrives].[file_id]) volumestats
 	END
@@ -4075,10 +4072,10 @@ INSERT INTO [Inspector].[DatabaseFileSizeHistory] ([Servername], [Database_id], 
 SELECT [Servername], [Database_id], [Database_name], [Log_Date], [Type_Desc], [File_id], [FileName], [PreGrowthSize_MB], [GrowthRate_MB], [GrowthIncrements], [PostGrowthSize_MB]
 FROM [Inspector].[PSDatabaseFileSizeHistoryStage] PSStage
 WHERE NOT EXISTS (SELECT 1 
-				FROM [DatabaseFileSizeHistory] Base 
+				FROM [Inspector].[DatabaseFileSizeHistory] Base 
 				WHERE PSStage.Database_id = Base.Database_id 
 				AND PSStage.[File_id] = Base.[File_id]
-				AND Base.Servername = @Servername 
+				AND Base.Servername = PSStage.Servername
 				AND PSStage.Log_Date = Base.Log_Date)
 
 END'
