@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 05/04/2019
+Revision date: 08/04/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -138,14 +138,14 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 05/04/2019
+--Revision date: 08/04/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
 --Required Parameters (No defaults)							     
 @Databasename = '''+DB_NAME()+''',	
-@DataDrive = '''+@DataDrive+''',	
-@LogDrive = '''+@LogDrive+''',	
+@DataDrive = '''+ISNULL(@DataDrive,'S,T')+''',	
+@LogDrive = '''+ISNULL(@LogDrive,'U,V')+''',	
 --Optional Parameters (Defaults Specified), ignored when @InitialSetup = 0
 @BackupsPath = ''F:\Backups\'',
 @LinkedServername = NULL,  
@@ -595,29 +595,42 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			
 			
 			IF OBJECT_ID('Inspector.DatabaseFileSizes') IS NULL
+			BEGIN
 			--New Column [LastUpdated] for 1.0.1
 			CREATE TABLE [Inspector].[DatabaseFileSizes](
 			[Servername] NVARCHAR(128)  NOT NULL,
 			[Database_id] INT NOT NULL,
-			[Database_name] [NVARCHAR](128) NULL,
-			[OriginalDateLogged] [DATETIME] NOT NULL,
+			[Database_name] NVARCHAR(128) NULL,
+			[OriginalDateLogged] DATETIME NOT NULL,
 			[OriginalSize_MB] BIGINT NULL,
-			[Type_desc] [NVARCHAR](60) NULL,
+			[Type_desc] NVARCHAR(60) NULL,
 			[File_id] TINYINT NOT NULL,
-			[Filename] [NVARCHAR](260) NULL,
+			[Filename] NVARCHAR(260) NULL,
 			[PostGrowthSize_MB] BIGINT NULL,
-			[GrowthRate] [int] NULL,
-			[Is_percent_growth] [BIT] NOT NULL,
+			[GrowthRate] INT NULL,
+			[Is_percent_growth] BIT NOT NULL,
 			[NextGrowth] BIGINT  NULL,
 			[LastUpdated] DATETIME NULL	  
 			); 
+			END
 
 			--New Column [LastUpdated] for 1.0.1
 			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DatabaseFileSizes') AND name ='LastUpdated')
 			BEGIN 
 				ALTER TABLE [Inspector].[DatabaseFileSizes] ADD [LastUpdated] DATETIME NULL;
 			END 
-			
+
+
+			--Make a one off update to the Database files to ensure they now show the full path and not just the filename
+			UPDATE [DatabaseFileSizes]
+			SET [Filename] = [master_files].[physical_name]
+			FROM sys.master_files
+			INNER JOIN [Inspector].[DatabaseFileSizes] ON [DatabaseFileSizes].[Database_id] = [master_files].[database_id]
+														AND [DatabaseFileSizes].[File_id] = [master_files].[file_id]
+			WHERE [DatabaseFileSizes].[Servername] = @@SERVERNAME;
+
+
+
 			IF OBJECT_ID('Inspector.DatabaseFileSizeHistory') IS NULL
 			BEGIN
 			CREATE TABLE [Inspector].DatabaseFileSizeHistory
@@ -629,20 +642,28 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[Log_Date] DATETIME NOT NULL,
 			[Type_Desc] NVARCHAR(60) NOT NULL,
 			[File_id] TINYINT NOT NULL,
+			[Drive] NVARCHAR(20) NULL,
 			[FileName] NVARCHAR(260) NOT NULL,
 			[PreGrowthSize_MB] BIGINT NOT NULL,
 			[GrowthRate_MB] INT NOT NULL,
 			[GrowthIncrements] INT NOT NULL,
 			[PostGrowthSize_MB] BIGINT NOT NULL
 			);
-			
+
+			END
+
 			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.DatabaseFileSizeHistory') AND name='IX_Servername_Includes_Log_Date')
 			BEGIN
 				CREATE NONCLUSTERED INDEX [IX_Servername_Includes_Log_Date] ON [Inspector].[DatabaseFileSizeHistory]
 				([Servername] ASC) INCLUDE ([Log_Date]); 
 			END
 
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Drive' AND [object_id] = OBJECT_ID(N'Inspector.DatabaseFileSizeHistory'))
+			BEGIN
+				--New column for 1.4
+				ALTER TABLE [Inspector].[DatabaseFileSizeHistory] ADD [Drive] NVARCHAR(20);
 			END
+
 
 			IF OBJECT_ID('Inspector.EmailRecipients') IS NULL		
 			CREATE TABLE [Inspector].[EmailRecipients]
@@ -1737,6 +1758,7 @@ END
 			);
 			
 			IF OBJECT_ID('Inspector.PSDatabaseFileSizesStage') IS NULL
+			BEGIN
 			CREATE TABLE [Inspector].[PSDatabaseFileSizesStage](
 			[Servername] [nvarchar](128) NOT NULL,
 			[Database_id] [int] NOT NULL,
@@ -1752,8 +1774,11 @@ END
 			[NextGrowth] [bigint] NULL,
 			[LastUpdated] [datetime] NULL
 			); 
+			END
+
 			
 			IF OBJECT_ID('Inspector.PSDatabaseFileSizeHistoryStage') IS NULL
+			BEGIN
 			CREATE TABLE [Inspector].[PSDatabaseFileSizeHistoryStage](
 			[GrowthID] [bigint] NOT NULL,
 			[Servername] [nvarchar](128) NOT NULL,
@@ -1762,12 +1787,21 @@ END
 			[Log_Date] [datetime] NOT NULL,
 			[Type_Desc] [nvarchar](60) NOT NULL,
 			[File_id] [tinyint] NOT NULL,
+			[Drive] [NVARCHAR](260),
 			[FileName] [nvarchar](260) NOT NULL,
 			[PreGrowthSize_MB] [bigint] NOT NULL,
 			[GrowthRate_MB] [int] NOT NULL,
 			[GrowthIncrements] [int] NOT NULL,
 			[PostGrowthSize_MB] [bigint] NOT NULL
 			);
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Drive' AND [object_id] = OBJECT_ID(N'Inspector.PSDatabaseFileSizeHistoryStage'))
+			BEGIN
+				--New column for 1.4
+				ALTER TABLE [Inspector].[PSDatabaseFileSizeHistoryStage] ADD [Drive] NVARCHAR(260);
+			END
+
 			
 			IF OBJECT_ID('Inspector.PSADHocDatabaseCreationsStage') IS NULL
 			CREATE TABLE [Inspector].[PSADHocDatabaseCreationsStage](
@@ -2689,7 +2723,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[DatabaseGrowthsInsert]
 AS
 
---Revision date: 28/09/2018
+--Revision date: 08/04/2019
 
      SET NOCOUNT ON;
 
@@ -2697,7 +2731,7 @@ AS
 
         DECLARE @Servername NVARCHAR(128)= @@Servername;
 	    DECLARE @LastUpdated DATETIME = GETDATE();
-		DECLARE @Retention INT = (SELECT ISNULL(NULLIF([Value],''''),30) From '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'');
+		DECLARE @Retention INT = (SELECT ISNULL(NULLIF([Value],''''),90) From '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'');
 		DECLARE @ScopeIdentity INT
 
 --Insert any databases that are present on the serverbut not present in [Inspector].[DatabaseFileSizes]
@@ -2710,7 +2744,7 @@ AS
                   [OriginalDateLogged],
                   [OriginalSize_MB],
                   [Type_desc],
-                  [File_id],
+                  [File_id],				
                   [Filename],
                   [PostGrowthSize_MB],
                   [GrowthRate],
@@ -2724,8 +2758,8 @@ AS
                            @LastUpdated AS [OriginalDateLogged],
                            CAST([Masterfiles].[size] AS BIGINT) * 8 / 1024 AS [OriginalSize_MB],
                            [Masterfiles].[type_desc],
-                           [Masterfiles].[file_id],
-                           RIGHT([Masterfiles].[physical_name],CHARINDEX(''\'',REVERSE([Masterfiles].[physical_name]))-1) AS [Filename], --Get the Filename
+                           [Masterfiles].[file_id],						   
+                           [Masterfiles].[physical_name],
                            CAST([Masterfiles].[size] AS BIGINT) * 8 / 1024 AS [PostGrowthSize_MB],
 						   CASE [Masterfiles].[is_percent_growth]
 								WHEN 0
@@ -2774,8 +2808,8 @@ AS
                             AND DB_NAME([Masterfiles].[database_id]) = [DatabaseFileSizes].[Database_name]
                             AND [Masterfiles].[file_id] = [DatabaseFileSizes].[File_id]
                  )
-                 ORDER BY DB_NAME([Masterfiles].[database_id]) ASC,
-                          [type] ASC;
+
+
          END
              ELSE
              BEGIN
@@ -2801,7 +2835,7 @@ AS
                         CAST([Masterfiles].[size] AS BIGINT) * 8 / 1024 AS [OriginalSize_MB],
                         [Masterfiles].[type_desc],
                         [Masterfiles].[file_id],
-                        RIGHT([Masterfiles].[physical_name],CHARINDEX(''\'',REVERSE([Masterfiles].[physical_name]))-1) AS [Filename], 
+                        [Masterfiles].[physical_name],
                         CAST([Masterfiles].[size] AS BIGINT) * 8 / 1024 AS [PostGrowthSize_MB],
 						CASE [Masterfiles].[is_percent_growth]
 							WHEN 0
@@ -2843,8 +2877,7 @@ AS
                             AND DB_NAME([Masterfiles].[database_id]) = [DatabaseFileSizes].[Database_name]
                             AND [Masterfiles].[file_id] = [DatabaseFileSizes].[File_id]
                  )
-                 ORDER BY DB_NAME([Masterfiles].[database_id]) ASC,
-                          [type] ASC;
+
          END
 
 --Remove any databases that have been dropped from SQL but still present in [Inspector].[DatabaseFileSizes]
@@ -2934,6 +2967,7 @@ AS
           [Log_Date],
           [Type_Desc],
           [File_id],
+		  [Drive],
           [FileName],
           [PreGrowthSize_MB],
           [GrowthRate_MB],
@@ -2947,6 +2981,7 @@ AS
                 @LastUpdated AS [Log_Date],
                 [Masterfiles].[type_desc],
                 [Masterfiles].[file_id],
+				CAST(UPPER(volumestats.volume_mount_point) AS NVARCHAR(20)) AS Drive,
                 RIGHT([Masterfiles].[physical_name],CHARINDEX(''\'',REVERSE([Masterfiles].[physical_name]))-1) AS [Filename], --Get the Filename
                 [DatabaseFileSizes].[PostGrowthSize_MB],  --PostGrowth size is the Last recorded database size after a growth event
                 [DatabaseFileSizes].[GrowthRate],
@@ -2955,6 +2990,7 @@ AS
          FROM   '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] [DatabaseFileSizes]
                 INNER JOIN [sys].[master_files] [Masterfiles] ON [Masterfiles].[database_id] = [DatabaseFileSizes].[Database_id]
                                                                  AND [DatabaseFileSizes].[File_id] = [Masterfiles].[file_id]
+				CROSS APPLY sys.dm_os_volume_stats([Masterfiles].[database_id],[Masterfiles].[file_id]) volumestats
          WHERE  [NextGrowth] <= (CAST([Masterfiles].[size] AS BIGINT) * 8) / 1024
                 AND [DatabaseFileSizes].[Servername] = @Servername
 			 AND NOT EXISTS (
@@ -4035,7 +4071,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 )
 AS 
 BEGIN
---Revision date: 14/09/2018
+--Revision date: 08/04/2019
 
 --Update existing records
 UPDATE Base 
@@ -4052,7 +4088,8 @@ SET [Database_name] = [PSStage].[Database_name],
 FROM [Inspector].[PSDatabaseFileSizesStage] PSStage
 INNER JOIN [Inspector].[DatabaseFileSizes] Base ON PSStage.Database_id = Base.Database_id AND PSStage.[File_id] = Base.[File_id] AND Base.[Servername] = @Servername
 WHERE PSStage.Servername = @Servername
-AND (PSStage.LastUpdated > Base.LastUpdated OR PSStage.LastUpdated IS NOT NULL AND Base.LastUpdated IS NULL)
+AND (PSStage.LastUpdated > Base.LastUpdated OR PSStage.LastUpdated IS NOT NULL AND Base.LastUpdated IS NULL) 
+
 
 --Insert missing rows in base from stage table
 INSERT INTO [Inspector].[DatabaseFileSizes] ([Servername], [Database_id], [Database_name], [OriginalDateLogged], [OriginalSize_MB], [Type_desc], [File_id], [Filename], [PostGrowthSize_MB], [GrowthRate], [Is_percent_growth], [NextGrowth], [LastUpdated])
@@ -4079,8 +4116,8 @@ AND NOT EXISTS (SELECT 1
 				AND Base.Servername = @Servername)
 
 --Insert growth events
-INSERT INTO [Inspector].[DatabaseFileSizeHistory] ([Servername], [Database_id], [Database_name], [Log_Date], [Type_Desc], [File_id], [FileName], [PreGrowthSize_MB], [GrowthRate_MB], [GrowthIncrements], [PostGrowthSize_MB])
-SELECT [Servername], [Database_id], [Database_name], [Log_Date], [Type_Desc], [File_id], [FileName], [PreGrowthSize_MB], [GrowthRate_MB], [GrowthIncrements], [PostGrowthSize_MB]
+INSERT INTO [Inspector].[DatabaseFileSizeHistory] ([Servername], [Database_id], [Database_name], [Log_Date], [Type_Desc], [File_id], [Drive], [FileName], [PreGrowthSize_MB], [GrowthRate_MB], [GrowthIncrements], [PostGrowthSize_MB])
+SELECT [Servername], [Database_id], [Database_name], [Log_Date], [Type_Desc], [File_id], [Drive], [FileName], [PreGrowthSize_MB], [GrowthRate_MB], [GrowthIncrements], [PostGrowthSize_MB]
 FROM [Inspector].[PSDatabaseFileSizeHistoryStage] PSStage
 WHERE NOT EXISTS (SELECT 1 
 				FROM [Inspector].[DatabaseFileSizeHistory] Base 
