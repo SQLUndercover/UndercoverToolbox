@@ -4088,8 +4088,8 @@ SET [Database_name] = [PSStage].[Database_name],
 FROM [Inspector].[PSDatabaseFileSizesStage] PSStage
 INNER JOIN [Inspector].[DatabaseFileSizes] Base ON PSStage.Database_id = Base.Database_id AND PSStage.[File_id] = Base.[File_id] AND Base.[Servername] = @Servername
 WHERE PSStage.Servername = @Servername
-AND (PSStage.LastUpdated > Base.LastUpdated OR PSStage.LastUpdated IS NOT NULL AND Base.LastUpdated IS NULL) 
-
+AND ((PSStage.LastUpdated > Base.LastUpdated OR PSStage.LastUpdated IS NOT NULL AND Base.LastUpdated IS NULL) 
+OR [Base].[Filename] != [PSStage].[Filename])
 
 --Insert missing rows in base from stage table
 INSERT INTO [Inspector].[DatabaseFileSizes] ([Servername], [Database_id], [Database_name], [OriginalDateLogged], [OriginalSize_MB], [Type_desc], [File_id], [Filename], [PostGrowthSize_MB], [GrowthRate], [Is_percent_growth], [NextGrowth], [LastUpdated])
