@@ -620,15 +620,17 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				ALTER TABLE [Inspector].[DatabaseFileSizes] ADD [LastUpdated] DATETIME NULL;
 			END 
 
-
+;
+			SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
 			--Make a one off update to the Database files to ensure they now show the full path and not just the filename
 			UPDATE [DatabaseFileSizes]
-			SET [Filename] = [master_files].[physical_name]
+			SET [Filename] = [master_files].[physical_name],[LastUpdated] = GETDATE()
 			FROM sys.master_files
-			INNER JOIN [Inspector].[DatabaseFileSizes] ON [DatabaseFileSizes].[Database_id] = [master_files].[database_id]
+			INNER JOIN '+@LinkedServername+'['+@Databasename+'].[Inspector].[DatabaseFileSizes] ON [DatabaseFileSizes].[Database_id] = [master_files].[database_id]
 														AND [DatabaseFileSizes].[File_id] = [master_files].[file_id]
-			WHERE [DatabaseFileSizes].[Servername] = @@SERVERNAME;
+			WHERE [DatabaseFileSizes].[Servername] = @@SERVERNAME;';
 
+			EXEC(@SQLStatement);
 
 
 			IF OBJECT_ID('Inspector.DatabaseFileSizeHistory') IS NULL
