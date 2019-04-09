@@ -1470,14 +1470,16 @@ END
 			EXEC sp_executesql N'
 			CREATE VIEW [Inspector].[DatabaseGrowthInfo] 
 			AS
-			
+			--Revision date 09/04/2019			
 			SELECT 
 			[GrowthInfo].[Servername],
 			[GrowthInfo].[Database_name],
+			[GrowthInfo].[Drive],
+			[GrowthInfo].[Filename],
 			[GrowthInfo].[FirstRecordedGrowth],
 			DATEDIFF(DAY,[GrowthInfo].[FirstRecordedGrowth],CAST(GETDATE() AS DATE)) AS FirstRecordedGrowthAge_Days,
 			[GrowthInfo].[TotalGrowths],
-			[GrowthInfo].[FileName],
+			[GrowthInfo].[File_id],
 			[DatabaseFileSizes].[GrowthRate] AS GrowthRate_MB,
 			[GrowthInfo].[TotalGrowth_MB],
 			[GrowthInfo].[TotalGrowth_MB]/DATEDIFF(DAY,[GrowthInfo].FirstRecordedGrowth,CAST(GETDATE() AS DATE)) AS AverageDailyGrowth_MB,
@@ -1488,21 +1490,67 @@ END
 				SELECT 
 				[Servername],
 				[Database_name],
+				[Drive],
+				[Filename],
 				CAST(MIN([Log_Date]) AS DATE) AS FirstRecordedGrowth,
 				COUNT([Log_Date]) AS TotalGrowths,
-				[FileName],
+				[File_id],
 				SUM([PostGrowthSize_MB]-[PreGrowthSize_MB]) AS TotalGrowth_MB
 				FROM [Inspector].[DatabaseFileSizeHistory]
 				GROUP BY 
 				[Servername],
 				[Database_name],
-				[FileName]
+				[Drive],
+				[Filename],
+				[File_id]
 			) GrowthInfo
 			INNER JOIN [Inspector].[DatabaseFileSizes] ON [DatabaseFileSizes].[Database_name] = [GrowthInfo].[Database_name] 
 			AND  [DatabaseFileSizes].[Servername] =  [GrowthInfo].[Servername] 
-			AND [DatabaseFileSizes].[Filename] =  [GrowthInfo].[FileName];';
+			AND [DatabaseFileSizes].[File_id] =  [GrowthInfo].[File_id];';
 			END
-
+			ELSE 
+			BEGIN 
+			EXEC sp_executesql N'
+			ALTER VIEW [Inspector].[DatabaseGrowthInfo] 
+			AS
+			--Revision date 09/04/2019
+			SELECT 
+			[GrowthInfo].[Servername],
+			[GrowthInfo].[Database_name],
+			[GrowthInfo].[Drive],
+			[GrowthInfo].[Filename],
+			[GrowthInfo].[FirstRecordedGrowth],
+			DATEDIFF(DAY,[GrowthInfo].[FirstRecordedGrowth],CAST(GETDATE() AS DATE)) AS FirstRecordedGrowthAge_Days,
+			[GrowthInfo].[TotalGrowths],
+			[GrowthInfo].[File_id],
+			[DatabaseFileSizes].[GrowthRate] AS GrowthRate_MB,
+			[GrowthInfo].[TotalGrowth_MB],
+			[GrowthInfo].[TotalGrowth_MB]/DATEDIFF(DAY,[GrowthInfo].FirstRecordedGrowth,CAST(GETDATE() AS DATE)) AS AverageDailyGrowth_MB,
+			(([GrowthInfo].[TotalGrowth_MB]/DATEDIFF(DAY,[GrowthInfo].FirstRecordedGrowth,CAST(GETDATE() AS DATE)))*365)/12 AS AverageMonthlyGrowth_MB,
+			([GrowthInfo].[TotalGrowth_MB]/DATEDIFF(DAY,[GrowthInfo].FirstRecordedGrowth,CAST(GETDATE() AS DATE)))*365 AS AverageYearlyGrowth_MB
+			FROM 
+			(
+				SELECT 
+				[Servername],
+				[Database_name],
+				[Drive],
+				[Filename],
+				CAST(MIN([Log_Date]) AS DATE) AS FirstRecordedGrowth,
+				COUNT([Log_Date]) AS TotalGrowths,
+				[File_id],
+				SUM([PostGrowthSize_MB]-[PreGrowthSize_MB]) AS TotalGrowth_MB
+				FROM [Inspector].[DatabaseFileSizeHistory]
+				GROUP BY 
+				[Servername],
+				[Database_name],
+				[Drive],
+				[Filename],
+				[File_id]
+			) GrowthInfo
+			INNER JOIN [Inspector].[DatabaseFileSizes] ON [DatabaseFileSizes].[Database_name] = [GrowthInfo].[Database_name] 
+			AND  [DatabaseFileSizes].[Servername] =  [GrowthInfo].[Servername] 
+			AND [DatabaseFileSizes].[File_id] =  [GrowthInfo].[File_id];';
+			END 
 
 			IF OBJECT_ID('Inspector.DriveSpaceInfo') IS NULL
 			BEGIN
