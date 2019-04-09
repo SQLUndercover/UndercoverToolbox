@@ -651,12 +651,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[Log_Date] DATETIME NOT NULL,
 			[Type_Desc] NVARCHAR(60) NOT NULL,
 			[File_id] TINYINT NOT NULL,
-			[Drive] NVARCHAR(20) NULL,
 			[FileName] NVARCHAR(260) NOT NULL,
 			[PreGrowthSize_MB] BIGINT NOT NULL,
 			[GrowthRate_MB] INT NOT NULL,
 			[GrowthIncrements] INT NOT NULL,
-			[PostGrowthSize_MB] BIGINT NOT NULL
+			[PostGrowthSize_MB] BIGINT NOT NULL,
+			[Drive] NVARCHAR(20)
 			);
 
 			END
@@ -1751,7 +1751,8 @@ END
 			(''SuspectPages''),
 			(''TopFiveDatabases''),
 			(''ModuleWarningLevel''),
-			(''UnusedLogshipConfig'')
+			(''UnusedLogshipConfig''),
+			(''CatalogueModules'')
 			) InspectorTables (Tablename);'
 			END
 			ELSE 
@@ -1791,7 +1792,8 @@ END
 			(''SuspectPages''),
 			(''TopFiveDatabases''),
 			(''ModuleWarningLevel''),
-			(''UnusedLogshipConfig'')
+			(''UnusedLogshipConfig''),
+			(''CatalogueModules'')
 			) InspectorTables (Tablename);'
 			END
 						
@@ -1844,19 +1846,19 @@ END
 			[Log_Date] [datetime] NOT NULL,
 			[Type_Desc] [nvarchar](60) NOT NULL,
 			[File_id] [tinyint] NOT NULL,
-			[Drive] [NVARCHAR](260),
 			[FileName] [nvarchar](260) NOT NULL,
 			[PreGrowthSize_MB] [bigint] NOT NULL,
 			[GrowthRate_MB] [int] NOT NULL,
 			[GrowthIncrements] [int] NOT NULL,
-			[PostGrowthSize_MB] [bigint] NOT NULL
+			[PostGrowthSize_MB] [bigint] NOT NULL,
+			[Drive] [NVARCHAR](20),
 			);
 			END
 
 			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Drive' AND [object_id] = OBJECT_ID(N'Inspector.PSDatabaseFileSizeHistoryStage'))
 			BEGIN
 				--New column for 1.4
-				ALTER TABLE [Inspector].[PSDatabaseFileSizeHistoryStage] ADD [Drive] NVARCHAR(260);
+				ALTER TABLE [Inspector].[PSDatabaseFileSizeHistoryStage] ADD [Drive] NVARCHAR(20);
 			END
 
 			
@@ -4226,7 +4228,7 @@ CREATE PROCEDURE [Inspector].[PSGetSettingsTables]
 @PSCollection BIT = 0 --If its a powershell collection ensure that the WarningLevel table is populated
 )
 AS 
---Revision date: 17/12/2018
+--Revision date: 09/04/2019
 
 --Config for Powershell collection use only
 --TruncateTable - 0 Delete contents, 1 Truncate table
@@ -4250,14 +4252,14 @@ BEGIN
 	IF @SortOrder = 0 
 	BEGIN 
 		SELECT Tablename,TruncateTable,ReseedTable 
-		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''Modules'',0,1),(6,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''Modules'',0,1),(7,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder ASC;
 	END
 
 	IF @SortOrder = 1 
 	BEGIN 
 		SELECT Tablename,TruncateTable,ReseedTable 
-		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''Modules'',0,1),(6,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''Modules'',0,1),(7,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder DESC;
 	END
 
