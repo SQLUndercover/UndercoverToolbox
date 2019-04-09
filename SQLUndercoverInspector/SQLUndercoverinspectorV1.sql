@@ -1475,7 +1475,7 @@ END
 			[GrowthInfo].[Servername],
 			[GrowthInfo].[Database_name],
 			[GrowthInfo].[Drive],
-			[GrowthInfo].[Filename],
+			[GrowthInfo].[FileName],
 			[GrowthInfo].[FirstRecordedGrowth],
 			DATEDIFF(DAY,[GrowthInfo].[FirstRecordedGrowth],CAST(GETDATE() AS DATE)) AS FirstRecordedGrowthAge_Days,
 			[GrowthInfo].[TotalGrowths],
@@ -1491,7 +1491,7 @@ END
 				[Servername],
 				[Database_name],
 				[Drive],
-				[Filename],
+				[FileName],
 				CAST(MIN([Log_Date]) AS DATE) AS FirstRecordedGrowth,
 				COUNT([Log_Date]) AS TotalGrowths,
 				[File_id],
@@ -1501,7 +1501,7 @@ END
 				[Servername],
 				[Database_name],
 				[Drive],
-				[Filename],
+				[FileName],
 				[File_id]
 			) GrowthInfo
 			INNER JOIN [Inspector].[DatabaseFileSizes] ON [DatabaseFileSizes].[Database_name] = [GrowthInfo].[Database_name] 
@@ -1518,7 +1518,7 @@ END
 			[GrowthInfo].[Servername],
 			[GrowthInfo].[Database_name],
 			[GrowthInfo].[Drive],
-			[GrowthInfo].[Filename],
+			[GrowthInfo].[FileName],
 			[GrowthInfo].[FirstRecordedGrowth],
 			DATEDIFF(DAY,[GrowthInfo].[FirstRecordedGrowth],CAST(GETDATE() AS DATE)) AS FirstRecordedGrowthAge_Days,
 			[GrowthInfo].[TotalGrowths],
@@ -1534,7 +1534,7 @@ END
 				[Servername],
 				[Database_name],
 				[Drive],
-				[Filename],
+				[FileName],
 				CAST(MIN([Log_Date]) AS DATE) AS FirstRecordedGrowth,
 				COUNT([Log_Date]) AS TotalGrowths,
 				[File_id],
@@ -1544,7 +1544,7 @@ END
 				[Servername],
 				[Database_name],
 				[Drive],
-				[Filename],
+				[FileName],
 				[File_id]
 			) GrowthInfo
 			INNER JOIN [Inspector].[DatabaseFileSizes] ON [DatabaseFileSizes].[Database_name] = [GrowthInfo].[Database_name] 
