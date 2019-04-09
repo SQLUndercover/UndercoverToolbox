@@ -453,6 +453,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				
 			
 			IF OBJECT_ID('Inspector.AGCheck') IS NULL
+			BEGIN
 			CREATE TABLE [Inspector].[AGCheck]
 			(
 			[Servername] NVARCHAR(128) NOT NULL,
@@ -461,9 +462,15 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[State] VARCHAR(50) NULL,
 			[ReplicaServername] NVARCHAR(256) NULL,
 			[Suspended] BIT NULL,
-			[SuspendReason] VARCHAR(50) NULL
+			[SuspendReason] VARCHAR(50) NULL,
+			[FailoverReady] BIT NULL
 			); 
-			
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.AGCheck') AND [name] = 'FailoverReady')
+			BEGIN 
+				ALTER TABLE [Inspector].[AGCheck] ADD [FailoverReady] BIT;
+			END
 			 
 			
 			IF OBJECT_ID('Inspector.DatabaseFiles') IS NULL
@@ -2031,7 +2038,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 28/06/2018
+--Revision date: 09/04/2019
 
 SET NOCOUNT ON;
 
@@ -2044,7 +2051,7 @@ WHERE Servername = @Servername;
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
 
-INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheck] ([Servername], [Log_Date], [AGname], [State], [ReplicaServername], [Suspended], [SuspendReason])
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheck] ([Servername], [Log_Date], [AGname], [State], [ReplicaServername], [Suspended], [SuspendReason], [FailoverReady])
 SELECT DISTINCT
 @Servername,
 GETDATE(),
@@ -2052,11 +2059,14 @@ Groups.name AS AGNAME,
 States.synchronization_health_desc,
 Replicas.replica_server_name COLLATE DATABASE_DEFAULT +'' ('' + CAST(States.role_desc AS NCHAR(1)) +'')'',
 ReplicaStates.is_suspended,
-ISNULL(ReplicaStates.suspend_reason_desc,''N/A'') AS suspend_reason_desc
+ISNULL(ReplicaStates.suspend_reason_desc,''N/A'') AS suspend_reason_desc,
+FailoverReady.is_failover_ready
 FROM sys.availability_groups Groups
 INNER JOIN sys.dm_hadr_availability_replica_states as States ON States.group_id = Groups.group_id
 INNER JOIN sys.availability_replicas as Replicas ON States.replica_id = Replicas.replica_id
+INNER JOIN sys.dm_hadr_database_replica_cluster_states FailoverReady ON Replicas.replica_id = FailoverReady.replica_id
 INNER JOIN sys.dm_hadr_database_replica_states as ReplicaStates ON Replicas.replica_id = ReplicaStates.replica_id
+
 
 END 
 ELSE 
@@ -5516,6 +5526,7 @@ BEGIN
     <td bgcolor=''+@TableHeaderColour+''><b>AG name</b></td>
     <td bgcolor=''+@TableHeaderColour+''><b>State</b></td>
     <td bgcolor=''+@TableHeaderColour+''><b>Replica Server Name</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Failover Ready</b></td>
     <td bgcolor=''+@TableHeaderColour+''><b>Suspended</b></td>
     <td bgcolor=''+@TableHeaderColour+''><b>Suspend Reason</b></td>
     '';
@@ -5527,16 +5538,19 @@ BEGIN
 		SET @BodyAGCheck = (
 		SELECT 
 		CASE 
-			WHEN @WarningLevel IS NULL AND ([State] != ''HEALTHY'' AND [State] != ''N/A'' ) THEN @WarningHighlight
-			WHEN @WarningLevel = 1 AND ([State] != ''HEALTHY'' AND [State] != ''N/A'') THEN @WarningHighlight
-			WHEN @WarningLevel = 2 AND ([State] != ''HEALTHY'' AND [State] != ''N/A'') THEN @AdvisoryHighlight
-			WHEN @WarningLevel = 3 AND ([State] != ''HEALTHY'' AND [State] != ''N/A'') THEN @InfoHighlight
+			WHEN @WarningLevel IS NULL AND (([State] != ''HEALTHY'' AND [State] != ''N/A'' ) OR [FailoverReady] = 0) THEN @WarningHighlight
+			WHEN @WarningLevel = 1 AND (([State] != ''HEALTHY'' AND [State] != ''N/A'') OR [FailoverReady] = 0) THEN @WarningHighlight
+			WHEN @WarningLevel = 2 AND (([State] != ''HEALTHY'' AND [State] != ''N/A'') OR [FailoverReady] = 0) THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 3 AND (([State] != ''HEALTHY'' AND [State] != ''N/A'') OR [FailoverReady] = 0) THEN @InfoHighlight
 			ELSE ''#FFFFFF''
 		END AS [@bgcolor],
 		Servername  AS ''td'','''', +
 		AGname AS ''td'','''', +
 		[State] AS ''td'','''', +
 		ISNULL([ReplicaServername],''N/A'') AS ''td'','''', +
+		CASE WHEN [FailoverReady] = 1 THEN ''Y'' 
+		WHEN [FailoverReady] = 0 THEN ''N''
+		ELSE ''N/A'' END AS ''td'','''', +
 		CASE WHEN [Suspended] = 1 THEN ''Y'' 
 		WHEN [Suspended] = 0 THEN ''N''
 		ELSE ''N/A'' END AS ''td'','''', +
@@ -5558,6 +5572,7 @@ BEGIN
 		END AS [@bgcolor],
 		@Serverlist  AS ''td'','''', +
 		''Data collection out of date'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
 		''N/A'' AS ''td'','''', +
 		''N/A'' AS ''td'','''', +
 		''N/A'' AS ''td'','''', +
@@ -9316,7 +9331,7 @@ DECLARE @DBname NVARCHAR(128) = DB_NAME();
 RAISERROR('
 --Inspector setup stored procedure is now available to run, below is an example call to the procedure.
 
-EXEC [Inspector].[InspectorSetup]
+EXEC [%s].[Inspector].[InspectorSetup]
 --Required Parameters (No defaults)							     
 @Databasename = ''%s'',	
 @DataDrive = ''S,U'',	
@@ -9339,4 +9354,4 @@ EXEC [Inspector].[InspectorSetup]
 @DatabaseOwnerExclusions = ''sa'',  
 @LongRunningTransactionThreshold = 300,	
 @InitialSetup = 0; 
-',0,0,@DBname) WITH NOWAIT;
+',0,0,@DBname,@DBname) WITH NOWAIT;
