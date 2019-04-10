@@ -2021,6 +2021,8 @@ END
 			IF OBJECT_ID('Inspector.PSGetInstanceVersionHistoryStage') IS NOT NULL
 			DROP PROCEDURE [Inspector].[PSGetInstanceVersionHistoryStage];
 
+			IF OBJECT_ID('Inspector.PSHistCleanup') IS NOT NULL
+			DROP PROCEDURE [Inspector].[PSHistCleanup];
 			
 			
 
@@ -4221,6 +4223,28 @@ END'
 EXEC(@SQLStatement);
 
 
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+CREATE PROCEDURE [Inspector].[PSHistCleanup]
+AS 
+BEGIN 
+--Revision date: 10/04/2019
+	
+DECLARE @Retention INT = (SELECT ISNULL(NULLIF([Value],''''),90) FROM [Inspector].[Settings] WHERE Description = ''DriveSpaceRetentionPeriodInDays'')
+
+	--Clean up Drivespace table for history older than @Retention in days
+	DELETE FROM [Inspector].[DriveSpace] 
+	WHERE Log_Date < DATEADD(DAY,-@Retention,DATEADD(DAY,1,CAST(GETDATE() AS DATE)));
+	
+	--Clean up the history for growths older than @Retention in days
+	DELETE FROM [Inspector].[DatabaseFileSizeHistory]
+	WHERE [Log_Date] < DATEADD(DAY,-@Retention,GETDATE());
+
+END '
+
+EXEC(@SQLStatement);
+
+
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
 CREATE PROCEDURE [Inspector].[PSGetSettingsTables]
 (
@@ -4546,7 +4570,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 17/02/2019
+--Revision date: 10/04/2019
 
 SET NOCOUNT ON;
 
@@ -4975,8 +4999,13 @@ DECLARE @LastTruncate DATE
 
 	   IF @PSCollection = 1 
 	   BEGIN 
+
+	    RAISERROR(''Cleaning up history tables'',0,0) WITH NOWAIT;
+		EXEC [Inspector].[PSHistCleanup];
+
 		RAISERROR(''Displaying executed modules list for Powershell collection'',0,0) WITH NOWAIT;
 	   	EXEC [Inspector].[PSGetConfig] @Servername = @Servername, @ModuleConfig = @ModuleConfig; 
+
 	   END
 
     END
@@ -5162,7 +5191,7 @@ DECLARE @GradientRightAdvisoryHighlight VARCHAR(7) = (SELECT ISNULL(NULLIF([Grad
 DECLARE @GradientRightInfoHighlight VARCHAR(7) = (SELECT ISNULL(NULLIF([GradientRightHtmlColor],''''),CASE WHEN @Theme = ''LIGHT'' THEN ''#000000'' ELSE ''#FFFFFF'' END) FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[ModuleWarnings] WHERE [WarningLevel] = 3);
 DECLARE @TableTail VARCHAR(65) = ''</table><p><A HREF = "#Warnings">Back to Top</a><p>'';
 DECLARE @TableHeaderColour VARCHAR(7) 
-DECLARE @ServerSummaryHeader VARCHAR(MAX) = ''<A NAME = "Warnings"></a><b>SQLUndercover Inspector Build: ''+@InspectorBuild+''<div style="text-align: right;"><b>Report date:</b> ''+CONVERT(VARCHAR(17),GETDATE(),113)+''</div><hr><p>Server Summary:</b><br></br>'';
+DECLARE @ServerSummaryHeader VARCHAR(MAX) = ''<A NAME = "Warnings"></a><b>SQLUndercover Inspector Build: ''+@InspectorBuild+''<div style="text-align: right;"><b>Report date:</b> ''+CONVERT(VARCHAR(17),GETDATE(),113)+''<p><b>No clutter mode:</b> ''+CASE WHEN @NoClutter = 1 THEN ''On'' ELSE ''Off'' END+''</div><hr><p>Server Summary:</b><br></br>'';
 DECLARE @ServerSummaryFontColour VARCHAR(30)
 DECLARE @DriveLetterExcludes VARCHAR(10) = (SELECT REPLACE(REPLACE([Value],'':'',''''),''\'','''') FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Settings] WHERE [Description] = ''DriveSpaceDriveLetterExcludes'');
 DECLARE @DisabledModules VARCHAR(2000)
@@ -5218,7 +5247,7 @@ IF @CatalogueInstalled = 1
 BEGIN 
 	EXEC sp_executesql N''SELECT @CatalogueBuild = [ParameterValue] FROM [Catalogue].[ConfigPoSH] WHERE [ParameterName] = ''''CatalogueVersion'''';'',N''@CatalogueBuild VARCHAR(10) OUTPUT'',@CatalogueBuild = @CatalogueBuild OUTPUT
 	EXEC sp_executesql N''SELECT TOP 1 @CatalogueLastExecution = [ExecutionDate] FROM [Catalogue].[ExecutionLog] WHERE [CompletedSuccessfully] = 1 ORDER BY [ID] DESC;'',N''@CatalogueLastExecution DATETIME OUTPUT'',@CatalogueLastExecution = @CatalogueLastExecution OUTPUT
-	SET @ServerSummaryHeader = ''<A NAME = "Warnings"></a><b>SQLUndercover Inspector Build: ''+ISNULL(@InspectorBuild,'''')+''<p><b>SQLUndercover Catalogue Build: ''+ISNULL(@CatalogueBuild,'''')+ISNULL(CASE WHEN @CatalogueBuild < @MinCatalogueBuild THEN '' (Incompatible)'' ELSE'''' END,'''')+''</b><div style="text-align: right;"><b>Catalogue last executed: ''+ISNULL(CONVERT(VARCHAR(17),NULLIF(@CatalogueLastExecution,''1900-01-01 00:00:00.000''),113),''N/A'')+''</b><p><b>Report date:</b> ''+CONVERT(VARCHAR(17),GETDATE(),113)+''</div><hr><p>Server Summary:</b><br></br>'';
+	SET @ServerSummaryHeader = ''<A NAME = "Warnings"></a><b>SQLUndercover Inspector Build: ''+ISNULL(@InspectorBuild,'''')+''<p><b>SQLUndercover Catalogue Build: ''+ISNULL(@CatalogueBuild,'''')+ISNULL(CASE WHEN @CatalogueBuild < @MinCatalogueBuild THEN '' (Incompatible)'' ELSE'''' END,'''')+''</b><div style="text-align: right;"><b>Catalogue last executed: ''+ISNULL(CONVERT(VARCHAR(17),NULLIF(@CatalogueLastExecution,''1900-01-01 00:00:00.000''),113),''N/A'')+''</b><p><b>Report date:</b> ''+CONVERT(VARCHAR(17),GETDATE(),113)+''<p><b>No clutter mode:</b> ''+CASE WHEN @NoClutter = 1 THEN ''On'' ELSE ''Off'' END+''</div><hr><p>Server Summary:</b><br></br>'';
 END
 
 --Build beginning of the HTML 
