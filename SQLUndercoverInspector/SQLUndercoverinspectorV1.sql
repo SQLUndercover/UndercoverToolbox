@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 08/04/2019
+Revision date: 16/04/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -472,6 +472,28 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				ALTER TABLE [Inspector].[AGCheck] ADD [FailoverReady] BIT;
 			END
 			 
+			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.AGCheck') AND [name] = 'ReplicaRole')
+			BEGIN 
+				ALTER TABLE [Inspector].[AGCheck] ADD [ReplicaRole] NVARCHAR(60) NULL;
+			END
+
+
+			IF OBJECT_ID('Inspector.AGCheckConfig') IS NULL
+			BEGIN
+			CREATE TABLE [Inspector].[AGCheckConfig] (
+			[AGname] NVARCHAR(128) NOT NULL,
+			[AGReplicaCount] TINYINT NOT NULL,
+			[FailoverReadyNodeCount] TINYINT NOT NULL,
+			[FailoverReadyNodePercentCount] AS CASE 
+													WHEN [FailoverReadyNodeCount] > 10 
+													THEN CASE
+															WHEN CAST(ROUND([AGReplicaCount] * (CAST(FailoverReadyNodeCount AS DECIMAL(4,2))/100),0) AS TINYINT) < 1 THEN 1 
+															ELSE CAST(ROUND([AGReplicaCount] * (CAST(FailoverReadyNodeCount AS DECIMAL(4,2))/100),0) AS TINYINT) 
+														 END
+											   END,
+			CONSTRAINT [PK_AGCheckConfig_AGname] PRIMARY KEY CLUSTERED (AGname)
+			);
+			END
 			
 			IF OBJECT_ID('Inspector.DatabaseFiles') IS NULL
 			CREATE TABLE [Inspector].[DatabaseFiles]
@@ -2090,7 +2112,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 09/04/2019
+--Revision date: 16/04/2019
 
 SET NOCOUNT ON;
 
@@ -2103,22 +2125,33 @@ WHERE Servername = @Servername;
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
 
-INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheck] ([Servername], [Log_Date], [AGname], [State], [ReplicaServername], [Suspended], [SuspendReason], [FailoverReady])
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheck] ([Servername], [Log_Date], [AGname], [State], [ReplicaServername], [Suspended], [SuspendReason], [FailoverReady], [ReplicaRole])
 SELECT DISTINCT
 @Servername,
 GETDATE(),
 Groups.name AS AGNAME,
 States.synchronization_health_desc,
-Replicas.replica_server_name COLLATE DATABASE_DEFAULT +'' ('' + CAST(States.role_desc AS NCHAR(1)) +'')'',
+Replicas.replica_server_name,
 ReplicaStates.is_suspended,
 ISNULL(ReplicaStates.suspend_reason_desc,''N/A'') AS suspend_reason_desc,
-FailoverReady.is_failover_ready
+FailoverReady.is_failover_ready,
+States.role_desc
 FROM sys.availability_groups Groups
 INNER JOIN sys.dm_hadr_availability_replica_states as States ON States.group_id = Groups.group_id
 INNER JOIN sys.availability_replicas as Replicas ON States.replica_id = Replicas.replica_id
 INNER JOIN sys.dm_hadr_database_replica_cluster_states FailoverReady ON Replicas.replica_id = FailoverReady.replica_id
-INNER JOIN sys.dm_hadr_database_replica_states as ReplicaStates ON Replicas.replica_id = ReplicaStates.replica_id
+INNER JOIN sys.dm_hadr_database_replica_states as ReplicaStates ON Replicas.replica_id = ReplicaStates.replica_id;
 
+
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheckConfig] ([AGname],[AGReplicaCount],[FailoverReadyNodeCount])
+SELECT 
+Groups.[name],
+COUNT([name]),
+2
+FROM sys.availability_groups Groups
+INNER JOIN sys.availability_replicas as Replicas ON Groups.group_id = Replicas.group_id
+WHERE NOT EXISTS (SELECT 1 FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheckConfig] WHERE [AGname] = Groups.[name])
+GROUP BY Groups.[name];
 
 END 
 ELSE 
@@ -4318,7 +4351,7 @@ N''@EnabledCount INT OUTPUT'',@EnabledCount = @PreReqsEnabled OUTPUT
 
 IF @PreReqsEnabled < 4
 BEGIN 
-	RAISERROR(''PreRequisites for this module are not enabled in the Catalogue'',0,0) WITH NOWAIT;
+	RAISERROR(''PreRequisites for the Catalogue Missing Logins module are not enabled in the Catalogue'',0,0) WITH NOWAIT;
 	RETURN;
 END 
 
@@ -5605,9 +5638,11 @@ BEGIN
     <td bgcolor=''+@TableHeaderColour+''><b>AG name</b></td>
     <td bgcolor=''+@TableHeaderColour+''><b>State</b></td>
     <td bgcolor=''+@TableHeaderColour+''><b>Replica Server Name</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Replica Role</b></td>
 	<td bgcolor=''+@TableHeaderColour+''><b>Failover Ready</b></td>
     <td bgcolor=''+@TableHeaderColour+''><b>Suspended</b></td>
     <td bgcolor=''+@TableHeaderColour+''><b>Suspend Reason</b></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Failover Ready Threshold</b></td>
     '';
 
 	IF (SELECT MAX(Log_Date) 
@@ -5617,26 +5652,45 @@ BEGIN
 		SET @BodyAGCheck = (
 		SELECT 
 		CASE 
-			WHEN @WarningLevel IS NULL AND (([State] != ''HEALTHY'' AND [State] != ''N/A'' ) OR [FailoverReady] = 0) THEN @WarningHighlight
-			WHEN @WarningLevel = 1 AND (([State] != ''HEALTHY'' AND [State] != ''N/A'') OR [FailoverReady] = 0) THEN @WarningHighlight
-			WHEN @WarningLevel = 2 AND (([State] != ''HEALTHY'' AND [State] != ''N/A'') OR [FailoverReady] = 0) THEN @AdvisoryHighlight
-			WHEN @WarningLevel = 3 AND (([State] != ''HEALTHY'' AND [State] != ''N/A'') OR [FailoverReady] = 0) THEN @InfoHighlight
+			WHEN @WarningLevel IS NULL AND (([AGCheck].[State] != ''HEALTHY'' AND [AGCheck].[State] != ''N/A'' ) OR ([FailoverReadyCount] < ISNULL([FailoverReadyNodeCount],2)) AND [AGCheck].[ReplicaServername] = @Serverlist AND [AGCheck].[ReplicaRole] = N''PRIMARY'') THEN @WarningHighlight
+			WHEN @WarningLevel = 1 AND (([AGCheck].[State] != ''HEALTHY'' AND [AGCheck].[State] != ''N/A'') OR ([FailoverReadyCount] < ISNULL([FailoverReadyNodeCount],2)) AND [AGCheck].[ReplicaServername] = @Serverlist AND [AGCheck].[ReplicaRole] = N''PRIMARY'') THEN @WarningHighlight
+			WHEN @WarningLevel = 2 AND (([AGCheck].[State] != ''HEALTHY'' AND [AGCheck].[State] != ''N/A'') OR ([FailoverReadyCount] < ISNULL([FailoverReadyNodeCount],2)) AND [AGCheck].[ReplicaServername] = @Serverlist AND [AGCheck].[ReplicaRole] = N''PRIMARY'') THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 3 AND (([AGCheck].[State] != ''HEALTHY'' AND [AGCheck].[State] != ''N/A'') OR ([FailoverReadyCount] < ISNULL([FailoverReadyNodeCount],2)) AND [AGCheck].[ReplicaServername] = @Serverlist AND [AGCheck].[ReplicaRole] = N''PRIMARY'') THEN @InfoHighlight
 			ELSE ''#FFFFFF''
 		END AS [@bgcolor],
-		Servername  AS ''td'','''', +
-		AGname AS ''td'','''', +
-		[State] AS ''td'','''', +
-		ISNULL([ReplicaServername],''N/A'') AS ''td'','''', +
-		CASE WHEN [FailoverReady] = 1 THEN ''Y'' 
-		WHEN [FailoverReady] = 0 THEN ''N''
-		ELSE ''N/A'' END AS ''td'','''', +
-		CASE WHEN [Suspended] = 1 THEN ''Y'' 
-		WHEN [Suspended] = 0 THEN ''N''
-		ELSE ''N/A'' END AS ''td'','''', +
-		ISNULL([SuspendReason],''N/A'') AS ''td'',''''
+		[AGCheck].Servername  AS ''td'','''', +
+		[AGCheck].[AGname]  AS ''td'','''', +
+		[AGCheck].[State]  AS ''td'','''', +
+		ISNULL([AGCheck].[ReplicaServername],''N/A'') AS ''td'','''', +
+		ISNULL([AGCheck].[ReplicaRole],''N/A'') AS ''td'','''', +
+		CASE 
+			WHEN [AGCheck].[FailoverReady] = 1 THEN ''Y'' 
+			WHEN [AGCheck].[FailoverReady] = 0 THEN ''N''
+			ELSE ''N/A'' 
+		END AS ''td'','''', +
+		CASE 
+			WHEN [AGCheck].[Suspended] = 1 THEN ''Y'' 
+			WHEN [AGCheck].[Suspended] = 0 THEN ''N''
+			ELSE ''N/A'' 
+		END  AS ''td'','''', +
+		ISNULL([AGCheck].[SuspendReason],''N/A'') AS ''td'','''', +
+		ISNULL([FailoverReadyNodeCount],2) AS ''td'',''''
 		FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck]
-		WHERE Servername = @Serverlist
-		ORDER BY AGname ASC,ReplicaServername ASC
+		INNER JOIN (SELECT AGname, COUNT(AGname) AS FailoverReadyCount 
+					FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheck] 
+					WHERE [FailoverReady] = 1 AND [Servername] = @Serverlist 
+					GROUP BY AGname) AS FailoverReadyCounts 
+					ON FailoverReadyCounts.AGname = [AGCheck].AGname
+		LEFT JOIN (SELECT 
+					AGname,
+					CASE 
+						WHEN [FailoverReadyNodeCount] > 10 THEN [FailoverReadyNodePercentCount]
+						ELSE [FailoverReadyNodeCount]
+					END AS [FailoverReadyNodeCount]
+					FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[AGCheckConfig]) AS FailoverReadyConfig
+					ON [FailoverReadyConfig].[AGname] = [AGCheck].[AGname]
+		WHERE [AGCheck].[Servername] = @Serverlist
+		ORDER BY [AGCheck].[AGname] ASC,[AGCheck].[ReplicaServername] ASC
 		FOR XML PATH(''tr''),ELEMENTS);
 	END
 	ELSE
@@ -5651,6 +5705,8 @@ BEGIN
 		END AS [@bgcolor],
 		@Serverlist  AS ''td'','''', +
 		''Data collection out of date'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
 		''N/A'' AS ''td'','''', +
 		''N/A'' AS ''td'','''', +
 		''N/A'' AS ''td'','''', +
