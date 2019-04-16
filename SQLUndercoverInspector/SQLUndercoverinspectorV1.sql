@@ -2150,7 +2150,7 @@ COUNT([name]),
 2
 FROM sys.availability_groups Groups
 INNER JOIN sys.availability_replicas as Replicas ON Groups.group_id = Replicas.group_id
-WHERE NOT EXISTS (SELECT 1 FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheckConfig] WHERE [AGname] = Groups.[name])
+WHERE NOT EXISTS (SELECT 1 FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheckConfig] WHERE [AGname] = Groups.[name] COLLATE DATABASE_DEFAULT)
 GROUP BY Groups.[name];
 
 END 
