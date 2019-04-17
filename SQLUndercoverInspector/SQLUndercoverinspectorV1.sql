@@ -494,7 +494,23 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			CONSTRAINT [PK_AGCheckConfig_AGname] PRIMARY KEY CLUSTERED (AGname)
 			);
 			END
+
+
+			SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+			--Populate AGCheckConfig
+			INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheckConfig] ([AGname],[AGReplicaCount],[FailoverReadyNodeCount])
+			SELECT 
+			Groups.[name],
+			COUNT([name]),
+			2
+			FROM sys.availability_groups Groups
+			INNER JOIN sys.availability_replicas as Replicas ON Groups.group_id = Replicas.group_id
+			WHERE NOT EXISTS (SELECT 1 FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheckConfig] WHERE [AGname] = Groups.[name] COLLATE DATABASE_DEFAULT)
+			GROUP BY Groups.[name];
+			'
+			EXEC(@SQLStatement);
 			
+
 			IF OBJECT_ID('Inspector.DatabaseFiles') IS NULL
 			CREATE TABLE [Inspector].[DatabaseFiles]
 			(
@@ -1774,7 +1790,8 @@ END
 			(''TopFiveDatabases''),
 			(''ModuleWarningLevel''),
 			(''UnusedLogshipConfig''),
-			(''CatalogueModules'')
+			(''CatalogueModules''),
+			(''AGCheckConfig'')
 			) InspectorTables (Tablename);'
 			END
 			ELSE 
@@ -1815,7 +1832,8 @@ END
 			(''TopFiveDatabases''),
 			(''ModuleWarningLevel''),
 			(''UnusedLogshipConfig''),
-			(''CatalogueModules'')
+			(''CatalogueModules''),
+			(''AGCheckConfig'')
 			) InspectorTables (Tablename);'
 			END
 						
@@ -2142,7 +2160,23 @@ INNER JOIN sys.availability_replicas as Replicas ON States.replica_id = Replicas
 INNER JOIN sys.dm_hadr_database_replica_cluster_states FailoverReady ON Replicas.replica_id = FailoverReady.replica_id
 INNER JOIN sys.dm_hadr_database_replica_states as ReplicaStates ON Replicas.replica_id = ReplicaStates.replica_id;
 
+--Update AG Replica count if it has changed
+UPDATE [AGCheckConfig]
+SET [AGReplicaCount] = [ReplicaCount]
+FROM
+(
+	SELECT 
+	Groups.[name],
+	COUNT([name]) AS ReplicaCount
+	FROM sys.availability_groups Groups
+	INNER JOIN sys.availability_replicas as Replicas ON Groups.group_id = Replicas.group_id
+	GROUP BY Groups.[name]
+) AS ReplicaCounts 
+INNER JOIN '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheckConfig] ON [AGname] = [ReplicaCounts].[name] COLLATE DATABASE_DEFAULT
+WHERE [AGCheckConfig].[AGReplicaCount] != ReplicaCount;
 
+
+--Insert AG Replica counts and base Failover ready node count config count 
 INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheckConfig] ([AGname],[AGReplicaCount],[FailoverReadyNodeCount])
 SELECT 
 Groups.[name],
@@ -3880,7 +3914,7 @@ AS
 BEGIN
 SET NOCOUNT ON;
 
---Revision date: 14/09/2018
+--Revision date: 17/04/2019
 
 SELECT CAST(STUFF(Columnname,1,1,'''') AS VARCHAR(4000)) AS Columnnames
 FROM 
@@ -3889,6 +3923,7 @@ FROM
 	FROM sys.tables
 	INNER JOIN sys.columns ON tables.object_id = columns.object_id
 	WHERE tables.name IN (SELECT Tablename FROM [Inspector].[PSInspectorTables] WHERE Tablename = @Tablename)
+	AND is_computed = 0
 	ORDER BY tables.name ASC,columns.column_id ASC
 	FOR XML PATH('''')
 ) AS ColumnList (Columnname)
@@ -4285,7 +4320,7 @@ CREATE PROCEDURE [Inspector].[PSGetSettingsTables]
 @PSCollection BIT = 0 --If its a powershell collection ensure that the WarningLevel table is populated
 )
 AS 
---Revision date: 09/04/2019
+--Revision date: 17/04/2019
 
 --Config for Powershell collection use only
 --TruncateTable - 0 Delete contents, 1 Truncate table
@@ -4309,14 +4344,14 @@ BEGIN
 	IF @SortOrder = 0 
 	BEGIN 
 		SELECT Tablename,TruncateTable,ReseedTable 
-		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''Modules'',0,1),(7,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		FROM (VALUES(1,''Settings'',1,1),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''Modules'',0,1),(7,''ModuleWarningLevel'',0,0),(8,''AGCheckConfig'',1,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder ASC;
 	END
 
 	IF @SortOrder = 1 
 	BEGIN 
 		SELECT Tablename,TruncateTable,ReseedTable 
-		FROM (VALUES(1,''Settings'',0,0),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''Modules'',0,1),(7,''ModuleWarningLevel'',0,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		FROM (VALUES(1,''Settings'',1,1),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''Modules'',0,1),(7,''ModuleWarningLevel'',0,0),(8,''AGCheckConfig'',1,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder DESC;
 	END
 
