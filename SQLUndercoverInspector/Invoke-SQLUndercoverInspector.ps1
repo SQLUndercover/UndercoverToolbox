@@ -228,7 +228,7 @@ function Invoke-SQLUndercoverInspector {
                     switch ($_.ReseedTable) {
                         { $_ -eq 1 } {
                         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Appending Reseed indentity command for table [Inspector].[$SettingsTableName]"
-                        $TruncateDeleteQry = $TruncateDeleteQry + " DBCC CHECKIDENT ('Inspector.$SettingsTableName', RESEED, 0);" 
+                        $TruncateDeleteQry = $TruncateDeleteQry + " DBCC CHECKIDENT ('Inspector.$SettingsTableName', RESEED, 1);" 
                         }
                         }
                     $ConnectionCurrent.Query($TruncateDeleteQry)
@@ -241,8 +241,13 @@ function Invoke-SQLUndercoverInspector {
                     $SettingsTableName = $_
                     $WriteTableOptions.Table = $SettingsTableName
 
+                    
                     Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Syncing data for table [Inspector].[$SettingsTableName]"
+
+                    IF ($(Get-Variable $("Central$($SettingsTableName)") -ValueOnly).count -ne 0) {
                     Write-DbaDataTable @WriteTableOptions -InputObject $(Get-Variable $("Central$($SettingsTableName)") -ValueOnly)
+                    }
+
                 }
             Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Finished settings sync"
             }   
