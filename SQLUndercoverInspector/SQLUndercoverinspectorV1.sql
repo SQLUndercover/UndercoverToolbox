@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 16/04/2019
+Revision date: 24/04/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -138,7 +138,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 08/04/2019
+--Revision date: 24/04/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -1009,8 +1009,20 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				CREATE CLUSTERED INDEX [CIX_Servername_Databasename] ON [Inspector].[BackupsCheckExcludes]
 				([Servername] ASC,[Databasename] ASC);
 			END
-
-
+			
+			
+			IF OBJECT_ID('Inspector.AGPrimaryHistory') IS NULL
+			BEGIN			
+				CREATE TABLE [Inspector].[AGPrimaryHistory](
+				[Log_Date] DATETIME NULL,
+				[CollectionDateTime] DATETIME NULL,
+				[Servername] NVARCHAR(128) NULL,
+				[AGname] NVARCHAR(128) NULL
+				);		
+			END
+			
+					
+			
 		    IF OBJECT_ID('Inspector.CatalogueModules') IS NULL
 			BEGIN
 				CREATE TABLE [Inspector].[CatalogueModules] (
@@ -1102,6 +1114,20 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				SET [Value] = 'http://bit.ly/InspectorEmailBanner'
 				WHERE [Description] = 'EmailBannerURL';
 			END
+			
+			--New Setting for V1.4
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'AGPrimaryHistoryRetentionPeriodInDays')
+			BEGIN
+				INSERT INTO [Inspector].[Settings] ([Description],[Value])
+				VALUES ('AGPrimaryHistoryRetentionPeriodInDays','90');
+			END
+			ELSE 
+				BEGIN
+					UPDATE [Inspector].[Settings] 
+					SET [Value] = '90'
+					WHERE [Description] = 'AGPrimaryHistoryRetentionPeriodInDays'
+				END			
+			
 
 			
 			IF OBJECT_ID('Inspector.Modules') IS NOT NULL 
@@ -1177,6 +1203,7 @@ EXEC sp_executesql N'
 INSERT INTO [Inspector].[Settings] ([Description],[Value])
 VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''DriveSpaceRetentionPeriodInDays'',@DriveSpaceHistoryRetentionInDays),
+		(''AGPrimaryHistoryRetentionPeriodInDays'',''90''),
 		(''FullBackupThreshold'',@FullBackupThreshold),
 		(''DiffBackupThreshold'',@DiffBackupThreshold),
 		(''LogBackupThreshold'' ,@LogBackupThreshold),
@@ -1791,7 +1818,8 @@ END
 			(''ModuleWarningLevel''),
 			(''UnusedLogshipConfig''),
 			(''CatalogueModules''),
-			(''AGCheckConfig'')
+			(''AGCheckConfig''),
+			(''AGPrimaryHistory'')
 			) InspectorTables (Tablename);'
 			END
 			ELSE 
@@ -1833,7 +1861,8 @@ END
 			(''ModuleWarningLevel''),
 			(''UnusedLogshipConfig''),
 			(''CatalogueModules''),
-			(''AGCheckConfig'')
+			(''AGCheckConfig''),
+			(''AGPrimaryHistory'')
 			) InspectorTables (Tablename);'
 			END
 						
@@ -1927,6 +1956,16 @@ END
 			[VersionNo] NVARCHAR(50) NULL,
 			[Edition] NVARCHAR(128) NULL
 			);
+			
+			IF OBJECT_ID('Inspector.PSAGPrimaryHistoryStage') IS NULL
+			BEGIN			
+				CREATE TABLE [Inspector].[PSAGPrimaryHistoryStage](
+				[Log_Date] DATETIME NULL,
+				[CollectionDateTime] DATETIME NULL,
+				[Servername] NVARCHAR(128) NULL,
+				[AGname] NVARCHAR(128) NULL
+				);		
+			END			
 		
 
 			--Drop procedures for recreation
@@ -2063,6 +2102,10 @@ END
 
 			IF OBJECT_ID('Inspector.PSHistCleanup') IS NOT NULL
 			DROP PROCEDURE [Inspector].[PSHistCleanup];
+
+			IF OBJECT_ID('Inspector.PSGetAGPrimaryHistoryStage') IS NOT NULL
+			DROP PROCEDURE [Inspector].[PSGetAGPrimaryHistoryStage];
+			
 			
 			
 
@@ -2130,15 +2173,42 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 16/04/2019
+--Revision date: 24/04/2019
 
 SET NOCOUNT ON;
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
+DECLARE @PrimaryHistoryRetention INT = (SELECT ISNULL(NULLIF([Value],''''),90) From '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] Where Description = ''AGPrimaryHistoryRetentionPeriodInDays'');
+
+INSERT INTO '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGPrimaryHistory] ([Log_Date], [CollectionDateTime], [Servername], [AGname])
+--Is this server now a primary since the last Inspector collection
+SELECT 
+[Log_Date],
+GETDATE(),
+@Servername,
+[AGname]
+FROM sys.dm_hadr_availability_group_states States
+INNER JOIN sys.availability_groups Groups ON States.group_id = Groups.group_id
+INNER JOIN (SELECT [Log_Date],[AGname]
+			FROM [Inspector].[AGCheck]
+			WHERE [ReplicaServername] = @Servername
+			AND [ReplicaRole] = N''SECONDARY''
+			) AS SecondaryCheck ON [Groups].[name] = [SecondaryCheck].[AGname]
+WHERE States.primary_replica = @Servername
+AND NOT EXISTS (SELECT 1 
+				FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGPrimaryHistory] 
+				WHERE [AGPrimaryHistory].[Log_Date] = [SecondaryCheck].[Log_Date]
+				AND [AGPrimaryHistory].[AGname] = [SecondaryCheck].[AGname] 
+				AND [AGPrimaryHistory].[Servername] = @Servername)
 
 DELETE 
 FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGCheck]
 WHERE Servername = @Servername;
+
+DELETE 
+FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGPrimaryHistory]
+WHERE Servername = @Servername
+AND [Log_Date] <= DATEADD(DAY,-@PrimaryHistoryRetention,GETDATE());
 
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
@@ -3954,7 +4024,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 )
 AS
 BEGIN
---Revision date: 14/09/2018
+--Revision date: 24/04/2019
 --TableAction: 1 delete, 2 delete with retention, 3 Stage/merge
 --InsertAction: 1 ALL, 2 Todays'' data only
 
@@ -3972,6 +4042,8 @@ BEGIN
 		THEN ''DatabaseFileSizes,DatabaseFileSizeHistory''
 		WHEN [PSEnabledModules].[Module] = ''ADHocDatabaseCreations''
 		THEN ''ADHocDatabaseCreations,ADHocDatabaseSupression''
+		WHEN [PSEnabledModules].[Module] = ''AGCheck''
+		THEN ''AGCheck,AGPrimaryHistory''
 		ELSE [PSEnabledModules].[Module]
 	END AS Tablename,
 	CASE
@@ -3981,11 +4053,15 @@ BEGIN
 		THEN ''PSADHocDatabaseCreationsStage,PSADHocDatabaseSupressionStage''
 		WHEN [PSEnabledModules].[Module] = ''DatabaseGrowths''
 		THEN ''PSDatabaseFileSizesStage,PSDatabaseFileSizeHistoryStage''
+		WHEN [PSEnabledModules].[Module] = ''AGCheck''
+		THEN ''N/A,PSAGPrimaryHistoryStage''
 		ELSE NULL
 	END AS StageTablename,
 	CASE
 		WHEN [PSEnabledModules].[Module] IN (''AGDatabases'', ''DriveSpace'', ''DatabaseGrowths'', ''ADHocDatabaseCreations'')
 		THEN ''PSGet''+[PSEnabledModules].[Module]+''Stage''
+		WHEN [PSEnabledModules].[Module] = ''AGCheck''
+		THEN ''N/A,PSGetAGPrimaryHistoryStage''
 		ELSE NULL
 	END AS StageProcname,
 	CASE
@@ -3993,6 +4069,8 @@ BEGIN
 		THEN ''3''
 		WHEN [PSEnabledModules].[Module] IN (''ADHocDatabaseCreations'',''DatabaseGrowths'')
 		THEN ''3,3''
+		WHEN [PSEnabledModules].[Module] = ''AGCheck''
+		THEN ''1,3''
 		ELSE ''1''
 	END AS TableAction, --1 delete, 2 delete with retention, 3 Stage/merge
 	CASE
@@ -4002,6 +4080,8 @@ BEGIN
 		THEN ''1,1''
 		WHEN [PSEnabledModules].[Module] = ''DatabaseGrowths''
 		THEN ''1,2''
+		WHEN [PSEnabledModules].[Module] = ''AGCheck''
+		THEN ''2,2''
 		ELSE ''2''
 	END AS InsertAction, --1 ALL, 2 Todays'' data only
 	CASE 
@@ -4290,6 +4370,30 @@ END'
 
 EXEC(@SQLStatement);
 
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[PSGetAGPrimaryHistoryStage]
+(
+@Servername NVARCHAR(128)
+)
+AS 
+BEGIN
+--Revision date: 24/04/2019
+
+SET NOCOUNT ON;
+
+--Insert growth events
+INSERT INTO [Inspector].[AGPrimaryHistory] ([Log_Date], [CollectionDateTime], [Servername], [AGname])
+SELECT [Log_Date], [CollectionDateTime], [Servername], [AGname]
+FROM [Inspector].[PSAGPrimaryHistoryStage] PSStage
+WHERE NOT EXISTS (SELECT 1 
+				FROM [Inspector].[AGPrimaryHistory] Base 
+				WHERE PSStage.[AGname] = Base.[AGname]
+				AND Base.[Servername] = PSStage.[Servername]
+				AND PSStage.Log_Date = Base.Log_Date)
+
+END'
+
+EXEC(@SQLStatement);
 
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
@@ -5093,7 +5197,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 05/04/2019
+--Revision date: 24/04/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.4
 
@@ -5662,8 +5766,10 @@ BEGIN
 								 END;
 
 	DECLARE @BodyAGCheck VARCHAR(MAX)
+	DECLARE @BodyFailoverCheck VARCHAR(4000) = ''''
 	DECLARE @TableHeadAGCheck VARCHAR(1000)
 	DECLARE @CountAGCheck INT
+	DECLARE @CountAGFailover INT = 0
 	
 	SET @TableHeadAGCheck = ''
     <b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''"></a>Availability Group Health Check</b>
@@ -5727,6 +5833,44 @@ BEGIN
 		WHERE [AGCheck].[Servername] = @Serverlist
 		ORDER BY [AGCheck].[AGname] ASC,[AGCheck].[ReplicaServername] ASC
 		FOR XML PATH(''tr''),ELEMENTS);
+		
+		--Failover check added in V1.4
+		IF (SELECT MAX(CollectionDateTime)
+		FROM [Inspector].[AGPrimaryHistory]
+		WHERE [Servername] = @Serverlist) >= CAST(GETDATE() AS DATE) 
+		BEGIN 
+			SET @BodyFailoverCheck = ''
+			<p><BR><p>
+			<b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''AgFailover''+''"></a>New Primary servers in the last 24 hours</b>
+			<br> <table cellpadding=0 cellspacing=0 border=0> 
+			<tr> 
+			<td bgcolor=''+@TableHeaderColour+''><b>Previously checked</b></td>
+			<td bgcolor=''+@TableHeaderColour+''><b>Last checked</b></td>
+			<td bgcolor=''+@TableHeaderColour+''><b>AG name</b></td>
+			<td bgcolor=''+@TableHeaderColour+''><b>Primary Replica</b></td>
+			''
+			
+			SET @BodyFailoverCheck +=
+			(SELECT 
+			 CASE 
+				WHEN @WarningLevel IS NULL THEN @WarningHighlight
+				WHEN @WarningLevel = 1 THEN @WarningHighlight
+				WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
+				WHEN @WarningLevel = 3 THEN @InfoHighlight
+			 	ELSE ''#FFFFFF''
+			 END AS [@bgcolor],
+			 CONVERT(VARCHAR(17),[Log_Date],113) AS ''td'','''', +
+			 CONVERT(VARCHAR(17),[CollectionDateTime],113) AS ''td'','''', +
+			 [AGname] AS ''td'','''', +
+			 [Servername] AS ''td'',''''
+			 FROM [Inspector].[AGPrimaryHistory]
+			 WHERE [Servername] = @Serverlist
+			 AND [CollectionDateTime] >= DATEADD(DAY,-1,GETDATE())
+			 ORDER BY [AGname] ASC, [Servername] ASC
+			 FOR XML PATH(''tr''),ELEMENTS);
+
+			 SET @BodyFailoverCheck += ISNULL(@TableTail,'''') + ''<p><BR><p>''
+		END		
 	END
 	ELSE
 	BEGIN
@@ -5763,6 +5907,11 @@ BEGIN
 		ELSE ISNULL(@TableHeadAGCheck, '''') + ISNULL(@BodyAGCheck, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 	END
 
+	
+	--Append the FailoverCheck info
+	SELECT @EmailBody = @EmailBody + ISNULL(@BodyFailoverCheck,'''');
+
+	
 	--Populate Alert header (Default Warning Level)
 	IF (@WarningLevel = 1 OR @WarningLevel IS NULL)
 	BEGIN 
@@ -5776,6 +5925,19 @@ BEGIN
 			END
 			SET @Importance = ''High'' 
 			SET @TotalWarningCount = @TotalWarningCount + @CountAGCheck
+		END
+
+
+		IF @BodyFailoverCheck LIKE ''%''+@WarningHighlight+''%''
+		BEGIN
+			SET @CountAGFailover = (LEN(@BodyFailoverCheck) - LEN(REPLACE(@BodyFailoverCheck,@WarningHighlight, '''')))/LEN(@WarningHighlight)
+			SELECT @AlertHeader = @AlertHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgFailover''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGFailover AS VARCHAR(5))+'') AG Failovers</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgFailover''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGFailover AS VARCHAR(5))+'') AG Failovers <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @Importance = ''High'' 
+			SET @TotalWarningCount = @TotalWarningCount + @CountAGFailover
 		END
 	END
 	
@@ -5792,6 +5954,18 @@ BEGIN
 			END
 			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountAGCheck
 		END
+
+
+		IF @BodyFailoverCheck LIKE ''%''+@AdvisoryHighlight+''%''
+		BEGIN
+			SET @CountAGFailover = (LEN(@BodyFailoverCheck) - LEN(REPLACE(@BodyFailoverCheck,@AdvisoryHighlight, '''')))/LEN(@AdvisoryHighlight)
+			SELECT @AdvisoryHeader = @AdvisoryHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgFailover''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGFailover AS VARCHAR(5))+'') AG Failovers</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgFailover''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGFailover AS VARCHAR(5))+'') AG Failovers <b>(Data collection out of Date)</b></font><p>''  
+			END
+			SET @TotalAdvisoryCount = @TotalAdvisoryCount + @CountAGFailover
+		END
 	END
 	
 	--Populate Info header 
@@ -5806,10 +5980,22 @@ BEGIN
 				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGCheck AS VARCHAR(5))+'') AG Warnings <b>(Data collection out of Date)</b></font><p>''  
 			END
 		END
-	
+
+
+		IF @BodyFailoverCheck LIKE ''%''+@InfoHighlight+''%''
+		BEGIN 
+			SET @CountAGFailover = (LEN(@BodyFailoverCheck) - LEN(REPLACE(@BodyFailoverCheck,@InfoHighlight, '''')))/LEN(@InfoHighlight)
+			SELECT @InfoHeader = @InfoHeader + 
+			CASE 
+				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGFailover AS VARCHAR(5))+'') AG Failovers</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Serverlist,''\'','''')+''AgWarnings''+''">''+@Serverlist+''</a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAGFailover AS VARCHAR(5))+'') AG Failovers <b>(Data collection out of Date)</b></font><p>''  
+			END
+		END
+			
 	END
 
 END 
+
 
 
 IF @SuspectPages  = 1
