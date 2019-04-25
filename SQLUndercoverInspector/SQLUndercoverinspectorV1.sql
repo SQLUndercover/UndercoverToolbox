@@ -2193,7 +2193,7 @@ INNER JOIN (SELECT [Log_Date],[AGname]
 			FROM [Inspector].[AGCheck]
 			WHERE [ReplicaServername] = @Servername
 			AND [ReplicaRole] = N''SECONDARY''
-			) AS SecondaryCheck ON [Groups].[name] = [SecondaryCheck].[AGname]
+			) AS SecondaryCheck ON [Groups].[name] = [SecondaryCheck].[AGname] COLLATE DATABASE_DEFAULT
 WHERE States.primary_replica = @Servername
 AND NOT EXISTS (SELECT 1 
 				FROM '+@LinkedServername+'['+@Databasename+'].[Inspector].[AGPrimaryHistory] 
