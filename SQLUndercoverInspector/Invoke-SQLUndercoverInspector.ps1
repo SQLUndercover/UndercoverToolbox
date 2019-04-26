@@ -1,6 +1,10 @@
 #requires -Modules dbatools
 # SON: We'll create a .psm1 a .psd1 file and put the above into the $RequiredModules field there.
 
+#Script version 1.1
+#Revision date: 27/04/2019
+#Minimum Inspector version 1.3
+
 function Invoke-SQLUndercoverInspector {
     [CmdletBinding()]
     param (
@@ -41,7 +45,7 @@ function Invoke-SQLUndercoverInspector {
         $InvalidServers = New-Object -TypeName System.Collections.Generic.List[int]
         $ActiveServers = New-Object -TypeName System.Collections.Generic.List[string]
         $Builds = New-Object -TypeName System.Collections.Generic.List[psobject]
-        #[string]$ModuleConfig = 'NULL' # SON: Has to be a string NULL or is $null okay?
+        
 
         Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] [$CentralServer] - Checking central server connectivity."
         $CentralConnection = Get-DbaDatabase -SqlInstance $CentralServer -Database $LoggingDb -ErrorAction Stop -WarningAction Stop
