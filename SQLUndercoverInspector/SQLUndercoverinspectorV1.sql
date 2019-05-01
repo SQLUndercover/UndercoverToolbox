@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 24/04/2019
+Revision date: 01/05/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -138,7 +138,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 24/04/2019
+--Revision date: 01/05/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -1086,6 +1086,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				VALUES ('LogDrives',@LogDrive);
 			END
 
+			--New setting for V1.4
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'InspectorUpgradeFilenameSync')
+			BEGIN
+				INSERT INTO [Inspector].[Settings] ([Description],[Value]) 
+				VALUES ('InspectorUpgradeFilenameSync',1);
+			END
 
 			--New Setting for 1.2 - Powershell banner.
 			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'PSEmailBannerURL')
@@ -1222,7 +1228,8 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''InspectorBuild'',@Build),
 		(''DriveSpaceDriveLetterExcludes'',@DriveLetterExcludes),
 		(''DataDrives'',@DataDrive),
-		(''LogDrives'',@LogDrive);
+		(''LogDrives'',@LogDrive),
+		(''InspectorUpgradeFilenameSync'',''1'');
 		
 
 INSERT INTO [Inspector].[Modules] (ModuleConfig_Desc,AGCheck,BackupsCheck,BackupSizesCheck,DatabaseGrowthCheck,DatabaseFileCheck,DatabaseOwnershipCheck,
@@ -1316,7 +1323,7 @@ END
 	BEGIN
 	EXEC sp_executesql N'CREATE VIEW [Inspector].[PowerBIBackupsview]
 	AS
-	--Revision Date: 04/02/2019
+	--Revision Date: 01/05/2019
 	WITH RawData AS 
 	(SELECT 
 	Log_Date,
@@ -1392,7 +1399,7 @@ END
 	FullBackupAge,
 	DiffBackupAge,
 	LogBackupAge,
-	AGname,
+	REPLACE(AGname,''Not in an AG'',''Non AG'') AS AGname,
 	GroupingMethod,
 	IsFullRecovery,
 	IsSystemDB,
@@ -1424,7 +1431,7 @@ END
 	BEGIN 
 	EXEC sp_executesql N'ALTER VIEW [Inspector].[PowerBIBackupsview]
 	AS
-	--Revision Date: 04/02/2019
+	--Revision Date: 01/05/2019
 	WITH RawData AS 
 	(SELECT 
 	Log_Date,
@@ -1500,7 +1507,7 @@ END
 	FullBackupAge,
 	DiffBackupAge,
 	LogBackupAge,
-	AGname,
+	REPLACE(AGname,''Not in an AG'',''Non AG'') AS AGname,
 	GroupingMethod,
 	IsFullRecovery,
 	IsSystemDB,
@@ -2070,6 +2077,9 @@ END
 			IF OBJECT_ID('Inspector.SuppressAGDatabase') IS NOT NULL 
 			DROP PROCEDURE [Inspector].[SuppressAGDatabase];
 
+			IF OBJECT_ID('Inspector.DatabaseGrowthFilenameSync') IS NOT NULL 
+			DROP PROCEDURE [Inspector].[DatabaseGrowthFilenameSync];
+			
 			IF OBJECT_ID('Inspector.PSGetColumns') IS NOT NULL
 			DROP PROCEDURE [Inspector].[PSGetColumns];
 
@@ -3974,6 +3984,43 @@ END'
 EXEC(@SQLStatement);
 
 
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[DatabaseGrowthFilenameSync]
+AS
+BEGIN
+
+--Revision date: 01/05/2019
+SET NOCOUNT ON;
+	UPDATE Growths
+	SET [Drive] = [ServerDrives].[Drive]
+	--SELECT 
+	--[Growths].GrowthID,
+	--[Growths].[Database_name],
+	--[Growths].[FileName],
+	--[DatabaseFileSizes].[Filename],
+	--[ServerDrives].[Drive],
+	--[Growths].[Drive]
+	FROM [Inspector].[DatabaseFileSizeHistory] Growths
+	INNER JOIN [Inspector].[DatabaseFileSizes] 
+			ON [DatabaseFileSizes].Servername = [Growths].Servername 
+			AND [DatabaseFileSizes].[Database_name] = [Growths].[Database_name]
+			AND [DatabaseFileSizes].Database_id = [Growths].Database_id
+			AND [DatabaseFileSizes].[Filename] LIKE ''%''+[Growths].[FileName]
+	INNER JOIN (SELECT [Servername],[Drive]
+				FROM [Inspector].[DriveSpace]
+				GROUP BY [Servername],[Drive]
+				) [ServerDrives] ON 
+			[DatabaseFileSizes].Servername = [ServerDrives].[Servername] 
+			AND [DatabaseFileSizes].[Filename] LIKE [ServerDrives].[Drive]+''%''
+	WHERE [Growths].[Drive] IS NULL;
+
+	UPDATE [Inspector].[Settings] 
+	SET [Value] = NULL
+	WHERE [Description] = ''InspectorUpgradeFilenameSync'';
+END'
+
+EXEC(@SQLStatement);
+
 
 SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[PSGetColumns]
@@ -5197,7 +5244,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 24/04/2019
+--Revision date: 01/05/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.4
 
@@ -5273,6 +5320,14 @@ BEGIN
 IF EXISTS (SELECT [ID] FROM ['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[Modules] WHERE ModuleConfig_Desc = @ModuleDesc)
 OR @ModuleDesc IS NULL
 BEGIN
+
+--Check if a database filename resync is required following installation of V1.4 or manually triggered via the setting 
+DECLARE @DatabaseFilenameSync BIT = (SELECT TRY_CONVERT(BIT,ISNULL(NULLIF([Value],''''),1)) FROM [Inspector].[Settings] WHERE [Description] = ''InspectorUpgradeFilenameSync'')
+
+IF (@DatabaseFilenameSync = 1)
+BEGIN 
+	EXEC [Inspector].[DatabaseGrowthFilenameSync];
+END
 
 IF OBJECT_ID(''tempdb.dbo.#TrafficLightSummary'') IS NOT NULL
 DROP TABLE #TrafficLightSummary;
