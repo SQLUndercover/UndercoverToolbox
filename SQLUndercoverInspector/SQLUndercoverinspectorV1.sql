@@ -4071,7 +4071,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 )
 AS
 BEGIN
---Revision date: 24/04/2019
+--Revision date: 01/05/2019
 --TableAction: 1 delete, 2 delete with retention, 3 Stage/merge
 --InsertAction: 1 ALL, 2 Todays'' data only
 
@@ -4123,12 +4123,10 @@ BEGIN
 	CASE
 		WHEN [PSEnabledModules].[Module] IN (''AGDatabases'',''BackupSizesByDay'')
 		THEN ''1''
-		WHEN [PSEnabledModules].[Module] = ''ADHocDatabaseCreations''
+		WHEN [PSEnabledModules].[Module] IN (''ADHocDatabaseCreations'',''AGCheck'')
 		THEN ''1,1''
 		WHEN [PSEnabledModules].[Module] = ''DatabaseGrowths''
 		THEN ''1,2''
-		WHEN [PSEnabledModules].[Module] = ''AGCheck''
-		THEN ''2,2''
 		ELSE ''2''
 	END AS InsertAction, --1 ALL, 2 Todays'' data only
 	CASE 
