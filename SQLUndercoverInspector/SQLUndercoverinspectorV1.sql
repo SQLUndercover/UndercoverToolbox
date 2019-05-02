@@ -7672,7 +7672,7 @@ BEGIN
 		GROUP BY Databasename,AGname,GroupingMethod,IsFullRecovery,IsSystemDB,backup_preference;
 		  
 		  
-		INSERT INTO #Validations (Databasename,AGname,FullState,DiffState,LogState,IsFullRecovery,Serverlist,primary_replica,backup_preference)
+		INSERT INTO #Validations (Databasename,AGname,FullState,DiffState,LogState,IsFullRecovery,Serverlist,primary_replica,backup_preference,NamedInstance)
 		SELECT 
 		Databasename,
 		AGname,
@@ -7700,7 +7700,8 @@ BEGIN
 		CASE IsFullRecovery WHEN 1 THEN ''Y'' ELSE ''N'' END AS IsFullRecovery,
 		STUFF(Serverlist.Serverlist,1,1,'''') AS Serverlist,
 		primary_replica,
-		backup_preference
+		backup_preference,
+		@NamedInstance
 		FROM #Aggregates Aggregates
 		CROSS APPLY (SELECT 
 			CASE 
