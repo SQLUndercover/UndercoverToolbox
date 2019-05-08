@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 01/05/2019
+Revision date: 08/05/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -138,7 +138,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 01/05/2019
+--Revision date: 08/05/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -5242,7 +5242,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 01/05/2019
+--Revision date: 08/05/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.4
 
@@ -7721,30 +7721,45 @@ BEGIN
 		  
 		SET @BodyBackupsReport = (
 		SELECT 
-		@WarningHighlight [@bgcolor], 
-		@Serverlist AS ''td'','''', + 
+		@WarningHighlight AS [@bgcolor],
+		Servername AS ''td'','''', +  
 		Databasename AS ''td'','''', +
 		AGname AS ''td'','''', +
 		FullState AS ''td'','''', +
 		DiffState AS ''td'','''', +
 		LogState AS ''td'','''', +
 		IsFullRecovery AS ''td'','''', +
-		CASE 
-			WHEN backup_preference = ''PRIMARY'' THEN ''Primary only''
-			WHEN backup_preference = ''SECONDARY'' THEN ''Prefer secondary''
-			WHEN backup_preference = ''SECONDARY_ONLY'' THEN ''Secondary only''
-			WHEN backup_preference = ''NONE'' THEN ''Any replica''
-			WHEN backup_preference = ''NON AG'' THEN ''N/A''
-			ELSE backup_preference  
-		END AS ''td'','''', +
-		CASE 
-			WHEN backup_preference = ''SECONDARY_ONLY'' THEN REPLACE(REPLACE(Serverlist,'', ''+@Serverlist,''''),@Serverlist+'', '','''')
-			ELSE Serverlist
-		END AS ''td'',''''
-		FROM #Validations
-		WHERE ([FullState] != ''OK'' OR ([DiffState] != ''OK'' AND [DiffState] != ''N/A'') OR ([LogState] != ''OK'' AND [LogState] != ''N/A''))
-		AND Serverlist like ''%''+@Serverlist+''%''
-		AND NamedInstance = @NamedInstance
+		backup_preference AS ''td'','''', +
+		Serverlist AS ''td'',''''
+		FROM
+		(
+			SELECT
+			@Serverlist AS Servername,
+			Databasename,
+			AGname,
+			FullState,
+			DiffState,
+			LogState,
+			IsFullRecovery,
+			CASE 
+				WHEN backup_preference = ''PRIMARY'' THEN ''Primary only''
+				WHEN backup_preference = ''SECONDARY'' THEN ''Prefer secondary''
+				WHEN backup_preference = ''SECONDARY_ONLY'' THEN ''Secondary only''
+				WHEN backup_preference = ''NONE'' THEN ''Any replica''
+				WHEN backup_preference = ''NON AG'' THEN ''N/A''
+				ELSE backup_preference  
+			END AS backup_preference,
+			CASE --Ensure only the relevant server names are being shown in the Server list
+				WHEN ([FullState] != ''OK'' OR [DiffState] != ''OK'' AND [DiffState] != ''N/A'') AND [LogState] = ''OK'' THEN primary_replica
+				WHEN backup_preference = ''SECONDARY_ONLY'' THEN REPLACE(REPLACE(Serverlist,'', ''+@Serverlist,''''),@Serverlist+'', '','''')
+				ELSE Serverlist
+			END AS Serverlist
+			FROM #Validations
+			WHERE ([FullState] != ''OK'' OR ([DiffState] != ''OK'' AND [DiffState] != ''N/A'') OR ([LogState] != ''OK'' AND [LogState] != ''N/A''))
+			AND Serverlist like ''%''+@Serverlist+''%''
+			AND NamedInstance = @NamedInstance
+		) AS DerivedValidations
+		WHERE (Serverlist = Servername OR Serverlist LIKE ''%''+Servername+''%'')
 		ORDER BY Databasename ASC
 		FOR XML PATH(''tr''),ELEMENTS);
 		  
