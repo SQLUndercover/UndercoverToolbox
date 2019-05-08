@@ -5717,7 +5717,7 @@ BEGIN
 	END AS ''td'','''', + 
 	TotalDriveEntries.TotalEntries  AS ''td'','''', + 
 	STUFF((SELECT TOP 5 '', ['' + DATENAME(WEEKDAY,DATEADD(DAY,-1,SpaceVariation.Log_Date)) + '' '' + CASE WHEN laggedUsedSpace-UsedSpace_GB > 0 THEN ''0''  --DATEADD is used here to display the previous day as the collection date is a day ahead.
-	ELSE CAST(ABS(laggedUsedSpace-UsedSpace_GB) AS VARCHAR(10)) END +'' GB]'' FROM SpaceVariation WHERE SpaceVariation.Drive = TotalDriveEntries.Drive AND SpaceVariation.Servername = TotalDriveEntries.Servername ORDER BY SpaceVariation.Log_Date DESC FOR XML PATH('''')),1,1,'''')  AS ''td'','''', +
+	ELSE CAST(ABS(laggedUsedSpace-UsedSpace_GB) AS VARCHAR(10)) END +'' GB]'' FROM SpaceVariation WHERE SpaceVariation.Drive = TotalDriveEntries.Drive AND SpaceVariation.Servername = TotalDriveEntries.Servername AND SpaceVariation.Log_Date >= DATEADD(DAY,-5,GETDATE()) ORDER BY SpaceVariation.Log_Date DESC FOR XML PATH('''')),1,1,'''')  AS ''td'','''', +
 	FiveDayTotal.SUMFiveDayTotal AS ''td'',''''
 	FROM AverageDailyGrowth
 	INNER JOIN TotalDriveEntries ON TotalDriveEntries.Drive =  AverageDailyGrowth.Drive AND TotalDriveEntries.Servername =  AverageDailyGrowth.Servername
@@ -5733,6 +5733,7 @@ BEGIN
 						FROM SpaceVariation 
 						WHERE SpaceVariation.Drive = TotalDriveEntries.Drive 
 						AND SpaceVariation.Servername = TotalDriveEntries.Servername 
+						AND SpaceVariation.Log_Date >= DATEADD(DAY,-5,GETDATE())
 						ORDER BY SpaceVariation.Log_Date DESC
 					)  AS LastFiveDays 
 				 ) AS FiveDayTotal
