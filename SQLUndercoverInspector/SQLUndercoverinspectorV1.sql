@@ -4422,7 +4422,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 )
 AS 
 BEGIN
---Revision date: 24/04/2019
+--Revision date: 08/05/2019
 
 SET NOCOUNT ON;
 
@@ -4434,7 +4434,7 @@ WHERE NOT EXISTS (SELECT 1
 				FROM [Inspector].[AGPrimaryHistory] Base 
 				WHERE PSStage.[AGname] = Base.[AGname]
 				AND Base.[Servername] = PSStage.[Servername]
-				AND PSStage.Log_Date = Base.Log_Date)
+				AND PSStage.[CollectionDateTime] = Base.[CollectionDateTime])
 
 END'
 
