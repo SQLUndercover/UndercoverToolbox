@@ -8384,7 +8384,7 @@ BEGIN
 		SET @BodyDatabaseSettings =
 		(SELECT 
 		CASE 
-			WHEN @WarningLevel IS NULL THEN @WarningHighlight
+			WHEN @WarningLevel IS NULL THEN @AdvisoryHighlight
 			WHEN @WarningLevel = 1 THEN @WarningHighlight
 			WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
 			WHEN @WarningLevel = 3 THEN @InfoHighlight
@@ -8401,8 +8401,7 @@ BEGIN
 	--Append html table to the report
 	SELECT @EmailBody = @EmailBody + ISNULL(@TableHeadDatabaseSettings,'''') + ISNULL(@BodyDatabaseSettings, '''') + ISNULL(@TableTail,'''') + ''<p><BR><p>'' 
 
-	--Populate Alert header (Default Warning Level)
-	IF (@WarningLevel = 1 OR @WarningLevel IS NULL)
+	IF @WarningLevel = 1 
 	BEGIN 
 		IF @BodyDatabaseSettings LIKE ''%''+@WarningHighlight+''%''
 		BEGIN
@@ -8417,8 +8416,8 @@ BEGIN
 		END
 	END
 	
-	--Populate Advisory header 
-	IF @WarningLevel = 2 
+	--Populate Advisory header (Default Warning Level)
+	IF (@WarningLevel = 2 OR @WarningLevel IS NULL)
 	BEGIN 
 		IF @BodyDatabaseSettings LIKE ''%''+@AdvisoryHighlight+''%''
 		BEGIN
@@ -8433,7 +8432,7 @@ BEGIN
 	END
 	
 	--Populate Info header 
-	IF @WarningLevel = 3
+	IF @WarningLevel = 3 
 	BEGIN 
 		IF @BodyDatabaseSettings LIKE ''%''+@InfoHighlight+''%''
 		BEGIN 
