@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 08/05/2019
+Revision date: 09/05/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -138,7 +138,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 08/05/2019
+--Revision date: 09/05/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -4520,7 +4520,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 @PSCollection BIT
 )
 AS
---Revision date: 15/03/2019
+--Revision date: 09/05/2019
 BEGIN
 SET NOCOUNT ON;
 
@@ -4565,6 +4565,7 @@ WHERE NOT EXISTS (SELECT 1
 					AND AGs3.ServerName = AGs2.ServerName
 					AND Logins3.LoginName = Logins.LoginName)
 AND Logins.LoginName NOT IN (SELECT [LoginName] FROM [Inspector].[CatalogueSIDExclusions] WHERE [AGs].[AGName] = [CatalogueSIDExclusions].[AGName])
+AND Logins.LoginName != ''''sa''''
 AND AGs.LastRecorded >= DATEADD(DAY,-1,GETDATE())
 AND Logins.LastRecorded >= DATEADD(DAY,-1,GETDATE())
 AND AGs2.LastRecorded >= DATEADD(DAY,-1,GETDATE())
