@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 09/05/2019
+Revision date: 14/05/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -115,11 +115,14 @@ CREATE PROCEDURE [Inspector].[InspectorSetup]
 @LogBackupThreshold  TINYINT = 20,		-- X Minutes older than Getdate()
 @DatabaseOwnerExclusions VARCHAR(255) = 'sa',  --Exclude databases with these owners (Comma delimited)
 @LongRunningTransactionThreshold INT = 300,	-- Threshold in seconds, display running transactions that exceed this duration during collection
+@CreateJobSchedules BIT = 1, --Create default job schedules for the Inspector agent jobs (Only if they have just been created)
 @InitialSetup BIT = 0,	 --Set to 1 for intial setup, 0 to Upgrade or re deploy to preserve previously logged data and settings config.
 @Help BIT = 0 --Show example Setup command
 )
 AS
 BEGIN 
+
+DECLARE @JobID UNIQUEIDENTIFIER
 
 --Allowing NULL values but only when @Help = 1 otherwise raise an error stating that values need to be specified.
 IF ((@Databasename IS NULL OR @DataDrive IS NULL OR @LogDrive IS NULL) AND @Help = 0)
@@ -138,7 +141,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 09/05/2019
+--Revision date: 14/05/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -163,6 +166,7 @@ EXEC [Inspector].[InspectorSetup]
 @LogBackupThreshold = 20,		
 @DatabaseOwnerExclusions = ''sa'',  
 @LongRunningTransactionThreshold = 300,	
+@CreateJobSchedules BIT = 1, 
 @InitialSetup = 0,
 @Help = 0; 
 '
@@ -9636,6 +9640,126 @@ END'
 EXEC (@SQLStatement);
 
 
+--If the Inspector job has been created within the last 5 mins and has no schedule and @CreateJobSchedules = 1 create the schedule
+IF @CreateJobSchedules = 1
+BEGIN 
+
+    --[SQLUndercover Inspector Data Collection]
+    SET @JobID = NULL;
+
+    SELECT @JobID = Jobs.job_id
+    FROM msdb.dbo.sysjobs Jobs
+    LEFT JOIN msdb.dbo.sysjobschedules Schedules ON Jobs.job_id = Schedules.job_id
+    WHERE name = 'SQLUndercover Inspector Data Collection'
+    AND date_created > DATEADD(MINUTE,-5,GETDATE())
+    AND Schedules.job_id IS NULL;
+    
+    IF @JobID IS NOT NULL 
+    BEGIN 
+        EXEC msdb.dbo.sp_add_jobschedule 
+        @job_id=@JobID, 
+        @name=N'Every day @8:50am', 
+        @enabled=1, 
+        @freq_type=4, 
+        @freq_interval=1, 
+        @freq_subday_type=1, 
+        @freq_subday_interval=0, 
+        @freq_relative_interval=0, 
+        @freq_recurrence_factor=1, 
+        @active_start_date=20190514, 
+        @active_end_date=99991231, 
+        @active_start_time=85000, 
+        @active_end_time=235959;
+    END
+
+    --[SQLUndercover Inspector Report]
+    SET @JobID = NULL;
+
+    SELECT @JobID = Jobs.job_id
+    FROM msdb.dbo.sysjobs Jobs
+    LEFT JOIN msdb.dbo.sysjobschedules Schedules ON Jobs.job_id = Schedules.job_id
+    WHERE name = 'SQLUndercover Inspector Report'
+    AND date_created > DATEADD(MINUTE,-5,GETDATE())
+    AND Schedules.job_id IS NULL;
+    
+    IF @JobID IS NOT NULL 
+    BEGIN 
+	   EXEC msdb.dbo.sp_add_jobschedule 
+	   @job_id=@JobID, 
+	   @name=N'Every day @9am', 
+	   @enabled=1, 
+	   @freq_type=4, 
+	   @freq_interval=1, 
+	   @freq_subday_type=1, 
+	   @freq_subday_interval=0, 
+	   @freq_relative_interval=0, 
+	   @freq_recurrence_factor=1, 
+	   @active_start_date=20190514, 
+	   @active_end_date=99991231, 
+	   @active_start_time=90000, 
+	   @active_end_time=235959;
+    END
+
+    --[SQLUndercover Periodic Backups Collection]
+    SET @JobID = NULL;
+
+    SELECT @JobID = Jobs.job_id
+    FROM msdb.dbo.sysjobs Jobs
+    LEFT JOIN msdb.dbo.sysjobschedules Schedules ON Jobs.job_id = Schedules.job_id
+    WHERE name = 'SQLUndercover Periodic Backups Collection'
+    AND date_created > DATEADD(MINUTE,-5,GETDATE())
+    AND Schedules.job_id IS NULL;
+    
+    IF @JobID IS NOT NULL 
+    BEGIN 
+	   EXEC msdb.dbo.sp_add_jobschedule 
+	   @job_id=@JobID, 
+	   @name=N'Every 2 hours between 9:50am and 5:20pm', 
+	   @enabled=1, 
+	   @freq_type=4, 
+	   @freq_interval=1, 
+	   @freq_subday_type=8, 
+	   @freq_subday_interval=2, 
+	   @freq_relative_interval=0, 
+	   @freq_recurrence_factor=1, 
+	   @active_start_date=20190514, 
+	   @active_end_date=99991231, 
+	   @active_start_time=95000, 
+	   @active_end_time=172000;
+    END
+
+
+    --[SQLUndercover Periodic Backups Report]
+    SET @JobID = NULL;
+
+    SELECT @JobID = Jobs.job_id
+    FROM msdb.dbo.sysjobs Jobs
+    LEFT JOIN msdb.dbo.sysjobschedules Schedules ON Jobs.job_id = Schedules.job_id
+    WHERE name = 'SQLUndercover Periodic Backups Report'
+    AND date_created > DATEADD(MINUTE,-5,GETDATE())
+    AND Schedules.job_id IS NULL;
+    
+    IF @JobID IS NOT NULL 
+    BEGIN 
+	   EXEC msdb.dbo.sp_add_jobschedule 
+	   @job_id=@JobID, 
+	   @name=N'Every 2 hours between 10am and 5:30pm', 
+	   @enabled=1, 
+	   @freq_type=4, 
+	   @freq_interval=1, 
+	   @freq_subday_type=8, 
+	   @freq_subday_interval=2, 
+	   @freq_relative_interval=0, 
+	   @freq_recurrence_factor=1, 
+	   @active_start_date=20190514, 
+	   @active_end_date=99991231, 
+	   @active_start_time=100000, 
+	   @active_end_time=173000;
+    END
+
+END
+
+
 --Update Inspector Build 
 UPDATE [Inspector].[Settings]
 SET [Value] = @Build
@@ -9667,6 +9791,7 @@ VALUES (GETDATE(),CASE WHEN @InitialSetup = 0 THEN 1 ELSE 0 END,CAST(@CurrentBui
 @LogBackupThreshold = '+CAST(ISNULL(@LogBackupThreshold,20) AS VARCHAR(6))+',		
 @DatabaseOwnerExclusions = '''+ISNULL(''''+@DatabaseOwnerExclusions+'''','sa')+''',  
 @LongRunningTransactionThreshold = '+CAST(ISNULL(@LongRunningTransactionThreshold,300) AS VARCHAR(6))+',	
+@CreateJobSchedules = '+CAST(ISNULL(@CreateJobSchedules,'NULL') AS VARCHAR(1))+'
 @InitialSetup = '+CAST(ISNULL(@InitialSetup,0) AS VARCHAR(1))+',
 @Help = '+CAST(ISNULL(@Help,'NULL') AS VARCHAR(1))+'; 
 '
@@ -9779,5 +9904,6 @@ EXEC [%s].[Inspector].[InspectorSetup]
 @LogBackupThreshold = 20,		
 @DatabaseOwnerExclusions = ''sa'',  
 @LongRunningTransactionThreshold = 300,	
+@CreateJobSchedules = 1,
 @InitialSetup = 0; 
 ',0,0,@DBname,@DBname) WITH NOWAIT;
