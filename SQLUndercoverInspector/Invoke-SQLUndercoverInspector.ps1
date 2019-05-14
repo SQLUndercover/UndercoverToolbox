@@ -1,6 +1,10 @@
 #requires -Modules dbatools
 # SON: We'll create a .psm1 a .psd1 file and put the above into the $RequiredModules field there.
 
+#Script version 1.1
+#Revision date: 27/04/2019
+#Minimum Inspector version 1.3
+
 function Invoke-SQLUndercoverInspector {
     [CmdletBinding()]
     param (
@@ -20,7 +24,17 @@ function Invoke-SQLUndercoverInspector {
         [Parameter(Position = 3, ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
         [Alias('Module')]
-        [String]$ModuleConfig = 'NULL'
+        [String]$ModuleConfig = 'NULL',
+
+        [Parameter(Position = 4, ValueFromPipelineByPropertyName)]
+        [ValidateNotNullOrEmpty()]
+        [Alias('ClutterOff')]
+        [Bool]$NoClutter = $false,
+
+        [Parameter(Position = 5, ValueFromPipelineByPropertyName)]
+        [ValidateNotNullOrEmpty()]
+        [Alias('WarningsOnly')]
+        [Bool]$ShowWarningsOnly = $false
     )
     
     begin {
@@ -31,7 +45,7 @@ function Invoke-SQLUndercoverInspector {
         $InvalidServers = New-Object -TypeName System.Collections.Generic.List[int]
         $ActiveServers = New-Object -TypeName System.Collections.Generic.List[string]
         $Builds = New-Object -TypeName System.Collections.Generic.List[psobject]
-        #[string]$ModuleConfig = 'NULL' # SON: Has to be a string NULL or is $null okay?
+        
 
         Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] [$CentralServer] - Checking central server connectivity."
         $CentralConnection = Get-DbaDatabase -SqlInstance $CentralServer -Database $LoggingDb -ErrorAction Stop -WarningAction Stop
@@ -218,7 +232,7 @@ function Invoke-SQLUndercoverInspector {
                     switch ($_.ReseedTable) {
                         { $_ -eq 1 } {
                         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Appending Reseed indentity command for table [Inspector].[$SettingsTableName]"
-                        $TruncateDeleteQry = $TruncateDeleteQry + " DBCC CHECKIDENT ('Inspector.$SettingsTableName', RESEED, 0);" 
+                        $TruncateDeleteQry = $TruncateDeleteQry + " DBCC CHECKIDENT ('Inspector.$SettingsTableName', RESEED, 1);" 
                         }
                         }
                     $ConnectionCurrent.Query($TruncateDeleteQry)
@@ -231,8 +245,13 @@ function Invoke-SQLUndercoverInspector {
                     $SettingsTableName = $_
                     $WriteTableOptions.Table = $SettingsTableName
 
+                    
                     Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Syncing data for table [Inspector].[$SettingsTableName]"
+
+                    IF ($(Get-Variable $("Central$($SettingsTableName)") -ValueOnly).count -ne 0) {
                     Write-DbaDataTable @WriteTableOptions -InputObject $(Get-Variable $("Central$($SettingsTableName)") -ValueOnly)
+                    }
+
                 }
             Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Finished settings sync"
             }   
@@ -332,14 +351,15 @@ function Invoke-SQLUndercoverInspector {
             
         }
 
-            Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$CentralServer] - Executing [Inspector].[SQLUnderCoverInspectorReport] @EmailDistribution 'DBA', @ModuleDesc = $ModuleConfig, @EmailRedWarningsOnly = 0, @Theme = 'Dark', @PSCollection = 1"
+            Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$CentralServer] - Executing [Inspector].[SQLUnderCoverInspectorReport] @EmailDistribution 'DBA', @ModuleDesc = $ModuleConfig, @EmailRedWarningsOnly = $(IF($ShowWarningsOnly -eq $false){0} ELSE{1}), @Theme = 'Dark', @PSCollection = 1,@NoClutter = $(IF($NoClutter -eq $false){0} ELSE{1})"
             $ReportQry = @"
             EXEC [$LoggingDb].[Inspector].[SQLUnderCoverInspectorReport]
                 @EmailDistributionGroup = 'DBA',
                 @ModuleDesc = $ModuleConfig,
-                @EmailRedWarningsOnly = 0,
+                @EmailRedWarningsOnly = $(IF($ShowWarningsOnly -eq $false){0} ELSE{1}),
                 @Theme = 'Dark',
-                @PSCollection = 1          
+                @PSCollection = 1,
+                @NoClutter = $(IF($NoClutter -eq $false){0} ELSE{1});   
 "@
             $CentralConnection.Query($ReportQry)
             
