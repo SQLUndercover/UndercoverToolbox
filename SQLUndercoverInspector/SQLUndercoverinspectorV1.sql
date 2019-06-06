@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 17/05/2019
+Revision date: 06/06/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -141,7 +141,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 17/05/2019
+--Revision date: 06/06/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -543,7 +543,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			(
 			[Servername] NVARCHAR(128),
 			[Log_Date] DATETIME,
-			[Drive] NVARCHAR(20),
+			[Drive] NVARCHAR(128),
 			[Capacity_GB] DECIMAL(10,2),
 			[AvailableSpace_GB] DECIMAL(10,2)
 			);
@@ -563,9 +563,9 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			END
 
 			--Increase column length to accomodate shared storage names such as \\ClusterStorage
-			IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DriveSpace') AND [name] = 'Drive' AND max_length = 6)
+			IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DriveSpace') AND [name] = 'Drive' AND max_length != 256)
 			BEGIN 
-				ALTER TABLE [Inspector].[DriveSpace] ALTER COLUMN [Drive] NVARCHAR(20);
+				ALTER TABLE [Inspector].[DriveSpace] ALTER COLUMN [Drive] NVARCHAR(128);
 			END
 			
 
@@ -698,7 +698,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[GrowthRate_MB] INT NOT NULL,
 			[GrowthIncrements] INT NOT NULL,
 			[PostGrowthSize_MB] BIGINT NOT NULL,
-			[Drive] NVARCHAR(20)
+			[Drive] NVARCHAR(128)
 			);
 
 			END
@@ -712,7 +712,13 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Drive' AND [object_id] = OBJECT_ID(N'Inspector.DatabaseFileSizeHistory'))
 			BEGIN
 				--New column for 1.4
-				ALTER TABLE [Inspector].[DatabaseFileSizeHistory] ADD [Drive] NVARCHAR(20);
+				ALTER TABLE [Inspector].[DatabaseFileSizeHistory] ADD [Drive] NVARCHAR(128);
+			END
+
+			--Increase column length to accomodate shared storage names such as \\ClusterStorage
+			IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DatabaseFileSizeHistory') AND [name] = 'Drive' AND max_length != 256)
+			BEGIN 
+				ALTER TABLE [Inspector].[DatabaseFileSizeHistory] ALTER COLUMN [Drive] NVARCHAR(128);
 			END
 
 
@@ -1931,16 +1937,21 @@ END
 			[GrowthRate_MB] [int] NOT NULL,
 			[GrowthIncrements] [int] NOT NULL,
 			[PostGrowthSize_MB] [bigint] NOT NULL,
-			[Drive] [NVARCHAR](20),
+			[Drive] [NVARCHAR](128),
 			);
 			END
 
 			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Drive' AND [object_id] = OBJECT_ID(N'Inspector.PSDatabaseFileSizeHistoryStage'))
 			BEGIN
 				--New column for 1.4
-				ALTER TABLE [Inspector].[PSDatabaseFileSizeHistoryStage] ADD [Drive] NVARCHAR(20);
+				ALTER TABLE [Inspector].[PSDatabaseFileSizeHistoryStage] ADD [Drive] NVARCHAR(128);
 			END
 
+			--Increase column length to accomodate shared storage names such as \\ClusterStorage
+			IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.PSDatabaseFileSizeHistoryStage') AND [name] = 'Drive' AND max_length != 256)
+			BEGIN 
+				ALTER TABLE [Inspector].[PSDatabaseFileSizeHistoryStage] ALTER COLUMN [Drive] NVARCHAR(128);
+			END
 			
 			IF OBJECT_ID('Inspector.PSADHocDatabaseCreationsStage') IS NULL
 			CREATE TABLE [Inspector].[PSADHocDatabaseCreationsStage](
@@ -1954,10 +1965,16 @@ END
 			CREATE TABLE [Inspector].[PSDriveSpaceStage](
 			[Servername] [nvarchar](128) NULL,
 			[Log_Date] [datetime] NULL,
-			[Drive] [nvarchar](3) NULL,
+			[Drive] [nvarchar](128) NULL,
 			[Capacity_GB] [decimal](10, 2) NULL,
 			[AvailableSpace_GB] [decimal](10, 2) NULL
 			);	 
+
+			--Increase column length to accomodate shared storage names such as \\ClusterStorage
+			IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.PSDriveSpaceStage') AND [name] = 'Drive' AND max_length != 256)
+			BEGIN 
+				ALTER TABLE [Inspector].[PSDriveSpaceStage] ALTER COLUMN [Drive] NVARCHAR(128);
+			END
 
 			IF OBJECT_ID('Inspector.PSInstanceVersionHistoryStage') IS NULL
 			CREATE TABLE [Inspector].[PSInstanceVersionHistoryStage](
@@ -2441,7 +2458,7 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 05/04/2019
+--Revision date: 06/06/2019
 
 DECLARE @Retention INT = (SELECT Value From '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'')
 
@@ -2457,7 +2474,7 @@ IF NOT EXISTS (SELECT Log_Date FROM '+@LinkedServername+'['+@Databasename+'].[In
 		SELECT DISTINCT
 		@@SERVERNAME,
 		GETDATE(),
-		CAST(UPPER(volumestats.volume_mount_point) AS NVARCHAR(20)) AS Drive,
+		CAST(UPPER(volumestats.volume_mount_point) AS NVARCHAR(128)) AS Drive,
 		CAST((CAST(volumestats.total_bytes AS DECIMAL(20,2)))/1024/1024/1024 AS DECIMAL(10,2)) Capacity_GB,
 		CAST((CAST(volumestats.available_bytes AS DECIMAL(20,2)))/1024/1024/1024 AS DECIMAL(10,2)) AS AvailableSpace_GB
 		FROM 
@@ -2938,7 +2955,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[DatabaseGrowthsInsert]
 AS
 
---Revision date: 08/04/2019
+--Revision date: 06/06/2019
 
      SET NOCOUNT ON;
 
@@ -3196,7 +3213,7 @@ AS
                 @LastUpdated AS [Log_Date],
                 [Masterfiles].[type_desc],
                 [Masterfiles].[file_id],
-				CAST(UPPER(volumestats.volume_mount_point) AS NVARCHAR(20)) AS Drive,
+				CAST(UPPER(volumestats.volume_mount_point) AS NVARCHAR(128)) AS Drive,
                 RIGHT([Masterfiles].[physical_name],CHARINDEX(''\'',REVERSE([Masterfiles].[physical_name]))-1) AS [Filename], --Get the Filename
                 [DatabaseFileSizes].[PostGrowthSize_MB],  --PostGrowth size is the Last recorded database size after a growth event
                 [DatabaseFileSizes].[GrowthRate],
