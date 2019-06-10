@@ -5,8 +5,7 @@ go
  /******************************************************************
 
 Author: Adrian Buckman
-Revision date: 17/08/2017
-Version: 1
+Revision date: 05/04/2019
 
 Description: Produce a script that will provide ALTER statements to change the database
 ownership to the new owner and also ALTER statements to revert back to the old owner
@@ -51,22 +50,22 @@ DECLARE @UserSid VARBINARY = SUSER_SID(@DBOwner)
 IF @UserSid IS NOT NULL
 BEGIN
  
-SELECT DISTINCT
-sys.databases.Name AS Databasename,
-COALESCE(SUSER_SNAME(sys.Databases.owner_sid),'') AS CurrentOwner,
-'ALTER AUTHORIZATION ON DATABASE::['+sys.Databases.Name +'] TO ['+@DBOwner+'];' AS ChangeToNewOwner,
-'ALTER AUTHORIZATION ON DATABASE::['+sys.Databases.Name +'] TO ['+COALESCE(SUSER_SNAME(sys.Databases.owner_sid),'')+'];' AS RevertToOriginalOwner
+SELECT DIstINCT
+sys.databases.name AS Databasename,
+COALESCE(SUSER_SNAME(sys.databases.owner_sid),'') AS CurrentOwner,
+'ALTER AUTHORIZATION ON DATABASE::['+sys.databases.name +'] TO ['+@DBOwner+'];' AS ChangeToNewOwner,
+'ALTER AUTHORIZATION ON DATABASE::['+sys.databases.name +'] TO ['+COALESCE(SUSER_SNAME(sys.databases.owner_sid),'')+'];' AS RevertToOriginalOwner
 FROM
 sys.databases
-LEFT JOIN Sys.availability_databases_cluster ADC ON sys.databases.name = ADC.database_name
-LEFT JOIN sys.dm_hadr_availability_group_states st ON ST.group_id = ADC.group_id
-LEFT JOIN master.sys.availability_groups ag ON ST.group_id = AG.group_id
+LEFT JOIN sys.availability_databases_cluster ADC ON sys.databases.name = ADC.database_name
+LEFT JOIN sys.dm_hadr_availability_group_states st ON st.group_id = ADC.group_id
+LEFT JOIN master.sys.availability_groups ag ON st.group_id = ag.group_id
 WHERE (primary_replica = @@Servername
-AND sys.Databases.owner_sid != @UserSid)
-OR (sys.Databases.owner_sid != @UserSid
-AND sys.Databases.State = 0
-AND sys.Databases.Source_Database_id IS NULL
-AND sys.databases.Replica_id IS NULL)
+AND sys.databases.owner_sid != @UserSid)
+OR (sys.databases.owner_sid != @UserSid
+AND sys.databases.state = 0
+AND sys.databases.source_database_id IS NULL
+AND sys.databases.replica_id IS NULL)
  
 END
 ELSE
