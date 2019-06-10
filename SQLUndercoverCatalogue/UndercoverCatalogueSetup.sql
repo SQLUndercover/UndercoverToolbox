@@ -2253,3 +2253,6 @@ VALUES	('ADGroups','GetADGroups','UpdateADGroups','ADGroups_Stage','ADGroups',	1
 		('Tables','GetTables','UpdateTables','Tables_Stage','Tables',1)
 
 
+
+
+SELECT @@CPU_BUSY, @@IDLE

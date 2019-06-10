@@ -35,7 +35,7 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-sp_RestoreScript 1.2                                                                                                             
+sp_RestoreScript 1.3                                                                                                             
 Written By David Fowler
 29 June 2017
 Generate a set of backup commands to restore a database(s) to a specified time         
@@ -46,7 +46,10 @@ A bug with the cursor when running on versioons of SQL pre-2016 has been fixed
 2 January 2018
 Broker options included
 Restore in stand by included
-Ability to cope with striped backup files added              
+Ability to cope with striped backup files added     
+
+10 June 2019
+Maximum length of restore statement has been increased to VARCHAR(MAX)
 
 MIT License
 ------------
@@ -165,12 +168,12 @@ WHERE name = DB_NAME()
 IF  OBJECT_ID('tempdb..#BackupCommands') IS NOT NULL
 	DROP TABLE #BackupCommands
 CREATE TABLE #BackupCommands
-(backup_start_date DATETIME, DBName VARCHAR(255), command VARCHAR(1000))
+(backup_start_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX))
 
 IF OBJECT_ID('tempdb..#BackupCommandsFinal') IS NOT NULL
 	DROP TABLE #BackupCommandsFinal
 CREATE TABLE #BackupCommandsFinal
-(backup_start_date DATETIME, DBName VARCHAR(255), command VARCHAR(1000))
+(backup_start_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX))
 
 --remove any spaces in list of databases
 SET @DatabaseName = REPLACE(@DatabaseName, ' ','')
