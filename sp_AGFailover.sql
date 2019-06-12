@@ -4,6 +4,9 @@ Author: David Fowler
 Revision date: 12 June 2019
 Version: 1
 
+REQUIREMENTS - If running SQL2014 or earlier, you'll need fn_SplitString
+https://github.com/SQLUndercover/UndercoverToolbox/blob/master/fn_SplitString.sql
+
 © www.sqlundercover.com 
 
 
