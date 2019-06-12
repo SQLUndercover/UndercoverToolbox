@@ -30,10 +30,11 @@ USE master
 GO
  
 
-CREATE PROCEDURE sp_AGFailover 
-	@AvailabilityGroup VARCHAR(1000) = NULL, --will take a comma delimited list of AG names, leaving as NULL will failover all AGs
-	@WaitForHealthy INT = 1, --wait for AG to report as healthy before moving on to the next
-	@WhatIf INT = 0		--when set to 1, the proc will report which AGs would be failed over with the current parameter settings but no failover will actually take place
+CREATE OR ALTER PROCEDURE sp_AGFailover 
+	@AvailabilityGroup VARCHAR(1000) = NULL,	--will take a comma delimited list of AG names, leaving as NULL will failover all AGs
+	@WaitForHealthy BIT = 1,					--wait for AG to report as healthy before moving on to the next
+	@Force BIT = 0,								--when set to 1, force the failover allowing dataloss
+	@WhatIf INT = 0								--when set to 1, the proc will report which AGs would be failed over with the current parameter settings but no failover will actually take place
 AS
 
 BEGIN
@@ -88,7 +89,9 @@ BEGIN
 
 	DECLARE AGsCur CURSOR LOCAL FAST_FORWARD
 	FOR
-		SELECT N'ALTER AVAILABILITY GROUP ' + QUOTENAME(name) + N' FAILOVER;' AS FailoverSTMT, 
+		SELECT CASE WHEN @Force = 0 THEN N'ALTER AVAILABILITY GROUP ' + QUOTENAME(name) + N' FAILOVER;'
+					ELSE N'ALTER AVAILABILITY GROUP ' + QUOTENAME(name) + N' FORCE_FAILOVER_ALLOW_DATA_LOSS;'
+			END AS FailoverSTMT, 
 			group_id,
 			name
 		FROM sys.availability_groups
@@ -101,21 +104,21 @@ BEGIN
 	WHILE @@FETCH_STATUS = 0
 	BEGIN
 		SET @InfoMsg = 'Failing Over ' + @AGName
-		RAISERROR (@InfoMsg,0,1)
+		RAISERROR (@InfoMsg,0,1) WITH NOWAIT
 	
 		IF @WhatIf = 0
 		BEGIN
 			EXEC sp_executesql @FailoverSTMT
 
 			--check AG health, loop until it reports healthy
-			RAISERROR ('Waiting For AG To Report Healthy...',0,1)
+			RAISERROR ('Waiting For AG To Report Healthy...',0,1) WITH NOWAIT
 			WHILE (((SELECT synchronization_health_desc FROM sys.dm_hadr_availability_group_states WHERE group_id = @GroupID) != 'HEALTHY') AND (@WaitForHealthy = 1))
 			BEGIN
 				WAITFOR DELAY '00:00:01'
 			END
 		END
 		ELSE
-		RAISERROR ('WhatIf = 1, no changes have been made',0,1)
+		RAISERROR ('WhatIf = 1, no changes have been made',0,1) WITH NOWAIT
 
 		FETCH NEXT FROM AGsCur INTO @FailoverSTMT, @GroupID, @AGName
 	END
