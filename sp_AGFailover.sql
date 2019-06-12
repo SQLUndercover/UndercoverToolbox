@@ -30,7 +30,7 @@ USE master
 GO
  
 
-CREATE OR ALTER PROCEDURE sp_AGFailover 
+CREATE PROCEDURE sp_AGFailover 
 	@AvailabilityGroup VARCHAR(1000) = NULL,	--will take a comma delimited list of AG names, leaving as NULL will failover all AGs
 	@WaitForHealthy BIT = 1,					--wait for AG to report as healthy before moving on to the next
 	@Force BIT = 0,								--when set to 1, force the failover allowing dataloss
