@@ -1,6 +1,23 @@
-USE SQLUndercover
+/*
+Undercover Catalogue 0.2.2
+SQL Undercover
+
+Written by: David Fowler
+Date: 20/06/2019
+
+Description
+Hot Fix to solve a problem with modules failing when the interrogation is run with certain versions of DBA Tools
+
+Usage
+Use this script to upgrade your catalogue from version 0.2.1 to 0.2.2
+*/
+
+USE [SQLUndercover]
 GO
 
+ALTER TABLE [Catalogue].[Users_Stage] DROP CONSTRAINT PK_Users_Stage
+ALTER TABLE [Catalogue].[Users_Stage] DROP COLUMN ID
+GO
 
 ALTER PROC [Catalogue].[GetUsers]
 AS
@@ -18,7 +35,7 @@ CREATE TABLE #Users_Tmp(
 	[ServerName] [nvarchar](128) NULL,
 	[DBName] [nvarchar](128) NULL,
 	[UserName] [sysname] NOT NULL,
-	[sid] [varbinary](85) NULL,
+	[SID] [varbinary](85) NULL,
 	[RoleName] [sysname] NULL,
 	[MappedLoginName] [sysname] NOT NULL)
 
@@ -46,8 +63,7 @@ BEGIN TRY
 			principals_logins.name AS UserName, 
 			principals_logins.sid AS SID, 
 			principals_roles.name AS RoleName,
-			ISNULL(server_principals.name, ''***ORPHANED USER***'') AS MappedLoginName,
-			NULL AS ID
+			ISNULL(server_principals.name, ''***ORPHANED USER***'') AS MappedLoginName
 	FROM sys.database_role_members
 	RIGHT OUTER JOIN sys.database_principals principals_roles 
 		ON database_role_members.role_principal_id = principals_roles.principal_id
