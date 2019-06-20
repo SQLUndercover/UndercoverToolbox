@@ -75,7 +75,7 @@ BEGIN TRY
 		AND principals_logins.sid IS NOT NULL 
 	ORDER BY principals_logins.name'
 
-	INSERT INTO #Users_Tmp(ServerName,DBName,UserName,sid,RoleName,MappedLoginName) 
+	INSERT INTO #Users_Tmp(ServerName,DBName,UserName,SID,RoleName,MappedLoginName) 
 	EXEC sp_executesql @stmt = @cmd
 END TRY
 BEGIN CATCH
