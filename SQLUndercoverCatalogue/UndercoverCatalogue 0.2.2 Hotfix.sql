@@ -280,3 +280,12 @@ JOIN	(SELECT database_id, (SUM(CAST (size AS BIGINT)) * 8)/1024 AS DatabaseSizeM
 END
 GO
 
+--update version number
+UPDATE Catalogue.ConfigPoSH
+SET ParameterValue = '0.2.2'
+WHERE ParameterName = 'CatalogueVersion'
+
+--update 
+UPDATE Catalogue.ConfigPoSH
+SET ParameterValue = '1.0.0'
+WHERE ParameterName = 'DBAToolsRequirement'
