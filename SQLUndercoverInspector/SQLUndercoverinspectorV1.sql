@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 06/06/2019
+Revision date: 26/06/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -141,7 +141,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 06/06/2019
+--Revision date: 26/06/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -1211,6 +1211,11 @@ TRUNCATE TABLE [Inspector].[ModuleWarnings];
 TRUNCATE TABLE [Inspector].[ModuleWarningLevel];
 TRUNCATE TABLE [Inspector].[EmailRecipients];
 TRUNCATE TABLE [Inspector].[CatalogueModules];
+
+UPDATE [Inspector].[CurrentServers]
+SET ModuleConfig_Desc = NULL
+WHERE ModuleConfig_Desc IS NOT NULL;
+
 DELETE FROM [Inspector].[Modules];
 DBCC CHECKIDENT ('Inspector.Modules', RESEED, 0) WITH NO_INFOMSGS;
  
