@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 25/7/2017
-Revision date: 26/06/2019
+Revision date: 28/06/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -141,7 +141,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 26/06/2019
+--Revision date: 28/06/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -166,7 +166,7 @@ EXEC [Inspector].[InspectorSetup]
 @LogBackupThreshold = 20,		
 @DatabaseOwnerExclusions = ''sa'',  
 @LongRunningTransactionThreshold = 300,	
-@CreateJobSchedules BIT = 1, 
+@CreateJobSchedules = 1, 
 @InitialSetup = 0,
 @Help = 0; 
 '
@@ -2463,7 +2463,15 @@ SET @SQLStatement =
 AS
 BEGIN
 
---Revision date: 06/06/2019
+/**************************
+Revision date: 28/06/2019
+
+DistinctDrives derived table updated to show all database_id and file_id combinations grouped by file path.
+Row number is applied so that we can filter just one database_id and file_id combination per file path and then these 
+combinations are passed to the sys.dm_os_volume_stats system TVF , the reason for the filtering within the derived table is
+to reduce the number of executions performed by the TVF because on instances with lots of databases this can slow execution.
+
+**************************/
 
 DECLARE @Retention INT = (SELECT Value From '+@LinkedServername+'['+@Databasename+'].[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'')
 
@@ -2485,13 +2493,15 @@ IF NOT EXISTS (SELECT Log_Date FROM '+@LinkedServername+'['+@Databasename+'].[In
 		FROM 
 		(
 			SELECT 
-			MIN([database_id]) AS [database_id],
-			MIN([file_id]) as [file_id]
+			[database_id],
+			[file_id],
+			ROW_NUMBER() OVER (PARTITION BY SUBSTRING(physical_name,1,LEN(physical_name)-CHARINDEX(''\'',REVERSE(physical_name))+1) 
+								ORDER BY SUBSTRING(physical_name,1,LEN(physical_name)-CHARINDEX(''\'',REVERSE(physical_name))+1) ASC) AS RowNum
 			FROM sys.master_files
-			GROUP BY 
-			SUBSTRING(physical_name,1,LEN(physical_name)-CHARINDEX(''\'',REVERSE(physical_name))+1)
+			WHERE database_id IN (SELECT database_id FROM sys.databases WHERE state = 0)
 		) DistinctDrives
 		CROSS APPLY sys.dm_os_volume_stats([DistinctDrives].[database_id],[DistinctDrives].[file_id]) volumestats
+		WHERE DistinctDrives.RowNum = 1;
 	END
 
 END'
