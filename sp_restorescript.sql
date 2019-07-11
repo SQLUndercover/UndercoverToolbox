@@ -35,21 +35,26 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-sp_RestoreScript 1.3                                                                                                             
+sp_RestoreScript 1.4                                                                                                             
 Written By David Fowler
 29 June 2017
 Generate a set of backup commands to restore a database(s) to a specified time         
 
 26 July 2017
-A bug with the cursor when running on versioons of SQL pre-2016 has been fixed   
+A bug with the cursor when running on versions of SQL pre-2016 has been fixed   
 
 2 January 2018
 Broker options included
-Restore in stand by included
-Ability to cope with striped backup files added     
+Restore in standby included
+Ability to cope with striped backup files added
 
 10 June 2019
 Maximum length of restore statement has been increased to VARCHAR(MAX)
+
+10 July 2019
+Wild cards supported in @DatabaseName
+Case Sensitive Collations Supported
+Fixed bug where not all databases would be set WITH RECOVERY or STANDBY on multi database statements, indstead they were being left with NORECOVERY
 
 MIT License
 ------------
@@ -106,7 +111,7 @@ Parameters
 Full documentation and examples can be found at www.sqlundercover.com
 
 */
-USE MASTER
+USE master
 GO
 
 IF OBJECT_ID('dbo.sp_RestoreScript') IS NOT NULL
@@ -158,7 +163,7 @@ DECLARE @compatibility BIT
 
 --set compatibility to 1 if server version includes STRING_SPLIT
 SELECT	@compatibility = CASE
-			WHEN SERVERPROPERTY ('productversion') >= '13.0.4001.0' AND Compatibility_Level >= 130 THEN 1
+			WHEN SERVERPROPERTY ('productversion') >= '13.0.4001.0' AND compatibility_level >= 130 THEN 1
 			ELSE 0
 		END
 FROM sys.databases
@@ -174,6 +179,18 @@ IF OBJECT_ID('tempdb..#BackupCommandsFinal') IS NOT NULL
 	DROP TABLE #BackupCommandsFinal
 CREATE TABLE #BackupCommandsFinal
 (backup_start_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX))
+
+IF OBJECT_ID('tempdb..#RestoreDatabases') IS NOT NULL
+	DROP TABLE #RestoreDatabases
+CREATE TABLE #RestoreDatabases
+(SourceDatabase SYSNAME NOT NULL,
+DestinationDatabase SYSNAME NULL)
+
+IF OBJECT_ID('tempdb..#LatestBackups') IS NOT NULL
+	DROP TABLE #LatestBackups
+CREATE TABLE #LatestBackups
+(LatestDBName SYSNAME,
+backup_start_date DATETIME)
 
 --remove any spaces in list of databases
 SET @DatabaseName = REPLACE(@DatabaseName, ' ','')
@@ -200,7 +217,7 @@ SET @DatabaseName = DB_NAME()
 
 --Declare cursor containing database names
 --if compatibility mode = 1 then it's safe to use STRING_SPLIT, otherwise use fn_SplitString
-IF (@Compatibility = 1)
+IF (@compatibility = 1)
 BEGIN 
 	--raise an error if there's a mismatch in the number of databases in @DatabaseName and @RestoreAsName
 	IF ((SELECT COUNT(*) FROM  STRING_SPLIT(@DatabaseName,',')) 
@@ -208,7 +225,8 @@ BEGIN
 		AND @RestoreAsName IS NOT NULL
 	RAISERROR (N'There is a mismatch in the number of databases in @DatabaseName and @RestoreAsName', 15,1)
 
-	DECLARE DatabaseCur CURSOR FOR
+	--DECLARE DatabaseCur CURSOR STATIC FORWARD_ONLY FOR
+	INSERT INTO #RestoreDatabases (SourceDatabase,DestinationDatabase)
 	SELECT SourceDatabase.value AS SourceDatabase,DestinationDatabase.value AS DestinationDatabase
 	FROM
 		(SELECT value, ROW_NUMBER() OVER (ORDER BY (SELECT 1)) RowNumber
@@ -217,6 +235,42 @@ BEGIN
 		(SELECT value, ROW_NUMBER() OVER (ORDER BY (SELECT 1)) RowNumber
 		FROM STRING_SPLIT(@RestoreAsName,',') ) DestinationDatabase
 		ON SourceDatabase.RowNumber = DestinationDatabase.RowNumber
+
+	--check for the existance of wild cards
+	IF @DatabaseName LIKE '%\%%' ESCAPE '\'
+	BEGIN
+		DECLARE @WildCardDB SYSNAME
+
+		--wildcards cannot be used with @RestoreAsName
+		IF (@RestoreAsName IS NOT NULL)
+		RAISERROR (N'@RestoreAsName must be NULL when wildcards are used in @DatabaseName', 15,1)	
+
+		--Cursor through wild card databases, selecting from sys.databases
+		DECLARE WildCardCur CURSOR STATIC FORWARD_ONLY FOR 
+			SELECT SourceDatabase
+			FROM #RestoreDatabases
+			WHERE SourceDatabase LIKE '%\%%' ESCAPE '\'
+
+		OPEN WildCardCur
+		FETCH NEXT FROM WildCardCur INTO @WildCardDB
+
+		WHILE @@FETCH_STATUS = 0
+		BEGIN
+			INSERT INTO #RestoreDatabases(SourceDatabase)
+			SELECT name
+			FROM sys.databases
+			WHERE name LIKE @WildCardDB
+
+			FETCH NEXT FROM WildCardCur INTO @WildCardDB
+		END
+
+		--remove wild card entry from #restoredatabases, it's no longer needed
+		DELETE FROM #RestoreDatabases
+		WHERE SourceDatabase = @WildCardDB
+
+		CLOSE WildCardCur
+		DEALLOCATE WildCardCur
+	END
 END
 ELSE BEGIN
 	--raise an error if there's a mismatch in the number of databases in @DatabaseName and @RestoreAsName
@@ -225,7 +279,8 @@ ELSE BEGIN
 		AND @RestoreAsName IS NOT NULL
 	RAISERROR (N'There is a mismatch in the number of databases in @DatabaseName and @RestoreAsName', 15,1)
 
-	DECLARE DatabaseCur CURSOR FOR
+	---DECLARE DatabaseCur CURSOR FOR
+	INSERT INTO #RestoreDatabases (SourceDatabase,DestinationDatabase)
 	SELECT SourceDatabase.StringElement AS SourceDatabase,DestinationDatabase.StringElement AS DestinationDatabase
 	FROM
 		(SELECT StringElement, ROW_NUMBER() OVER (ORDER BY (SELECT 1)) RowNumber
@@ -234,7 +289,47 @@ ELSE BEGIN
 		(SELECT StringElement, ROW_NUMBER() OVER (ORDER BY (SELECT 1)) RowNumber
 		FROM fn_SplitString(@RestoreAsName,',') ) DestinationDatabase
 		ON SourceDatabase.RowNumber = DestinationDatabase.RowNumber
+
+	--check for the existance of wild cards
+	IF @DatabaseName LIKE '%\%%' ESCAPE '\'
+	BEGIN
+
+		--wildcards cannot be used with @RestoreAsName
+		IF (@RestoreAsName IS NOT NULL)
+		RAISERROR (N'@RestoreAsName must be NULL when wildcards are used in @DatabaseName', 15,1)	
+
+		--Cursor through wild card databases, selecting from sys.databases
+		DECLARE WildCardCur CURSOR STATIC FORWARD_ONLY FOR 
+			SELECT SourceDatabase
+			FROM #RestoreDatabases
+			WHERE SourceDatabase LIKE '%\%%' ESCAPE '\'
+
+		OPEN WildCardCur
+		FETCH NEXT FROM WildCardCur INTO @WildCardDB
+
+		WHILE @@FETCH_STATUS = 0
+		BEGIN
+			INSERT INTO #RestoreDatabases(SourceDatabase)
+			SELECT name
+			FROM sys.databases
+			WHERE name LIKE @WildCardDB
+
+			FETCH NEXT FROM WildCardCur INTO @WildCardDB
+		END
+
+		--remove wild card entry from #restoredatabases, it's no longer needed
+		DELETE FROM #RestoreDatabases
+		WHERE SourceDatabase = @WildCardDB
+
+		CLOSE WildCardCur
+		DEALLOCATE WildCardCur
+	END
+
 END
+
+DECLARE DatabaseCur CURSOR FOR
+SELECT SourceDatabase, DestinationDatabase
+FROM #RestoreDatabases
 
 --open cursor
 OPEN DatabaseCur
@@ -381,17 +476,25 @@ END
 CLOSE DatabaseCur
 DEALLOCATE DatabaseCur
 
+--get list of latest backups for each database
+INSERT INTO #LatestBackups(LatestDBName,backup_start_date)
+SELECT DBName, MAX(backup_start_date)
+FROM #BackupCommandsFinal
+GROUP BY DBName
+
 IF @NoRecovery = 0 AND @StandBy IS NULL  --if restore with no recovery is off, remove NORECOVERY from the last restore command
 BEGIN
+
 	UPDATE #BackupCommandsFinal
 	SET command = REPLACE(command,'NORECOVERY','RECOVERY') + @BrokerOptions
-	WHERE backup_start_date = (SELECT MAX(backup_start_date) FROM #BackupCommandsFinal)
+	WHERE backup_start_date = (SELECT backup_start_date FROM #LatestBackups WHERE DBName = LatestDBName)
+
 END
 ELSE IF @StandBy IS NOT NULL
 BEGIN
 	UPDATE #BackupCommandsFinal
 	SET command = REPLACE(command,'NORECOVERY','STANDBY =''' + @StandBy + '''') 
-	WHERE backup_start_date = (SELECT MAX(backup_start_date) FROM #BackupCommandsFinal)
+	WHERE backup_start_date = (SELECT backup_start_date FROM #LatestBackups WHERE DBName = LatestDBName)
 END
 
 --if DiffOnly, delete full backup file from #BackupCommandsFinal
