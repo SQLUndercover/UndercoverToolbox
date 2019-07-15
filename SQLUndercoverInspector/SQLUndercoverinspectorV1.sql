@@ -63,7 +63,7 @@ GO
 
 
 Author: Adrian Buckman
-Created Date: 25/7/2017
+Created Date: 15/07/2017
 Revision date: 28/06/2019
 Version: 1.4
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -141,7 +141,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 28/06/2019
+--Revision date: 15/07/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -1986,9 +1986,15 @@ END
 			[Servername] NVARCHAR(128) NOT NULL,
 			[Log_Date] DATETIME NOT NULL,
 			[CollectionDatetime] DATETIME NOT NULL,
-			[VersionNo] NVARCHAR(50) NULL,
+			[VersionNo] NVARCHAR(128) NULL,
 			[Edition] NVARCHAR(128) NULL
 			);
+			
+			IF EXISTS (SELECT 1 FROM sys.all_columns WHERE object_id = OBJECT_ID('Inspector.PSInstanceVersionHistoryStage') AND name = 'VersionNo' AND max_length < 256)
+			BEGIN 
+				ALTER TABLE [Inspector].[PSInstanceVersionHistoryStage] ALTER COLUMN [VersionNo] NVARCHAR(128);
+			END
+			
 			
 			IF OBJECT_ID('Inspector.PSAGPrimaryHistoryStage') IS NULL
 			BEGIN			
