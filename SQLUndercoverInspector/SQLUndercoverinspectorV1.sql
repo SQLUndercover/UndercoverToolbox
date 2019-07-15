@@ -5279,7 +5279,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 17/05/2019
+--Revision date: 15/07/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.4
 
@@ -7739,7 +7739,10 @@ BEGIN
 		STUFF(Serverlist.Serverlist,1,1,'''') AS Serverlist,
 		primary_replica,
 		backup_preference,
-		@NamedInstance
+		CASE 
+			WHEN primary_replica LIKE ''%\%'' THEN 1 
+			ELSE 0 
+		END		
 		FROM #Aggregates Aggregates
 		CROSS APPLY (SELECT 
 			CASE 
