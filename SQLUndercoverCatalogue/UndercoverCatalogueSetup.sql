@@ -35,7 +35,7 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-Undercover Catalogue Installation 0.3                                                      
+Undercover Catalogue Installation 0.3.0                                                      
 Written By David Fowler
 18/07/2019
 
@@ -2548,15 +2548,7 @@ JOIN	(SELECT database_id, (SUM(CAST (size AS BIGINT)) * 8)/1024 AS DatabaseSizeM
 END
 GO
 
---update version number
-UPDATE Catalogue.ConfigPoSH
-SET ParameterValue = '0.2.2'
-WHERE ParameterName = 'CatalogueVersion'
 
---update 
-UPDATE Catalogue.ConfigPoSH
-SET ParameterValue = '1.0.0'
-WHERE ParameterName = 'DBAToolsRequirement'
 
 -------------------------------------------------------------------------------------------------------------------
 --Version 0.3 Changes
@@ -2777,7 +2769,7 @@ END
 IF NOT EXISTS (	SELECT 1
 				FROM sys.tables
 				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
-				WHERE schemas.name = 'Catalogue' AND tables.name = 'Tables_Audit')
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Users_Audit')
 BEGIN
 	CREATE TABLE [Catalogue].[Users_Audit](
 		[ServerName] [nvarchar](128) NULL,
@@ -2790,4 +2782,716 @@ BEGIN
 		[AuditDate] [datetime] NOT NULL
 	) ON [PRIMARY]
 END
+
+-- create audit triggers
+
+USE [SQLUndercover]
+GO
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditADGroups')
+DROP TRIGGER [Catalogue].[AuditADGroups]
+GO
+
+CREATE TRIGGER [Catalogue].[AuditADGroups]
+ON [Catalogue].[ADGroups]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[ADGroups_Audit]
+		([GroupName], [AccountName], [AccountType], [Notes], AuditDate)
+		SELECT	[GroupName],
+				[AccountName],
+				[AccountType],
+				[Notes],
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(inserted.[GroupName],
+										inserted.[AccountName],
+										inserted.[AccountType],
+										inserted.[Notes])
+										!= 
+								CHECKSUM(deleted.[GroupName],
+										deleted.[AccountName],
+										deleted.[AccountType],
+										deleted.[Notes])
+							AND deleted.[GroupName] = inserted.[GroupName]
+							AND deleted.[AccountName] = inserted.[AccountName])
+END
+GO
+
+ALTER TABLE [Catalogue].[ADGroups] ENABLE TRIGGER [AuditADGroups]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditAgentJobs')
+DROP TRIGGER [Catalogue].[AuditAgentJobs]
+GO
+
+CREATE TRIGGER [Catalogue].[AuditAgentJobs]
+ON [Catalogue].[AgentJobs]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[AgentJobs_Audit]
+		([ServerName], [JobID], [JobName], [Enabled], [Description], [Category], [DateCreated], [DateModified], [ScheduleEnabled], [ScheduleName], [ScheduleFrequency], [StepID], [StepName], [SubSystem], [Command], [DatabaseName], [AuditDate])
+		SELECT	[ServerName], 
+				[JobID], 
+				[JobName], 
+				[Enabled], 
+				[Description], 
+				[Category], 
+				[DateCreated], 
+				[DateModified], 
+				[ScheduleEnabled], 
+				[ScheduleName], 
+				[ScheduleFrequency], 
+				[StepID], 
+				[StepName], 
+				[SubSystem], 
+				[Command], 
+				[DatabaseName],
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[ServerName], 
+											inserted.[JobID], 
+											inserted.[JobName], 
+											inserted.[Enabled], 
+											inserted.[Description], 
+											inserted.[Category], 
+											inserted.[DateCreated], 
+											inserted.[DateModified], 
+											inserted.[ScheduleEnabled], 
+											inserted.[ScheduleName], 
+											inserted.[ScheduleFrequency], 
+											inserted.[StepID], 
+											inserted.[StepName], 
+											inserted.[SubSystem], 
+											inserted.[Command], 
+											inserted.[DatabaseName])
+										!= 
+								CHECKSUM(	deleted.[ServerName], 
+											deleted.[JobID], 
+											deleted.[JobName], 
+											deleted.[Enabled], 
+											deleted.[Description], 
+											deleted.[Category], 
+											deleted.[DateCreated], 
+											deleted.[DateModified], 
+											deleted.[ScheduleEnabled], 
+											deleted.[ScheduleName], 
+											deleted.[ScheduleFrequency], 
+											deleted.[StepID], 
+											deleted.[StepName], 
+											deleted.[SubSystem], 
+											deleted.[Command], 
+											deleted.[DatabaseName])
+							AND deleted.[ServerName] = inserted.[ServerName]
+							AND deleted.[JobID] = inserted.[JobID]
+							AND deleted.[StepID] = inserted.[StepID])
+END
+GO
+
+ALTER TABLE [Catalogue].[AgentJobs] ENABLE TRIGGER [AuditAgentJobs]
+GO
+
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditAvailabilityGroups')
+DROP TRIGGER [Catalogue].[AuditAvailabilityGroups]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditAvailabilityGroups]
+ON [Catalogue].[AvailabilityGroups]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[AvailabilityGroups_Audit]
+		([AGName], [ServerName], [Role], [BackupPreference], [AvailabilityMode], [FailoverMode], [ConnectionsToSecondary], [Notes], [AuditDate])
+		SELECT	[AGName], 
+				[ServerName], 
+				[Role], 
+				[BackupPreference], 
+				[AvailabilityMode], 
+				[FailoverMode], 
+				[ConnectionsToSecondary], 
+				[Notes], 
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[AGName], 
+											inserted.[ServerName], 
+											inserted.[Role], 
+											inserted.[BackupPreference], 
+											inserted.[AvailabilityMode], 
+											inserted.[FailoverMode], 
+											inserted.[ConnectionsToSecondary], 
+											inserted.[Notes])
+										!= 
+								CHECKSUM(	deleted.[AGName], 
+											deleted.[ServerName], 
+											deleted.[Role], 
+											deleted.[BackupPreference], 
+											deleted.[AvailabilityMode], 
+											deleted.[FailoverMode], 
+											deleted.[ConnectionsToSecondary], 
+											deleted.[Notes])
+							AND deleted.[AGName] = inserted.[AGName]
+							AND deleted.[ServerName] = inserted.[ServerName])
+END
+GO
+
+ALTER TABLE [Catalogue].[AvailabilityGroups] ENABLE TRIGGER [AuditAvailabilityGroups]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditDatabases')
+DROP TRIGGER [Catalogue].[AuditDatabases]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditDatabases]
+ON [Catalogue].[Databases]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[Databases_Audit]
+		([ServerName], [DBName], [DatabaseID], [OwnerName], [CompatibilityLevel], [CollationName], [RecoveryModelDesc], [AGName], [FilePaths], [DatabaseSizeMB], [CustomerName], [ApplicationName], [Notes], [AuditDate])
+		SELECT	[ServerName], 
+				[DBName], 
+				[DatabaseID], 
+				[OwnerName], 
+				[CompatibilityLevel], 
+				[CollationName], 
+				[RecoveryModelDesc], 
+				[AGName], 
+				[FilePaths], 
+				[DatabaseSizeMB], 
+				[CustomerName], 
+				[ApplicationName], 
+				[Notes], 
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[ServerName], 
+											inserted.[DBName], 
+											inserted.[DatabaseID], 
+											inserted.[OwnerName], 
+											inserted.[CompatibilityLevel], 
+											inserted.[CollationName], 
+											inserted.[RecoveryModelDesc], 
+											inserted.[AGName], 
+											inserted.[FilePaths], 
+											inserted.[DatabaseSizeMB], 
+											inserted.[CustomerName], 
+											inserted.[ApplicationName], 
+											inserted.[Notes])
+																	!= 
+								CHECKSUM(	deleted.[ServerName], 
+											deleted.[DBName], 
+											deleted.[DatabaseID], 
+											deleted.[OwnerName], 
+											deleted.[CompatibilityLevel], 
+											deleted.[CollationName], 
+											deleted.[RecoveryModelDesc], 
+											deleted.[AGName], 
+											deleted.[FilePaths], 
+											deleted.[DatabaseSizeMB], 
+											deleted.[CustomerName], 
+											deleted.[ApplicationName], 
+											deleted.[Notes])
+							AND deleted.[DBName] = inserted.[DBName]
+							AND deleted.[ServerName] = inserted.[ServerName])
+END
+GO
+
+ALTER TABLE [Catalogue].[Databases] ENABLE TRIGGER [AuditDatabases]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditExplicitPermissions')
+DROP TRIGGER [Catalogue].[AuditExplicitPermissions]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditExplicitPermissions]
+ON [Catalogue].[ExplicitPermissions]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[ExplicitPermissions_Audit]
+		([Name], [PermissionName], [StateDesc], [ServerName], [DBName], [MajorObject], [MinorObject], [Notes], AuditDate)
+		SELECT	[Name], 
+				[PermissionName], 
+				[StateDesc], 
+				[ServerName], 
+				[DBName], 
+				[MajorObject], 
+				[MinorObject], 
+				[Notes], 
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[Name], 
+											inserted.[PermissionName], 
+											inserted.[StateDesc], 
+											inserted.[ServerName], 
+											inserted.[DBName], 
+											inserted.[MajorObject], 
+											inserted.[MinorObject], 
+											inserted.[Notes])
+																	!= 
+								CHECKSUM(	deleted.[Name], 
+											deleted.[PermissionName], 
+											deleted.[StateDesc], 
+											deleted.[ServerName], 
+											deleted.[DBName], 
+											deleted.[MajorObject], 
+											deleted.[MinorObject], 
+											deleted.[Notes])
+							AND deleted.Name = inserted.Name
+							AND deleted.PermissionName = inserted.PermissionName
+							AND deleted.StateDesc = inserted.StateDesc
+							AND deleted.ServerName = inserted.ServerName
+							AND deleted.DBName = inserted.DBName
+							AND ISNULL(deleted.MajorObject,'') = ISNULL(inserted.MajorObject,'')
+							AND ISNULL(deleted.MinorObject,'') = ISNULL(inserted.MinorObject,'')
+							)
+END
+GO
+
+ALTER TABLE [Catalogue].[ExplicitPermissions] ENABLE TRIGGER [AuditExplicitPermissions]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditLinkedServers_Server')
+DROP TRIGGER [Catalogue].[AuditLinkedServers_Server]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditLinkedServers_Server]
+ON [Catalogue].[LinkedServers_Server]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[LinkedServers_Server_Audit]
+		([Server], [LinkedServerName], [DataSource], [Provider], [Product], [Location], [ProviderString], [Catalog], [FirstRecorded], [LastRecorded], [Notes], [AuditDate])
+		SELECT	[Server], 
+				[LinkedServerName], 
+				[DataSource], 
+				[Provider], 
+				[Product], 
+				[Location], 
+				[ProviderString], 
+				[Catalog], 
+				[FirstRecorded], 
+				[LastRecorded], 
+				[Notes], 
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[Server], 
+											inserted.[LinkedServerName], 
+											inserted.[DataSource], 
+											inserted.[Provider], 
+											inserted.[Product], 
+											inserted.[Location], 
+											inserted.[ProviderString], 
+											inserted.[Catalog], 
+											inserted.[FirstRecorded], 
+											inserted.[LastRecorded], 
+											inserted.[Notes])
+											!= 
+								CHECKSUM(	deleted.[Server], 
+											deleted.[LinkedServerName], 
+											deleted.[DataSource], 
+											deleted.[Provider], 
+											deleted.[Product], 
+											deleted.[Location], 
+											deleted.[ProviderString], 
+											deleted.[Catalog], 
+											deleted.[FirstRecorded], 
+											deleted.[LastRecorded], 
+											deleted.[Notes])
+							AND deleted.[Server] = inserted.[Server]
+							AND deleted.[LinkedServerName] = inserted.[LinkedServerName]
+							)
+END
+GO
+
+ALTER TABLE [Catalogue].[LinkedServers_Server] ENABLE TRIGGER [AuditLinkedServers_Server]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditLinkedServers_Users')
+DROP TRIGGER [Catalogue].[AuditLinkedServers_Users]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditLinkedServers_Users]
+ON [Catalogue].[LinkedServers_Users]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[LinkedServers_Users_Audit]
+		([Server], [LinkedServerName], [LocalUser], [Impersonate], [RemoteUser], [FirstRecorded], [LastRecorded], [Notes], [AuditDate])
+		SELECT	[Server], 
+				[LinkedServerName], 
+				[LocalUser], 
+				[Impersonate], 
+				[RemoteUser], 
+				[FirstRecorded], 
+				[LastRecorded], 
+				[Notes],
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[Server], 
+											inserted.[LinkedServerName], 
+											inserted.[LocalUser], 
+											inserted.[Impersonate], 
+											inserted.[RemoteUser], 
+											inserted.[FirstRecorded], 
+											inserted.[LastRecorded], 
+											inserted.[Notes])
+											!= 
+								CHECKSUM(	inserted.[Server], 
+											inserted.[LinkedServerName], 
+											inserted.[LocalUser], 
+											inserted.[Impersonate], 
+											inserted.[RemoteUser], 
+											inserted.[FirstRecorded], 
+											inserted.[LastRecorded], 
+											inserted.[Notes])
+							AND deleted.[Server] = inserted.[Server]
+							AND deleted.[LinkedServerName] = inserted.[LinkedServerName]
+							AND deleted.[LocalUser] = inserted.[LocalUser]
+							)
+END
+GO
+
+ALTER TABLE [Catalogue].[LinkedServers_Users] ENABLE TRIGGER [AuditLinkedServers_Users]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditLogins')
+DROP TRIGGER [Catalogue].[AuditLogins]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditLogins]
+ON [Catalogue].[Logins]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[Logins_Audit]
+		([ServerName], [LoginName], [SID], [RoleName], [IsDisabled], [Notes], [PasswordHash], [LoginType], [AuditDate])
+		SELECT	ServerName,
+				LoginName,
+				SID,
+				RoleName,
+				IsDisabled,
+				Notes,
+				PasswordHash,
+				LoginType,
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(inserted.LoginName,
+										inserted.SID,
+										inserted.RoleName,
+										inserted.IsDisabled,
+										inserted.Notes,
+										inserted.PasswordHash,
+										inserted.LoginType)
+										!= 
+								CHECKSUM(deleted.LoginName,
+										deleted.SID,
+										deleted.RoleName,
+										deleted.IsDisabled,
+										deleted.Notes,
+										deleted.PasswordHash,
+										deleted.LoginType)
+							AND deleted.ServerName = inserted.ServerName
+							AND deleted.LoginName = inserted.LoginName
+							AND ISNULL(deleted.RoleName, '') = ISNULL(inserted.RoleName,''))
+END
+GO
+
+ALTER TABLE [Catalogue].[Logins] ENABLE TRIGGER [AuditLogins]
+GO
+
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditServers')
+DROP TRIGGER [Catalogue].[AuditServers]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditServers]
+ON [Catalogue].[Servers]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[Servers_Audit]
+		([ServerName], [Collation], [Edition], [VersionNo], [FirstRecorded], [LastRecorded], [CustomerName], [ApplicationName], [Notes], [ServerStartTime], [CostThreshold], [MaxWorkerThreads], [MaxDOP], [CPUCount], [NUMACount], [PhysicalMemoryMB], [MaxMemoryMB], [MinMemoryMB], [MemoryModel], [IsClustered], [VMType], [AuditDate])
+		SELECT	[ServerName], 
+				[Collation], 
+				[Edition], 
+				[VersionNo], 
+				[FirstRecorded], 
+				[LastRecorded], 
+				[CustomerName], 
+				[ApplicationName], 
+				[Notes], 
+				[ServerStartTime], 
+				[CostThreshold], 
+				[MaxWorkerThreads], 
+				[MaxDOP], 
+				[CPUCount], 
+				[NUMACount], 
+				[PhysicalMemoryMB], 
+				[MaxMemoryMB], 
+				[MinMemoryMB], 
+				[MemoryModel], 
+				[IsClustered], 
+				[VMType],
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[ServerName], 
+											inserted.[Collation], 
+											inserted.[Edition], 
+											inserted.[VersionNo], 
+											inserted.[FirstRecorded], 
+											inserted.[LastRecorded], 
+											inserted.[CustomerName], 
+											inserted.[ApplicationName], 
+											inserted.[Notes], 
+											inserted.[ServerStartTime], 
+											inserted.[CostThreshold], 
+											inserted.[MaxWorkerThreads], 
+											inserted.[MaxDOP], 
+											inserted.[CPUCount], 
+											inserted.[NUMACount], 
+											inserted.[PhysicalMemoryMB], 
+											inserted.[MaxMemoryMB], 
+											inserted.[MinMemoryMB], 
+											inserted.[MemoryModel], 
+											inserted.[IsClustered], 
+											inserted.[VMType])
+										!= 
+								CHECKSUM(	deleted.[ServerName], 
+											deleted.[Collation], 
+											deleted.[Edition], 
+											deleted.[VersionNo], 
+											deleted.[FirstRecorded], 
+											deleted.[LastRecorded], 
+											deleted.[CustomerName], 
+											deleted.[ApplicationName], 
+											deleted.[Notes], 
+											deleted.[ServerStartTime], 
+											deleted.[CostThreshold], 
+											deleted.[MaxWorkerThreads], 
+											deleted.[MaxDOP], 
+											deleted.[CPUCount], 
+											deleted.[NUMACount], 
+											deleted.[PhysicalMemoryMB], 
+											deleted.[MaxMemoryMB], 
+											deleted.[MinMemoryMB], 
+											deleted.[MemoryModel], 
+											deleted.[IsClustered], 
+											deleted.[VMType])
+							AND deleted.ServerName = inserted.ServerName)
+END
+GO
+
+ALTER TABLE [Catalogue].[Servers] ENABLE TRIGGER [AuditServers]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditTables')
+DROP TRIGGER [Catalogue].[AuditTables]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditTables]
+ON [Catalogue].[Tables]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[Tables_Audit]
+		([ServerName], [DatabaseName], [SchemaName], [TableName], [Columns], [Notes], [AuditDate])
+		SELECT	[ServerName], 
+				[DatabaseName], 
+				[SchemaName], 
+				[TableName], 
+				[Columns], 
+				[Notes],
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[ServerName], 
+											inserted.[DatabaseName], 
+											inserted.[SchemaName], 
+											inserted.[TableName], 
+											CAST(inserted.[Columns] AS VARCHAR(MAX)), 
+											inserted.[Notes])
+										!= 
+								CHECKSUM(	deleted.[ServerName], 
+											deleted.[DatabaseName], 
+											deleted.[SchemaName], 
+											deleted.[TableName], 
+											CAST(deleted.[Columns] AS VARCHAR(MAX)), 
+											deleted.[Notes])
+							AND deleted.ServerName = inserted.ServerName
+							AND deleted.[DatabaseName] = inserted.DatabaseName
+							AND deleted.[SchemaName] = inserted.SchemaName
+							ANd deleted.[TableName] = inserted.TableName)
+END
+GO
+
+
+ALTER TABLE [Catalogue].[Tables] ENABLE TRIGGER [AuditTables]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditUsers')
+DROP TRIGGER [Catalogue].[AuditUsers]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditUsers]
+ON [Catalogue].[Users]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[Users_Audit]
+		([ServerName], [DBName], [UserName], [SID], [RoleName], [MappedLoginName], [Notes], [AuditDate])
+		SELECT	[ServerName], 
+				[DBName], 
+				[UserName], 
+				[SID], 
+				[RoleName], 
+				[MappedLoginName], 
+				[Notes],
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[ServerName], 
+											inserted.[DBName], 
+											inserted.[UserName], 
+											inserted.[SID], 
+											inserted.[RoleName], 
+											inserted.[MappedLoginName], 
+											inserted.[Notes])
+										!= 
+								CHECKSUM(	deleted.[ServerName], 
+											deleted.[DBName], 
+											deleted.[UserName], 
+											deleted.[SID], 
+											deleted.[RoleName], 
+											deleted.[MappedLoginName], 
+											deleted.[Notes])
+							AND deleted.ServerName = inserted.ServerName
+							AND deleted.[DBName] = inserted.[DBName]
+							AND deleted.[UserName] = inserted.[UserName]
+							AND ISNULL(deleted.RoleName ,'') = ISNULL(inserted.RoleName ,''))
+END
+GO
+
+ALTER TABLE [Catalogue].[Users] ENABLE TRIGGER [AuditUsers]
+GO
+
+
+--update version number
+UPDATE Catalogue.ConfigPoSH
+SET ParameterValue = '0.3.0'
+WHERE ParameterName = 'CatalogueVersion'
+
+--update 
+UPDATE Catalogue.ConfigPoSH
+SET ParameterValue = '1.0.0'
+WHERE ParameterName = 'DBAToolsRequirement'
+
+
 
