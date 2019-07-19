@@ -28,6 +28,7 @@
          +@@@@        @@@@@+                                                                                            
         @@@@@@@      @@@@@@@@#                                                                                          
          @@@@@@@    @@@@@@,                                                                                             
+         @@@@@@@    @@@@@@,                                                                                             
            :@@@@@' ;@@@@`                                                                                               
              `@@@@ @@@+                                                                                                 
                 @#:@@                                                                                                   
@@ -2280,8 +2281,6 @@ Usage
 Use this script to upgrade your catalogue from version 0.2.1 to 0.2.2
 */
 
-USE [SQLUndercover]
-GO
 
 ALTER TABLE [Catalogue].[Users_Stage] DROP CONSTRAINT PK_Users_Stage
 ALTER TABLE [Catalogue].[Users_Stage] DROP COLUMN ID
@@ -2785,8 +2784,6 @@ END
 
 -- create audit triggers
 
-USE [SQLUndercover]
-GO
 
 IF EXISTS (	SELECT 1
 			FROM sys.objects
@@ -3206,14 +3203,14 @@ BEGIN
 											inserted.[LastRecorded], 
 											inserted.[Notes])
 											!= 
-								CHECKSUM(	inserted.[Server], 
-											inserted.[LinkedServerName], 
-											inserted.[LocalUser], 
-											inserted.[Impersonate], 
-											inserted.[RemoteUser], 
-											inserted.[FirstRecorded], 
-											inserted.[LastRecorded], 
-											inserted.[Notes])
+								CHECKSUM(	deleted.[Server], 
+											deleted.[LinkedServerName], 
+											deleted.[LocalUser], 
+											deleted.[Impersonate], 
+											deleted.[RemoteUser], 
+											deleted.[FirstRecorded], 
+											deleted.[LastRecorded], 
+											deleted.[Notes])
 							AND deleted.[Server] = inserted.[Server]
 							AND deleted.[LinkedServerName] = inserted.[LinkedServerName]
 							AND deleted.[LocalUser] = inserted.[LocalUser]
