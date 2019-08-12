@@ -5,8 +5,9 @@ GO
 /******************************************************************
 
 Author: Adrian Buckman
-Revision date: 09/01/2018
-Version: 2
+Last Revision: David Fowler
+Revision date: 12/08/2019
+Version: 3
 
 © www.sqlundercover.com 
 
@@ -40,8 +41,9 @@ IF @FromDate IS NULL BEGIN SET @FromDate = DATEADD(Minute,-720,GETDATE()) END
 IF @ToDate  IS NULL BEGIN SET @ToDate = GETDATE() END  
   
 SELECT   
-Jobs.Name,  
-JobHistory.Step_id,  
+Jobs.name,  
+Jobs.job_id,
+JobHistory.step_id,  
 JobHistory.FailedRunDate,  
 CAST(JobHistory.LastError AS VARCHAR(250)) AS LastError  
 FROM msdb.dbo.sysjobs Jobs
@@ -54,10 +56,10 @@ CROSS APPLY (Select TOP 1
 			            STUFF(STUFF(CAST(JobHistory.run_date as nchar(8)), 7, 0, '-'), 5, 0, '-') + N' ' +   
 			            STUFF(STUFF(SUBSTRING(CAST(1000000 + JobHistory.run_time as nchar(7)), 2, 6), 5, 0, ':'), 3, 0, ':'),   
 			            120) END AS [FailedRunDate] ,
-			[Message] AS LastError  
+			[message] AS LastError  
 			FROM msdb.dbo.sysjobhistory JobHistory  
 			WHERE   
-			Run_status = 0   
+			run_status = 0   
 			AND  Jobs.job_id = JobHistory.job_id  
 			ORDER BY   
 			[FailedRunDate] DESC,step_id DESC) JobHistory  
@@ -74,16 +76,16 @@ AND NOT EXISTS (SELECT [LastSuccessfulrunDate]
 				 120) END AS [LastSuccessfulrunDate]   
 				FROM msdb.dbo.sysjobhistory JobHistory  
 				WHERE   
-				Run_status = 1  
+				run_status = 1  
 				AND  Jobs.job_id = JobHistory.job_id  
 				  ) JobHistory2  
 WHERE JobHistory2.[LastSuccessfulrunDate] > JobHistory.[FailedRunDate])  
 --Ensure that the job is not currently running
-AND NOT EXISTS (SELECT Session_id
+AND NOT EXISTS (SELECT session_id
 				From msdb.dbo.sysjobactivity JobActivity
 				where Jobs.job_id = JobActivity.job_id 
 				AND stop_execution_date is null
-				AND SESSION_id = (Select MAX(Session_ID) From msdb.dbo.sysjobactivity JobActivity
+				AND session_id = (Select MAX(session_id) From msdb.dbo.sysjobactivity JobActivity
 				where Jobs.job_id = JobActivity.job_id)
 				)  
 --Only show failed jobs where the Failed step is NOT configured to quit reporting success on error
