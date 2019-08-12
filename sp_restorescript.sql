@@ -35,7 +35,7 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-sp_RestoreScript 1.4                                                                                                             
+sp_RestoreScript 1.5                                                                                                             
 Written By David Fowler
 29 June 2017
 Generate a set of backup commands to restore a database(s) to a specified time         
@@ -55,6 +55,9 @@ Maximum length of restore statement has been increased to VARCHAR(MAX)
 Wild cards supported in @DatabaseName
 Case Sensitive Collations Supported
 Fixed bug where not all databases would be set WITH RECOVERY or STANDBY on multi database statements, indstead they were being left with NORECOVERY
+
+12 August 2019
+Backup type added to the output
 
 MIT License
 ------------
@@ -173,12 +176,12 @@ WHERE name = DB_NAME()
 IF  OBJECT_ID('tempdb..#BackupCommands') IS NOT NULL
 	DROP TABLE #BackupCommands
 CREATE TABLE #BackupCommands
-(backup_start_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX))
+(backup_start_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4))
 
 IF OBJECT_ID('tempdb..#BackupCommandsFinal') IS NOT NULL
 	DROP TABLE #BackupCommandsFinal
 CREATE TABLE #BackupCommandsFinal
-(backup_start_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX))
+(backup_start_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4))
 
 IF OBJECT_ID('tempdb..#RestoreDatabases') IS NOT NULL
 	DROP TABLE #RestoreDatabases
@@ -355,7 +358,7 @@ BEGIN
 						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
-		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command
+		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'FULL'
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
 	END
@@ -413,7 +416,7 @@ BEGIN
 						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
-		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command
+		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'DIFF'
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
 		AND backup_start_date > (SELECT MAX(backup_start_date) FROM #BackupCommands)
@@ -439,7 +442,7 @@ BEGIN
 							FROM BackupFilesCTE a
 							WHERE a.backup_start_date = b.backup_start_date
 							FOR XML PATH('')),1,1,'') 
-						+ ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command
+						+ ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'LOG'
 		FROM BackupFilesCTE b
 		ORDER BY backup_start_date ASC
 
@@ -460,7 +463,7 @@ BEGIN
 						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
-		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR)  + ', STOPAT = ''' + CAST(@RestoreToDate AS VARCHAR) + '''' AS Command
+		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR)  + ', STOPAT = ''' + CAST(@RestoreToDate AS VARCHAR) + '''' AS Command, 'LOG'
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
 	END
@@ -506,7 +509,7 @@ BEGIN
 					FROM #BackupCommandsFinal)
 END
 
-SELECT backup_start_date, DBName, command
+SELECT backup_start_date, DBName, command, BackupType
 FROM #BackupCommandsFinal
 ORDER BY DBName,backup_start_date
 
