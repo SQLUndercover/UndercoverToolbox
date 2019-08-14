@@ -38,9 +38,10 @@
                                                                                                                             
 Undercover Catalogue Installation 0.3.0                                                      
 Written By David Fowler
-18/07/2019
+14/08/2019
 
 Fresh Installation and Upgrade
+NOTE: We only support upgrades from version 0.2.0 and up
 
 MIT License
 ------------
@@ -77,6 +78,29 @@ IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'Catalogue')
 EXEC('CREATE SCHEMA Catalogue')
 GO
 
+
+--check for any currently installed versions
+IF OBJECT_ID ('tempdb.dbo.#Version') IS NOT NULL
+	DROP TABLE #Version
+
+CREATE TABLE #Version (VersionNumber VARCHAR(100) NULL)
+
+IF OBJECT_ID('SQLUndercover.Catalogue.ConfigPoSH') IS NOT NULL --get the currently installed version number, if there is one
+BEGIN
+	INSERT INTO #Version (VersionNumber)
+	SELECT ParameterValue AS VersionNumber
+	FROM Catalogue.ConfigPoSH
+	WHERE ParameterName = 'CatalogueVersion'
+END
+ELSE
+BEGIN
+	INSERT INTO #Version
+	VALUES ('0.0.0')
+END
+
+
+--goto appropriate section of the script, depending on the current version number
+
 -----------------------------------------Catalogue Databases--------------------------------------------------------------
 --create database table
 IF NOT EXISTS (	SELECT 1
@@ -106,13 +130,13 @@ BEGIN
 		[DatabaseID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.Databases.database_id', 'DatabaseID'
-	EXEC sp_rename 'Catalogue.Databases.compatibility_level', 'CompatibilityLevel'
-	EXEC sp_rename 'Catalogue.Databases.collation_name', 'CollationName'
-	EXEC sp_rename 'Catalogue.Databases.recovery_model_desc', 'RecoveryModelDesc'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.Databases.database_id', 'DatabaseID'
+--	EXEC sp_rename 'Catalogue.Databases.compatibility_level', 'CompatibilityLevel'
+--	EXEC sp_rename 'Catalogue.Databases.collation_name', 'CollationName'
+--	EXEC sp_rename 'Catalogue.Databases.recovery_model_desc', 'RecoveryModelDesc'
+--END
 GO
 
 --create database staging table
@@ -138,13 +162,13 @@ BEGIN
 		[DatabaseID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.Databases_Stage.database_id', 'DatabaseID'
-	EXEC sp_rename 'Catalogue.Databases_Stage.compatibility_level', 'CompatibilityLevel'
-	EXEC sp_rename 'Catalogue.Databases_Stage.collation_name', 'CollationName'
-	EXEC sp_rename 'Catalogue.Databases_Stage.recovery_model_desc', 'RecoveryModelDesc'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.Databases_Stage.database_id', 'DatabaseID'
+--	EXEC sp_rename 'Catalogue.Databases_Stage.compatibility_level', 'CompatibilityLevel'
+--	EXEC sp_rename 'Catalogue.Databases_Stage.collation_name', 'CollationName'
+--	EXEC sp_rename 'Catalogue.Databases_Stage.recovery_model_desc', 'RecoveryModelDesc'
+--END
 GO
 
 --create job to get database details
@@ -376,10 +400,10 @@ BEGIN
 		[ID] ASC
 	))
 END
-ELSE
-BEGIN	
-	EXEC sp_rename 'Catalogue.Logins.sid', 'SID'
-END
+--ELSE
+--BEGIN	
+--	EXEC sp_rename 'Catalogue.Logins.sid', 'SID'
+--END
 GO
 
 --create database staging table
@@ -401,10 +425,10 @@ BEGIN
 		[ID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.Logins_Stage.sid', 'SID'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.Logins_Stage.sid', 'SID'
+--END
 GO
 
 --create proc to get logins
@@ -520,18 +544,18 @@ BEGIN
 		[ID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.AgentJobs.job_id', 'JobID'
-	EXEC sp_rename 'Catalogue.AgentJobs.enabled', 'Enabled'
-	EXEC sp_rename 'Catalogue.AgentJobs.description', 'Description'
-	EXEC sp_rename 'Catalogue.AgentJobs.date_created', 'DateCreated'
-	EXEC sp_rename 'Catalogue.AgentJobs.date_modified', 'DateModified'
-	EXEC sp_rename 'Catalogue.AgentJobs.step_id', 'StepID'
-	EXEC sp_rename 'Catalogue.AgentJobs.step_name', 'StepName'
-	EXEC sp_rename 'Catalogue.AgentJobs.subsystem', 'SubSystem'
-	EXEC sp_rename 'Catalogue.AgentJobs.command', 'Command'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.AgentJobs.job_id', 'JobID'
+--	EXEC sp_rename 'Catalogue.AgentJobs.enabled', 'Enabled'
+--	EXEC sp_rename 'Catalogue.AgentJobs.description', 'Description'
+--	EXEC sp_rename 'Catalogue.AgentJobs.date_created', 'DateCreated'
+--	EXEC sp_rename 'Catalogue.AgentJobs.date_modified', 'DateModified'
+--	EXEC sp_rename 'Catalogue.AgentJobs.step_id', 'StepID'
+--	EXEC sp_rename 'Catalogue.AgentJobs.step_name', 'StepName'
+--	EXEC sp_rename 'Catalogue.AgentJobs.subsystem', 'SubSystem'
+--	EXEC sp_rename 'Catalogue.AgentJobs.command', 'Command'
+--END
 GO
 
 --create database staging table
@@ -562,18 +586,18 @@ BEGIN
 		[JobID],[ServerName],[StepID], [ScheduleName] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.job_id', 'JobID'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.enabled', 'Enabled'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.description', 'Description'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.date_created', 'DateCreated'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.date_modified', 'DateModified'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.step_id', 'StepID'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.step_name', 'StepName'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.subsystem', 'SubSystem'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.command', 'Command'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.job_id', 'JobID'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.enabled', 'Enabled'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.description', 'Description'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.date_created', 'DateCreated'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.date_modified', 'DateModified'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.step_id', 'StepID'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.step_name', 'StepName'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.subsystem', 'SubSystem'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.command', 'Command'
+--END
 GO
 
 IF EXISTS (	SELECT * 
@@ -927,10 +951,10 @@ BEGIN
 		[ID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.Users.sid', 'SID'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.Users.sid', 'SID'
+--END
 GO
 
 --create database staging table
@@ -952,10 +976,10 @@ BEGIN
 		[ID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.Users_Stage.sid', 'SID'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.Users_Stage.sid', 'SID'
+--END
 GO
 
 
@@ -1115,12 +1139,12 @@ BEGIN
 		[ID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.ExplicitPermissions.name', 'Name'
-	EXEC sp_rename 'Catalogue.ExplicitPermissions.permission_name', 'PermissionName'
-	EXEC sp_rename 'Catalogue.ExplicitPermissions.state_desc', 'StateDesc'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.ExplicitPermissions.name', 'Name'
+--	EXEC sp_rename 'Catalogue.ExplicitPermissions.permission_name', 'PermissionName'
+--	EXEC sp_rename 'Catalogue.ExplicitPermissions.state_desc', 'StateDesc'
+--END
 GO
 
 IF NOT EXISTS (	SELECT 1
@@ -1142,12 +1166,12 @@ CREATE TABLE [Catalogue].[ExplicitPermissions_Stage](
 	[ID] ASC
 ))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.name', 'Name'
-	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.permission_name', 'PermissionName'
-	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.state_desc', 'StateDesc'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.name', 'Name'
+--	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.permission_name', 'PermissionName'
+--	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.state_desc', 'StateDesc'
+--END
 GO
 
 
@@ -1357,18 +1381,18 @@ BEGIN
 	INSERT INTO Catalogue.ConfigPoSH (ParameterName,ParameterValue)
 	VALUES	('CatalogueVersion', '0.2.0'),
 			('AutoDiscoverInstances','0'),
-			('DBAToolsRequirement', '0.9.750'),
+			('DBAToolsRequirement', '1.0.0'),
 			('AutoInstall', '0'),
 			('AutoUpdate', '0'),
 			('InstallationScriptPath', '{script path}')
 END
 ELSE
 BEGIN
-	EXEC sp_rename 'Catalogue.configPoSH', 'ConfigPoSH'
+	--EXEC sp_rename 'Catalogue.configPoSH', 'ConfigPoSH'
 
 	--update the required version of dbatools to 0.9.750
 	UPDATE Catalogue.ConfigPoSH
-	SET ParameterValue = '0.9.750'
+	SET ParameterValue = '1.0.0'
 	WHERE ParameterName = 'DBAToolsRequirement'
 END
 GO
@@ -1377,9 +1401,7 @@ GO
 
 
 
-
-
-
+Patch021:
 --------------------------------------------------------------------------------------------------------------
 ------------------Version 0.2.1 Changes-------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------------------
@@ -1389,6 +1411,8 @@ GO
 --alter server table to include new fields
 
 --------------------------------------Catalogue Servers----------------------------------------------------------------
+
+
 --change version number in ConfigPoSH to 0.2.1
 
 UPDATE Catalogue.ConfigPoSH 
@@ -1396,38 +1420,41 @@ SET ParameterValue = '0.2.1'
 WHERE ParameterName = 'CatalogueVersion'
 GO
 
+
 --add 0.2 columns to Servers_Stage
 
-ALTER TABLE Catalogue.Servers_Stage
-ADD ServerStartTime DATETIME,
-	CostThreshold INT,
-	MaxWorkerThreads INT,
-	[MaxDOP] INT,
-	CPUCount INT,
-	NUMACount INT,
-	PhysicalMemoryMB INT,
-	MaxMemoryMB INT,
-	MinMemoryMB INT,
-	MemoryModel NVARCHAR(128),
-	IsClustered BIT,
-	VMType NVARCHAR(60)
-GO
+IF (SELECT VersionNumber FROM #Version) IN ('0.0.0','0.2.0')
+BEGIN
+	ALTER TABLE Catalogue.Servers_Stage
+	ADD ServerStartTime DATETIME,
+		CostThreshold INT,
+		MaxWorkerThreads INT,
+		[MaxDOP] INT,
+		CPUCount INT,
+		NUMACount INT,
+		PhysicalMemoryMB INT,
+		MaxMemoryMB INT,
+		MinMemoryMB INT,
+		MemoryModel NVARCHAR(128),
+		IsClustered BIT,
+		VMType NVARCHAR(60)
 
---add 0.2 columns to Servers
+	--add 0.2 columns to Servers
 
-ALTER TABLE Catalogue.[Servers]
-ADD ServerStartTime DATETIME,
-	CostThreshold INT,
-	MaxWorkerThreads INT,
-	[MaxDOP] INT,
-	CPUCount INT,
-	NUMACount INT,
-	PhysicalMemoryMB INT,
-	MaxMemoryMB INT,
-	MinMemoryMB INT,
-	MemoryModel NVARCHAR(128),
-	IsClustered BIT,
-	VMType NVARCHAR(60)
+	ALTER TABLE Catalogue.[Servers]
+	ADD ServerStartTime DATETIME,
+		CostThreshold INT,
+		MaxWorkerThreads INT,
+		[MaxDOP] INT,
+		CPUCount INT,
+		NUMACount INT,
+		PhysicalMemoryMB INT,
+		MaxMemoryMB INT,
+		MinMemoryMB INT,
+		MemoryModel NVARCHAR(128),
+		IsClustered BIT,
+		VMType NVARCHAR(60)
+END
 GO
 
 
@@ -1566,12 +1593,14 @@ GO
 ------------------------------------------------Catalogue Login------------------------------------------------------------------------
 
 --alter tables, include type column
+IF (SELECT VersionNumber FROM #Version) IN ('0.0.0','0.2.0')
+BEGIN
+	ALTER TABLE Catalogue.Logins_Stage
+	ADD LoginType NVARCHAR(60)
 
-ALTER TABLE Catalogue.Logins_Stage
-ADD LoginType NVARCHAR(60)
-
-ALTER TABLE Catalogue.Logins
-ADD LoginType NVARCHAR(60)
+	ALTER TABLE Catalogue.Logins
+	ADD LoginType NVARCHAR(60)
+END
 
 --updates login procedures
 
@@ -1583,7 +1612,7 @@ IF EXISTS (	SELECT *
 			WHERE objects.name = 'GetLogins'
 			AND schemas.name = 'Catalogue'
 			AND type = 'P')
-DROP PROC Catalogue.GetLogins
+DROP PROC [Catalogue].GetLogins
 GO
 
 CREATE PROC [Catalogue].GetLogins
@@ -2252,15 +2281,16 @@ END
 ------------------------------update modules table with 0.2 modules------------------------------------
 -------------------------------------------------------------------------------------------------------
 
-INSERT INTO Catalogue.ConfigModules ([ModuleName], [GetProcName], [UpdateProcName], [StageTableName], [MainTableName], [Active])
-VALUES	('ADGroups','GetADGroups','UpdateADGroups','ADGroups_Stage','ADGroups',	1),
-		('LinkedServers','GetLinkedServers','UpdateLinkedServers','LinkedServers_Stage','LinkedServers_Servers,LinkedServers_Users',1),
-		('Tables','GetTables','UpdateTables','Tables_Stage','Tables',1)
+IF (SELECT VersionNumber FROM #Version) IN ('0.0.0','0.2.0')
+BEGIN
+	INSERT INTO Catalogue.ConfigModules ([ModuleName], [GetProcName], [UpdateProcName], [StageTableName], [MainTableName], [Active])
+	VALUES	('ADGroups','GetADGroups','UpdateADGroups','ADGroups_Stage','ADGroups',	1),
+			('LinkedServers','GetLinkedServers','UpdateLinkedServers','LinkedServers_Stage','LinkedServers_Servers,LinkedServers_Users',1),
+			('Tables','GetTables','UpdateTables','Tables_Stage','Tables',1)
+END
 
 
-
-
-SELECT @@CPU_BUSY, @@IDLE
+Patch022:
 
 
 -------------------------------------------------------------------------------------------------------------
@@ -2281,9 +2311,16 @@ Usage
 Use this script to upgrade your catalogue from version 0.2.1 to 0.2.2
 */
 
+UPDATE Catalogue.ConfigPoSH 
+SET ParameterValue = '0.2.2'
+WHERE ParameterName = 'CatalogueVersion'
+GO
 
-ALTER TABLE [Catalogue].[Users_Stage] DROP CONSTRAINT PK_Users_Stage
-ALTER TABLE [Catalogue].[Users_Stage] DROP COLUMN ID
+IF (SELECT VersionNumber FROM #Version) IN ('0.0.0','0.2.0','0.2.1')
+BEGIN
+	ALTER TABLE [Catalogue].[Users_Stage] DROP CONSTRAINT PK_Users_Stage
+	ALTER TABLE [Catalogue].[Users_Stage] DROP COLUMN ID
+END
 GO
 
 ALTER PROC [Catalogue].[GetUsers]
@@ -2548,9 +2585,10 @@ END
 GO
 
 
+Patch030:
 
 -------------------------------------------------------------------------------------------------------------------
---Version 0.3 Changes
+--Version 0.3.0 Changes
 -------------------------------------------------------------------------------------------------------------------
 
 --create audit tables
@@ -2726,8 +2764,6 @@ BEGIN
 		[Collation] [nvarchar](128) NOT NULL,
 		[Edition] [nvarchar](128) NOT NULL,
 		[VersionNo] [nvarchar](128) NOT NULL,
-		[FirstRecorded] [datetime] NULL,
-		[LastRecorded] [datetime] NULL,
 		[CustomerName] [varchar](50) NULL,
 		[ApplicationName] [varchar](50) NULL,
 		[Notes] [varchar](255) NULL,
@@ -3295,13 +3331,11 @@ AS
 BEGIN
 		--audit old record
 		INSERT INTO [Catalogue].[Servers_Audit]
-		([ServerName], [Collation], [Edition], [VersionNo], [FirstRecorded], [LastRecorded], [CustomerName], [ApplicationName], [Notes], [ServerStartTime], [CostThreshold], [MaxWorkerThreads], [MaxDOP], [CPUCount], [NUMACount], [PhysicalMemoryMB], [MaxMemoryMB], [MinMemoryMB], [MemoryModel], [IsClustered], [VMType], [AuditDate])
+		([ServerName], [Collation], [Edition], [VersionNo], [CustomerName], [ApplicationName], [Notes], [ServerStartTime], [CostThreshold], [MaxWorkerThreads], [MaxDOP], [CPUCount], [NUMACount], [PhysicalMemoryMB], [MaxMemoryMB], [MinMemoryMB], [MemoryModel], [IsClustered], [VMType], [AuditDate])
 		SELECT	[ServerName], 
 				[Collation], 
 				[Edition], 
-				[VersionNo], 
-				[FirstRecorded], 
-				[LastRecorded], 
+				[VersionNo],
 				[CustomerName], 
 				[ApplicationName], 
 				[Notes], 
@@ -3324,9 +3358,7 @@ BEGIN
 						  WHERE CHECKSUM(	inserted.[ServerName], 
 											inserted.[Collation], 
 											inserted.[Edition], 
-											inserted.[VersionNo], 
-											inserted.[FirstRecorded], 
-											inserted.[LastRecorded], 
+											inserted.[VersionNo],
 											inserted.[CustomerName], 
 											inserted.[ApplicationName], 
 											inserted.[Notes], 
