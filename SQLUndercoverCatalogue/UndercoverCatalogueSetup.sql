@@ -46,7 +46,7 @@ NOTE: We only support upgrades from version 0.2.0 and up
 MIT License
 ------------
 
-Copyright 2018 Sql Undercover
+Copyright 2019 Sql Undercover
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files 
 (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, 
@@ -2708,8 +2708,6 @@ BEGIN
 		[Location] [nvarchar](4000) NULL,
 		[ProviderString] [nvarchar](4000) NULL,
 		[Catalog] [nvarchar](128) NULL,
-		[FirstRecorded] [datetime] NULL,
-		[LastRecorded] [datetime] NULL,
 		[Notes] [varchar](255) NULL,
 		[AuditDate] [datetime] NOT NULL
 	) ON [PRIMARY]
@@ -2727,8 +2725,6 @@ BEGIN
 		[LocalUser] [nvarchar](128) NULL,
 		[Impersonate] [bit] NOT NULL,
 		[RemoteUser] [nvarchar](128) NULL,
-		[FirstRecorded] [datetime] NULL,
-		[LastRecorded] [datetime] NULL,
 		[Notes] [varchar](255) NULL,
 		[AuditDate] [datetime] NOT NULL
 	) ON [PRIMARY]
@@ -3151,7 +3147,7 @@ AS
 BEGIN
 		--audit old record
 		INSERT INTO [Catalogue].[LinkedServers_Server_Audit]
-		([Server], [LinkedServerName], [DataSource], [Provider], [Product], [Location], [ProviderString], [Catalog], [FirstRecorded], [LastRecorded], [Notes], [AuditDate])
+		([Server], [LinkedServerName], [DataSource], [Provider], [Product], [Location], [ProviderString], [Catalog], [Notes], [AuditDate])
 		SELECT	[Server], 
 				[LinkedServerName], 
 				[DataSource], 
@@ -3160,8 +3156,6 @@ BEGIN
 				[Location], 
 				[ProviderString], 
 				[Catalog], 
-				[FirstRecorded], 
-				[LastRecorded], 
 				[Notes], 
 				GETDATE()
 			FROM deleted
@@ -3175,8 +3169,6 @@ BEGIN
 											inserted.[Location], 
 											inserted.[ProviderString], 
 											inserted.[Catalog], 
-											inserted.[FirstRecorded], 
-											inserted.[LastRecorded], 
 											inserted.[Notes])
 											!= 
 								CHECKSUM(	deleted.[Server], 
@@ -3187,8 +3179,6 @@ BEGIN
 											deleted.[Location], 
 											deleted.[ProviderString], 
 											deleted.[Catalog], 
-											deleted.[FirstRecorded], 
-											deleted.[LastRecorded], 
 											deleted.[Notes])
 							AND deleted.[Server] = inserted.[Server]
 							AND deleted.[LinkedServerName] = inserted.[LinkedServerName]
@@ -3217,14 +3207,12 @@ AS
 BEGIN
 		--audit old record
 		INSERT INTO [Catalogue].[LinkedServers_Users_Audit]
-		([Server], [LinkedServerName], [LocalUser], [Impersonate], [RemoteUser], [FirstRecorded], [LastRecorded], [Notes], [AuditDate])
+		([Server], [LinkedServerName], [LocalUser], [Impersonate], [RemoteUser], [Notes], [AuditDate])
 		SELECT	[Server], 
 				[LinkedServerName], 
 				[LocalUser], 
 				[Impersonate], 
 				[RemoteUser], 
-				[FirstRecorded], 
-				[LastRecorded], 
 				[Notes],
 				GETDATE()
 			FROM deleted
@@ -3235,8 +3223,6 @@ BEGIN
 											inserted.[LocalUser], 
 											inserted.[Impersonate], 
 											inserted.[RemoteUser], 
-											inserted.[FirstRecorded], 
-											inserted.[LastRecorded], 
 											inserted.[Notes])
 											!= 
 								CHECKSUM(	deleted.[Server], 
@@ -3244,8 +3230,6 @@ BEGIN
 											deleted.[LocalUser], 
 											deleted.[Impersonate], 
 											deleted.[RemoteUser], 
-											deleted.[FirstRecorded], 
-											deleted.[LastRecorded], 
 											deleted.[Notes])
 							AND deleted.[Server] = inserted.[Server]
 							AND deleted.[LinkedServerName] = inserted.[LinkedServerName]
