@@ -1,8 +1,8 @@
 /******************************************************************
 
 Author: David Fowler
-Revision date: 19 September 2017
-Version: 1
+Revision date: 15 August 2019
+Version: 2
 
 © www.sqlundercover.com 
 
@@ -26,7 +26,7 @@ software.
 USE master
 GO
  
-CREATE PROCEDURE sp_Snapshot
+ALTER PROCEDURE sp_Snapshot
 (@DatabaseList NVARCHAR(4000),
 @ListOnly BIT = 0)
  
@@ -134,7 +134,7 @@ BEGIN
             END 
  
             --loop will have added an unwanted comma at the end of the script, delete this comma
-            SET @SnapshotScript = LEFT(@snapshotscript, LEN(@snapshotscript) -1) 
+            SET @SnapshotScript = LEFT(@SnapshotScript, LEN(@SnapshotScript) -1) 
  
             --add AS SNAPSHOT to script
             SET @SnapshotScript = @SnapshotScript + '' AS SNAPSHOT OF ['' + @DatabaseName + '']'' 
