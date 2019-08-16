@@ -2620,8 +2620,6 @@ BEGIN
 		[Enabled] [tinyint] NOT NULL,
 		[Description] [nvarchar](512) NULL,
 		[Category] [sysname] NOT NULL,
-		[DateCreated] [datetime] NOT NULL,
-		[DateModified] [datetime] NOT NULL,
 		[ScheduleEnabled] [int] NOT NULL,
 		[ScheduleName] [sysname] NOT NULL,
 		[ScheduleFrequency] [varchar](8000) NULL,
@@ -2876,15 +2874,13 @@ AS
 BEGIN
 		--audit old record
 		INSERT INTO [Catalogue].[AgentJobs_Audit]
-		([ServerName], [JobID], [JobName], [Enabled], [Description], [Category], [DateCreated], [DateModified], [ScheduleEnabled], [ScheduleName], [ScheduleFrequency], [StepID], [StepName], [SubSystem], [Command], [DatabaseName], [AuditDate])
+		([ServerName], [JobID], [JobName], [Enabled], [Description], [Category], [ScheduleEnabled], [ScheduleName], [ScheduleFrequency], [StepID], [StepName], [SubSystem], [Command], [DatabaseName], [AuditDate])
 		SELECT	[ServerName], 
 				[JobID], 
 				[JobName], 
 				[Enabled], 
 				[Description], 
 				[Category], 
-				[DateCreated], 
-				[DateModified], 
 				[ScheduleEnabled], 
 				[ScheduleName], 
 				[ScheduleFrequency], 
@@ -2903,8 +2899,6 @@ BEGIN
 											inserted.[Enabled], 
 											inserted.[Description], 
 											inserted.[Category], 
-											inserted.[DateCreated], 
-											inserted.[DateModified], 
 											inserted.[ScheduleEnabled], 
 											inserted.[ScheduleName], 
 											inserted.[ScheduleFrequency], 
@@ -2920,8 +2914,6 @@ BEGIN
 											deleted.[Enabled], 
 											deleted.[Description], 
 											deleted.[Category], 
-											deleted.[DateCreated], 
-											deleted.[DateModified], 
 											deleted.[ScheduleEnabled], 
 											deleted.[ScheduleName], 
 											deleted.[ScheduleFrequency], 
