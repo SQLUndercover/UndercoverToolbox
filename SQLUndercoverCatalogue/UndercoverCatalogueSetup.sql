@@ -768,6 +768,7 @@ FROM Catalogue.AgentJobs_Stage
 WHERE	AgentJobs.ServerName = AgentJobs_Stage.ServerName
 		AND AgentJobs.JobID = AgentJobs_Stage.JobID
 		AND AgentJobs.StepID = AgentJobs_Stage.StepID
+		AND AgentJobs.ScheduleName = AgentJobs_Stage.ScheduleName
 
 --insert jobs that are unknown to the catlogue
 INSERT INTO Catalogue.AgentJobs 
@@ -797,7 +798,8 @@ WHERE NOT EXISTS
 (SELECT 1 FROM Catalogue.AgentJobs 
 		WHERE JobID = AgentJobs_Stage.JobID 
 		AND StepID = AgentJobs_Stage.StepID
-		AND ServerName = AgentJobs_Stage.ServerName)
+		AND ServerName = AgentJobs_Stage.ServerName
+		AND AgentJobs.ScheduleName = AgentJobs_Stage.ScheduleName)
 
 END
 GO
@@ -2924,7 +2926,9 @@ BEGIN
 											deleted.[DatabaseName])
 							AND deleted.[ServerName] = inserted.[ServerName]
 							AND deleted.[JobID] = inserted.[JobID]
-							AND deleted.[StepID] = inserted.[StepID])
+							AND deleted.[StepID] = inserted.[StepID]
+							AND deleted.ScheduleName = inserted.ScheduleName
+							)
 END
 GO
 
@@ -3505,7 +3509,7 @@ SET		ServerName = [Logins_Stage].ServerName,
 FROM	[Catalogue].[Logins_Stage]
 WHERE	Logins.ServerName = [Logins_Stage].ServerName
 		AND Logins.LoginName = [Logins_Stage].LoginName
-		AND Logins.RoleName = [Logins_Stage].RoleName
+		AND ISNULL(Logins.RoleName, '') = ISNULL([Logins_Stage].RoleName, ''
 
 --insert logins that are unknown to the catlogue
 INSERT INTO Catalogue.Logins
@@ -3524,7 +3528,7 @@ WHERE NOT EXISTS
 (SELECT 1 FROM Catalogue.Logins
 		WHERE Logins.ServerName = [Logins_Stage].ServerName
 		AND Logins.LoginName = [Logins_Stage].LoginName
-		AND Logins.RoleName = [Logins_Stage].RoleName)
+		AND ISNULL(Logins.RoleName, '') = ISNULL([Logins_Stage].RoleName, '')
 
 END
 GO
