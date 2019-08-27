@@ -64,8 +64,8 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 28/06/2019
-Version: 1.4
+Revision date: 22/08/2019
+Version: 1.41
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
 
@@ -103,7 +103,7 @@ CREATE PROCEDURE [Inspector].[InspectorSetup]
 @StackNameForEmailSubject VARCHAR(255) = 'SQLUndercover',	  --Specify the name for this stack that you want to show in the email subject
 @EmailRecipientList VARCHAR(1000) = NULL,	  -- This will populate the EmailRecipients table for 'DBA'
 @BackupsPath VARCHAR(255) = NULL,	  -- Backup Drive and path
-@DriveSpaceHistoryRetentionInDays TINYINT = 90, -- Also controls growth history retention (Since V1.2)
+@DriveSpaceHistoryRetentionInDays INT = 90, -- Also controls growth history retention (Since V1.2)
 @DaysUntilDriveFullThreshold	  TINYINT = 56, -- Estimated days until drive is full - Specify the threshold for when you will start to receive alerts (Red highlight and Alert header entry)
 @FreeSpaceRemainingPercent		  TINYINT = 10,-- Specify the percentage of drive space remaining where you want to start seeing a yellow highlight against the drive
 @DriveLetterExcludes			  VARCHAR(10) = NULL, -- Exclude Drive letters from showing Yellow Advisory warnings when @FreeSpaceRemainingPercent has been reached/exceeded e.g C,D (Comma Delimited)
@@ -141,7 +141,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V1.4
---Revision date: 15/07/2019
+--Revision date: 22/08/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -207,7 +207,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 
 			DECLARE @SQLStatement VARCHAR(MAX) 
 			DECLARE @DatabaseFileSizesResult INT
-			DECLARE @Build VARCHAR(6) ='1.4'
+			DECLARE @Build VARCHAR(6) ='1.41'
 			DECLARE @CurrentBuild VARCHAR(6)
 			 
 			
@@ -1031,7 +1031,14 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				);		
 			END
 			
-					
+			IF OBJECT_ID('Inspector.DriveSpaceCalc') IS NULL
+			BEGIN
+				CREATE TABLE [Inspector].[DriveSpaceCalc] (
+				[Servername] NVARCHAR(128) NOT NULL,
+				[Drive] NVARCHAR(128) NOT NULL,
+				[MedianCalc] BIT NOT NULL
+				);
+			END
 			
 		    IF OBJECT_ID('Inspector.CatalogueModules') IS NULL
 			BEGIN
@@ -5285,7 +5292,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 15/07/2019
+--Revision date: 22/08/2019
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V1.4
 
@@ -5657,7 +5664,7 @@ BEGIN
     DECLARE @BodyDriveSpace  VARCHAR(MAX) = ''''
 	DECLARE @CountDriveSpace INT
     DECLARE @TableHeadDriveSpace VARCHAR(1000) =
-    ''<b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''"></a>Drive space Report (Using ''+CASE WHEN @UseMedian = 1 THEN ''Median based Calculation'' ELSE ''Average based Calculation'' END +''):</b>
+    ''<b><A NAME = "''+REPLACE(@Serverlist,''\'','''')+''DriveSpace''+''"></a>Drive space Report (Using ''+CASE WHEN @UseMedian = 1 THEN ''Median based Calculation unless specified'' ELSE ''Average based Calculation unless specified'' END +''):</b>
     <br> <table cellpadding=0 cellspacing=0 border=0> 
     <tr> 
 	<td bgcolor=''+@TableHeaderColour+''><b>Server name</b></font></td>
@@ -5670,6 +5677,7 @@ BEGIN
 	<td bgcolor=''+@TableHeaderColour+''><b>Days Recorded</b></font></td>
 	<td bgcolor=''+@TableHeaderColour+''><b>Usage Trend</b></font></td>
 	<td bgcolor=''+@TableHeaderColour+''><b>Usage Trend AVG GB</b></font></td>
+	<td bgcolor=''+@TableHeaderColour+''><b>Calculation method</b></font></td>
 	'';
 
 	IF (SELECT MAX(Log_Date) 
@@ -5715,7 +5723,8 @@ BEGIN
 		ELSE (UsedSpace_GB-laggedUsedSpace) 
 	END AS VarianceCalc,
 	ROW_NUMBER() OVER (PARTITION BY [Drive] ORDER BY [Drive],(SELECT(UsedSpace_GB-laggedUsedSpace)) DESC) AS RowNum,
-	TotalEntries
+	TotalEntries,
+	ISNULL((SELECT MedianCalc FROM [Inspector].[DriveSpaceCalc] WHERE Servername = SpaceVariation.Servername AND Drive = SpaceVariation.Drive),@UseMedian) AS MedianCalc
 	FROM SpaceVariation
 	),
 	AverageDailyGrowth AS
@@ -5724,14 +5733,17 @@ BEGIN
 	SELECT
 	Servername, 
 	Drive,
+	MedianCalc,
 	CASE 
-		WHEN @UseMedian = 1 THEN (SELECT VarianceCalc FROM ApplyMedianRowNum Median WHERE Median.Drive = SpaceVariation.Drive AND (Median.TotalEntries/2) = Median.RowNum)
+		WHEN MedianCalc = 1 THEN (SELECT VarianceCalc FROM ApplyMedianRowNum Median WHERE Median.Drive = SpaceVariation.Drive AND (Median.TotalEntries/2) = Median.RowNum)
+		--WHEN @UseMedian = 1 THEN (SELECT VarianceCalc FROM ApplyMedianRowNum Median WHERE Median.Drive = SpaceVariation.Drive AND (Median.TotalEntries/2) = Median.RowNum)
 		ELSE CAST(SUM((VarianceCalc)/TotalEntries) AS DECIMAL(10,2)) 
 	END AS AverageDailyGrowth_GB
 	FROM ApplyMedianRowNum SpaceVariation
 	GROUP BY
 	Servername,
-	Drive
+	Drive,
+	MedianCalc
 	) 
 	SELECT @BodyDriveSpace = @BodyDriveSpace +(
 	SELECT 
@@ -5761,7 +5773,11 @@ BEGIN
 	TotalDriveEntries.TotalEntries  AS ''td'','''', + 
 	ISNULL(STUFF((SELECT TOP 5 '', ['' + DATENAME(WEEKDAY,DATEADD(DAY,-1,SpaceVariation.Log_Date)) + '' '' + CASE WHEN laggedUsedSpace-UsedSpace_GB > 0 THEN ''0.00''  --DATEADD is used here to display the previous day as the collection date is a day ahead.
 	ELSE CAST(ABS(laggedUsedSpace-UsedSpace_GB) AS VARCHAR(10)) END +'' GB]'' FROM SpaceVariation WHERE SpaceVariation.Drive = TotalDriveEntries.Drive AND SpaceVariation.Servername = TotalDriveEntries.Servername AND SpaceVariation.Log_Date >= DATEADD(DAY,-5,GETDATE()) ORDER BY SpaceVariation.Log_Date DESC FOR XML PATH('''')),1,1,''''),''N/A'')  AS ''td'','''', +
-	ISNULL(FiveDayTotal.SUMFiveDayTotal,0.00) AS ''td'',''''
+	ISNULL(FiveDayTotal.SUMFiveDayTotal,0.00) AS ''td'','''', +
+	CASE 
+		WHEN MedianCalc = 1 THEN ''Median'' 
+		WHEN MedianCalc = 0 THEN ''Average''
+	END AS ''td'',''''
 	FROM AverageDailyGrowth
 	INNER JOIN TotalDriveEntries ON TotalDriveEntries.Drive =  AverageDailyGrowth.Drive AND TotalDriveEntries.Servername =  AverageDailyGrowth.Servername
 	CROSS APPLY (SELECT TOP 1 Capacity_GB,AvailableSpace_GB
