@@ -3533,6 +3533,14 @@ WHERE NOT EXISTS
 END
 GO
 
+--fix to databases PK to avoid violations when a db id is reused
+
+ALTER TABLE Catalogue.Databases DROP CONSTRAINT PK_Databases
+GO
+ALTER TABLE Catalogue.Databases ADD CONSTRAINT PK_Databases PRIMARY KEY (DBName, ServerName)
+GO
+
+
 --update version number
 UPDATE Catalogue.ConfigPoSH
 SET ParameterValue = '0.3.0'
