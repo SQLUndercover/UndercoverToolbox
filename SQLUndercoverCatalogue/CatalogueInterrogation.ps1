@@ -26,9 +26,9 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 Import-Module dbatools
 
 #configuration variables
-$ConfigServer = "<configuration server>"
+$ConfigServer = "<config server>"
 $SQLUndercoverDatabase = "SQLUndercover"
-$ScriptVersion = "0.2.2"
+$ScriptVersion = "0.3.0"
 
 Clear-Host
 
@@ -71,7 +71,7 @@ Write-Host "|                                  cKkl,                            
 Write-Host "|                                  ;c.                                      |" -ForegroundColor White -BackgroundColor Black                                                                      
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "|                           Undercover Catalogue                            |" -ForegroundColor White -BackgroundColor Black
-Write-Host "|                              version 0.2.2                                |" -ForegroundColor White -BackgroundColor Black
+Write-Host "|                              version 0.3.0                                |" -ForegroundColor White -BackgroundColor Black
 Write-Host "|                          ©2019 sqlundercover.com                          |" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black

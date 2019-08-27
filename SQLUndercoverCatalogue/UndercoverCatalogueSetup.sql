@@ -28,6 +28,7 @@
          +@@@@        @@@@@+                                                                                            
         @@@@@@@      @@@@@@@@#                                                                                          
          @@@@@@@    @@@@@@,                                                                                             
+         @@@@@@@    @@@@@@,                                                                                             
            :@@@@@' ;@@@@`                                                                                               
              `@@@@ @@@+                                                                                                 
                 @#:@@                                                                                                   
@@ -35,16 +36,17 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-Undercover Catalogue Installation 0.2.1                                                      
+Undercover Catalogue Installation 0.3.0                                                      
 Written By David Fowler
-14/02/2019
+14/08/2019
 
 Fresh Installation and Upgrade
+NOTE: We only support upgrades from version 0.2.0 and up
 
 MIT License
 ------------
 
-Copyright 2018 Sql Undercover
+Copyright 2019 Sql Undercover
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files 
 (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, 
@@ -76,6 +78,29 @@ IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'Catalogue')
 EXEC('CREATE SCHEMA Catalogue')
 GO
 
+
+--check for any currently installed versions
+IF OBJECT_ID ('tempdb.dbo.#Version') IS NOT NULL
+	DROP TABLE #Version
+
+CREATE TABLE #Version (VersionNumber VARCHAR(100) NULL)
+
+IF OBJECT_ID('SQLUndercover.Catalogue.ConfigPoSH') IS NOT NULL --get the currently installed version number, if there is one
+BEGIN
+	INSERT INTO #Version (VersionNumber)
+	SELECT ParameterValue AS VersionNumber
+	FROM Catalogue.ConfigPoSH
+	WHERE ParameterName = 'CatalogueVersion'
+END
+ELSE
+BEGIN
+	INSERT INTO #Version
+	VALUES ('0.0.0')
+END
+
+
+--goto appropriate section of the script, depending on the current version number
+
 -----------------------------------------Catalogue Databases--------------------------------------------------------------
 --create database table
 IF NOT EXISTS (	SELECT 1
@@ -105,13 +130,13 @@ BEGIN
 		[DatabaseID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.Databases.database_id', 'DatabaseID'
-	EXEC sp_rename 'Catalogue.Databases.compatibility_level', 'CompatibilityLevel'
-	EXEC sp_rename 'Catalogue.Databases.collation_name', 'CollationName'
-	EXEC sp_rename 'Catalogue.Databases.recovery_model_desc', 'RecoveryModelDesc'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.Databases.database_id', 'DatabaseID'
+--	EXEC sp_rename 'Catalogue.Databases.compatibility_level', 'CompatibilityLevel'
+--	EXEC sp_rename 'Catalogue.Databases.collation_name', 'CollationName'
+--	EXEC sp_rename 'Catalogue.Databases.recovery_model_desc', 'RecoveryModelDesc'
+--END
 GO
 
 --create database staging table
@@ -137,13 +162,13 @@ BEGIN
 		[DatabaseID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.Databases_Stage.database_id', 'DatabaseID'
-	EXEC sp_rename 'Catalogue.Databases_Stage.compatibility_level', 'CompatibilityLevel'
-	EXEC sp_rename 'Catalogue.Databases_Stage.collation_name', 'CollationName'
-	EXEC sp_rename 'Catalogue.Databases_Stage.recovery_model_desc', 'RecoveryModelDesc'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.Databases_Stage.database_id', 'DatabaseID'
+--	EXEC sp_rename 'Catalogue.Databases_Stage.compatibility_level', 'CompatibilityLevel'
+--	EXEC sp_rename 'Catalogue.Databases_Stage.collation_name', 'CollationName'
+--	EXEC sp_rename 'Catalogue.Databases_Stage.recovery_model_desc', 'RecoveryModelDesc'
+--END
 GO
 
 --create job to get database details
@@ -375,10 +400,10 @@ BEGIN
 		[ID] ASC
 	))
 END
-ELSE
-BEGIN	
-	EXEC sp_rename 'Catalogue.Logins.sid', 'SID'
-END
+--ELSE
+--BEGIN	
+--	EXEC sp_rename 'Catalogue.Logins.sid', 'SID'
+--END
 GO
 
 --create database staging table
@@ -400,10 +425,10 @@ BEGIN
 		[ID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.Logins_Stage.sid', 'SID'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.Logins_Stage.sid', 'SID'
+--END
 GO
 
 --create proc to get logins
@@ -519,18 +544,18 @@ BEGIN
 		[ID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.AgentJobs.job_id', 'JobID'
-	EXEC sp_rename 'Catalogue.AgentJobs.enabled', 'Enabled'
-	EXEC sp_rename 'Catalogue.AgentJobs.description', 'Description'
-	EXEC sp_rename 'Catalogue.AgentJobs.date_created', 'DateCreated'
-	EXEC sp_rename 'Catalogue.AgentJobs.date_modified', 'DateModified'
-	EXEC sp_rename 'Catalogue.AgentJobs.step_id', 'StepID'
-	EXEC sp_rename 'Catalogue.AgentJobs.step_name', 'StepName'
-	EXEC sp_rename 'Catalogue.AgentJobs.subsystem', 'SubSystem'
-	EXEC sp_rename 'Catalogue.AgentJobs.command', 'Command'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.AgentJobs.job_id', 'JobID'
+--	EXEC sp_rename 'Catalogue.AgentJobs.enabled', 'Enabled'
+--	EXEC sp_rename 'Catalogue.AgentJobs.description', 'Description'
+--	EXEC sp_rename 'Catalogue.AgentJobs.date_created', 'DateCreated'
+--	EXEC sp_rename 'Catalogue.AgentJobs.date_modified', 'DateModified'
+--	EXEC sp_rename 'Catalogue.AgentJobs.step_id', 'StepID'
+--	EXEC sp_rename 'Catalogue.AgentJobs.step_name', 'StepName'
+--	EXEC sp_rename 'Catalogue.AgentJobs.subsystem', 'SubSystem'
+--	EXEC sp_rename 'Catalogue.AgentJobs.command', 'Command'
+--END
 GO
 
 --create database staging table
@@ -561,18 +586,18 @@ BEGIN
 		[JobID],[ServerName],[StepID], [ScheduleName] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.job_id', 'JobID'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.enabled', 'Enabled'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.description', 'Description'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.date_created', 'DateCreated'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.date_modified', 'DateModified'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.step_id', 'StepID'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.step_name', 'StepName'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.subsystem', 'SubSystem'
-	EXEC sp_rename 'Catalogue.AgentJobs_Stage.command', 'Command'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.job_id', 'JobID'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.enabled', 'Enabled'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.description', 'Description'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.date_created', 'DateCreated'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.date_modified', 'DateModified'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.step_id', 'StepID'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.step_name', 'StepName'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.subsystem', 'SubSystem'
+--	EXEC sp_rename 'Catalogue.AgentJobs_Stage.command', 'Command'
+--END
 GO
 
 IF EXISTS (	SELECT * 
@@ -743,6 +768,7 @@ FROM Catalogue.AgentJobs_Stage
 WHERE	AgentJobs.ServerName = AgentJobs_Stage.ServerName
 		AND AgentJobs.JobID = AgentJobs_Stage.JobID
 		AND AgentJobs.StepID = AgentJobs_Stage.StepID
+		AND AgentJobs.ScheduleName = AgentJobs_Stage.ScheduleName
 
 --insert jobs that are unknown to the catlogue
 INSERT INTO Catalogue.AgentJobs 
@@ -772,7 +798,8 @@ WHERE NOT EXISTS
 (SELECT 1 FROM Catalogue.AgentJobs 
 		WHERE JobID = AgentJobs_Stage.JobID 
 		AND StepID = AgentJobs_Stage.StepID
-		AND ServerName = AgentJobs_Stage.ServerName)
+		AND ServerName = AgentJobs_Stage.ServerName
+		AND AgentJobs.ScheduleName = AgentJobs_Stage.ScheduleName)
 
 END
 GO
@@ -926,10 +953,10 @@ BEGIN
 		[ID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.Users.sid', 'SID'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.Users.sid', 'SID'
+--END
 GO
 
 --create database staging table
@@ -951,10 +978,10 @@ BEGIN
 		[ID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.Users_Stage.sid', 'SID'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.Users_Stage.sid', 'SID'
+--END
 GO
 
 
@@ -1114,12 +1141,12 @@ BEGIN
 		[ID] ASC
 	))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.ExplicitPermissions.name', 'Name'
-	EXEC sp_rename 'Catalogue.ExplicitPermissions.permission_name', 'PermissionName'
-	EXEC sp_rename 'Catalogue.ExplicitPermissions.state_desc', 'StateDesc'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.ExplicitPermissions.name', 'Name'
+--	EXEC sp_rename 'Catalogue.ExplicitPermissions.permission_name', 'PermissionName'
+--	EXEC sp_rename 'Catalogue.ExplicitPermissions.state_desc', 'StateDesc'
+--END
 GO
 
 IF NOT EXISTS (	SELECT 1
@@ -1141,12 +1168,12 @@ CREATE TABLE [Catalogue].[ExplicitPermissions_Stage](
 	[ID] ASC
 ))
 END
-ELSE
-BEGIN
-	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.name', 'Name'
-	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.permission_name', 'PermissionName'
-	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.state_desc', 'StateDesc'
-END
+--ELSE
+--BEGIN
+--	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.name', 'Name'
+--	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.permission_name', 'PermissionName'
+--	EXEC sp_rename 'Catalogue.ExplicitPermissions_Stage.state_desc', 'StateDesc'
+--END
 GO
 
 
@@ -1356,18 +1383,18 @@ BEGIN
 	INSERT INTO Catalogue.ConfigPoSH (ParameterName,ParameterValue)
 	VALUES	('CatalogueVersion', '0.2.0'),
 			('AutoDiscoverInstances','0'),
-			('DBAToolsRequirement', '0.9.750'),
+			('DBAToolsRequirement', '1.0.0'),
 			('AutoInstall', '0'),
 			('AutoUpdate', '0'),
 			('InstallationScriptPath', '{script path}')
 END
 ELSE
 BEGIN
-	EXEC sp_rename 'Catalogue.configPoSH', 'ConfigPoSH'
+	--EXEC sp_rename 'Catalogue.configPoSH', 'ConfigPoSH'
 
 	--update the required version of dbatools to 0.9.750
 	UPDATE Catalogue.ConfigPoSH
-	SET ParameterValue = '0.9.750'
+	SET ParameterValue = '1.0.0'
 	WHERE ParameterName = 'DBAToolsRequirement'
 END
 GO
@@ -1376,9 +1403,7 @@ GO
 
 
 
-
-
-
+Patch021:
 --------------------------------------------------------------------------------------------------------------
 ------------------Version 0.2.1 Changes-------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------------------
@@ -1388,6 +1413,8 @@ GO
 --alter server table to include new fields
 
 --------------------------------------Catalogue Servers----------------------------------------------------------------
+
+
 --change version number in ConfigPoSH to 0.2.1
 
 UPDATE Catalogue.ConfigPoSH 
@@ -1395,38 +1422,41 @@ SET ParameterValue = '0.2.1'
 WHERE ParameterName = 'CatalogueVersion'
 GO
 
+
 --add 0.2 columns to Servers_Stage
 
-ALTER TABLE Catalogue.Servers_Stage
-ADD ServerStartTime DATETIME,
-	CostThreshold INT,
-	MaxWorkerThreads INT,
-	[MaxDOP] INT,
-	CPUCount INT,
-	NUMACount INT,
-	PhysicalMemoryMB INT,
-	MaxMemoryMB INT,
-	MinMemoryMB INT,
-	MemoryModel NVARCHAR(128),
-	IsClustered BIT,
-	VMType NVARCHAR(60)
-GO
+IF (SELECT VersionNumber FROM #Version) IN ('0.0.0','0.2.0')
+BEGIN
+	ALTER TABLE Catalogue.Servers_Stage
+	ADD ServerStartTime DATETIME,
+		CostThreshold INT,
+		MaxWorkerThreads INT,
+		[MaxDOP] INT,
+		CPUCount INT,
+		NUMACount INT,
+		PhysicalMemoryMB INT,
+		MaxMemoryMB INT,
+		MinMemoryMB INT,
+		MemoryModel NVARCHAR(128),
+		IsClustered BIT,
+		VMType NVARCHAR(60)
 
---add 0.2 columns to Servers
+	--add 0.2 columns to Servers
 
-ALTER TABLE Catalogue.[Servers]
-ADD ServerStartTime DATETIME,
-	CostThreshold INT,
-	MaxWorkerThreads INT,
-	[MaxDOP] INT,
-	CPUCount INT,
-	NUMACount INT,
-	PhysicalMemoryMB INT,
-	MaxMemoryMB INT,
-	MinMemoryMB INT,
-	MemoryModel NVARCHAR(128),
-	IsClustered BIT,
-	VMType NVARCHAR(60)
+	ALTER TABLE Catalogue.[Servers]
+	ADD ServerStartTime DATETIME,
+		CostThreshold INT,
+		MaxWorkerThreads INT,
+		[MaxDOP] INT,
+		CPUCount INT,
+		NUMACount INT,
+		PhysicalMemoryMB INT,
+		MaxMemoryMB INT,
+		MinMemoryMB INT,
+		MemoryModel NVARCHAR(128),
+		IsClustered BIT,
+		VMType NVARCHAR(60)
+END
 GO
 
 
@@ -1565,12 +1595,14 @@ GO
 ------------------------------------------------Catalogue Login------------------------------------------------------------------------
 
 --alter tables, include type column
+IF (SELECT VersionNumber FROM #Version) IN ('0.0.0','0.2.0')
+BEGIN
+	ALTER TABLE Catalogue.Logins_Stage
+	ADD LoginType NVARCHAR(60)
 
-ALTER TABLE Catalogue.Logins_Stage
-ADD LoginType NVARCHAR(60)
-
-ALTER TABLE Catalogue.Logins
-ADD LoginType NVARCHAR(60)
+	ALTER TABLE Catalogue.Logins
+	ADD LoginType NVARCHAR(60)
+END
 
 --updates login procedures
 
@@ -1582,7 +1614,7 @@ IF EXISTS (	SELECT *
 			WHERE objects.name = 'GetLogins'
 			AND schemas.name = 'Catalogue'
 			AND type = 'P')
-DROP PROC Catalogue.GetLogins
+DROP PROC [Catalogue].GetLogins
 GO
 
 CREATE PROC [Catalogue].GetLogins
@@ -2232,27 +2264,1284 @@ END
 
 GO
 
-
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'ExecutionLog')
 -- Create Execution Log
-CREATE TABLE Catalogue.ExecutionLog
-(ID INT IDENTITY(1,1) NOT NULL,
-ExecutionDate DATETIME NULL,
-CompletedSuccessfully BIT DEFAULT 0
-	 CONSTRAINT [PK_ExecutionLog] PRIMARY KEY CLUSTERED 
-	(
-		ID ASC
-	))
-
+BEGIN
+	CREATE TABLE Catalogue.ExecutionLog
+	(ID INT IDENTITY(1,1) NOT NULL,
+	ExecutionDate DATETIME NULL,
+	CompletedSuccessfully BIT DEFAULT 0
+		 CONSTRAINT [PK_ExecutionLog] PRIMARY KEY CLUSTERED 
+		(
+			ID ASC
+		))
+END
 -------------------------------------------------------------------------------------------------------
 ------------------------------update modules table with 0.2 modules------------------------------------
 -------------------------------------------------------------------------------------------------------
 
-INSERT INTO Catalogue.ConfigModules ([ModuleName], [GetProcName], [UpdateProcName], [StageTableName], [MainTableName], [Active])
-VALUES	('ADGroups','GetADGroups','UpdateADGroups','ADGroups_Stage','ADGroups',	1),
-		('LinkedServers','GetLinkedServers','UpdateLinkedServers','LinkedServers_Stage','LinkedServers_Servers,LinkedServers_Users',1),
-		('Tables','GetTables','UpdateTables','Tables_Stage','Tables',1)
+IF (SELECT VersionNumber FROM #Version) IN ('0.0.0','0.2.0')
+BEGIN
+	INSERT INTO Catalogue.ConfigModules ([ModuleName], [GetProcName], [UpdateProcName], [StageTableName], [MainTableName], [Active])
+	VALUES	('ADGroups','GetADGroups','UpdateADGroups','ADGroups_Stage','ADGroups',	1),
+			('LinkedServers','GetLinkedServers','UpdateLinkedServers','LinkedServers_Stage','LinkedServers_Servers,LinkedServers_Users',1),
+			('Tables','GetTables','UpdateTables','Tables_Stage','Tables',1)
+END
+
+
+Patch022:
+
+
+-------------------------------------------------------------------------------------------------------------
+--Version 0.2.2 Changes--------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------
+
+/*
+Undercover Catalogue 0.2.2
+SQL Undercover
+
+Written by: David Fowler
+Date: 20/06/2019
+
+Description
+Hot Fix to solve a problem with modules failing when the interrogation is run with certain versions of DBA Tools
+
+Usage
+Use this script to upgrade your catalogue from version 0.2.1 to 0.2.2
+*/
+
+UPDATE Catalogue.ConfigPoSH 
+SET ParameterValue = '0.2.2'
+WHERE ParameterName = 'CatalogueVersion'
+GO
+
+IF (SELECT VersionNumber FROM #Version) IN ('0.0.0','0.2.0','0.2.1')
+BEGIN
+	ALTER TABLE [Catalogue].[Users_Stage] DROP CONSTRAINT PK_Users_Stage
+	ALTER TABLE [Catalogue].[Users_Stage] DROP COLUMN ID
+END
+GO
+
+ALTER PROC [Catalogue].[GetUsers]
+AS
+
+BEGIN
+
+DECLARE @DBName SYSNAME
+DECLARE @cmd NVARCHAR(4000)
+
+IF OBJECT_ID('tempdb.dbo.#Users_Tmp') IS NOT NULL
+DROP TABLE #Users_Tmp
+
+--create temp table to bulid up result set
+CREATE TABLE #Users_Tmp(
+	[ServerName] [nvarchar](128) NULL,
+	[DBName] [nvarchar](128) NULL,
+	[UserName] [sysname] NOT NULL,
+	[SID] [varbinary](85) NULL,
+	[RoleName] [sysname] NULL,
+	[MappedLoginName] [sysname] NOT NULL)
+
+
+--cursor to cycle through all databases on the server
+DECLARE DBCur CURSOR FOR
+SELECT [name]
+FROM sys.databases
+
+OPEN DBCur
+
+FETCH NEXT FROM DBCur INTO @DBName
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+
+--get all users for the selected database
+
+BEGIN TRY
+	SET @cmd = 
+	'USE ' + QUOTENAME(@DBName) + '
+
+	SELECT	@@SERVERNAME AS ServerName,
+			DB_NAME() AS DBName,
+			principals_logins.name AS UserName, 
+			principals_logins.sid AS SID, 
+			principals_roles.name AS RoleName,
+			ISNULL(server_principals.name, ''***ORPHANED USER***'') AS MappedLoginName
+	FROM sys.database_role_members
+	RIGHT OUTER JOIN sys.database_principals principals_roles 
+		ON database_role_members.role_principal_id = principals_roles.principal_id
+	RIGHT OUTER JOIN sys.database_principals principals_logins 
+		ON database_role_members.member_principal_id = principals_logins.principal_id
+	LEFT OUTER JOIN sys.server_principals 
+		ON server_principals.sid = principals_logins.sid
+	WHERE principals_logins.type IN (''G'',''S'',''U'') --include only windows groups, windows logins and SQL logins
+		AND principals_logins.sid IS NOT NULL 
+	ORDER BY principals_logins.name'
+
+	INSERT INTO #Users_Tmp(ServerName,DBName,UserName,SID,RoleName,MappedLoginName) 
+	EXEC sp_executesql @stmt = @cmd
+END TRY
+BEGIN CATCH
+--if the database is inaccessable, do nothing and move on to the next one
+END CATCH
+FETCH NEXT FROM DBCur INTO @DBName
+
+END
+
+CLOSE DBCur
+DEALLOCATE DBCur
+
+SELECT * FROM #Users_Tmp
+
+END
+GO
 
 
 
 
-SELECT @@CPU_BUSY, @@IDLE
+
+ALTER PROC [Catalogue].[GetAgentJobs]
+AS
+BEGIN
+--get all agent jobs on server
+SELECT	@@SERVERNAME AS ServerName,
+		sysjobs.job_id AS JobID, 
+		sysjobs.name AS JobName,
+		sysjobs.enabled AS Enabled, 
+		sysjobs.description AS Description, 
+		syscategories.name AS Category, 
+		sysjobs.date_created AS DateCreated, 
+		sysjobs.date_modified AS DateModified, 
+		sysschedules.enabled AS ScheduleEnabled,
+		sysschedules.name AS ScheduleName,
+		CASE freq_type
+            WHEN 1 THEN 'Occurs on ' + STUFF(RIGHT(active_start_date, 4), 3,0, '/') + '/' + LEFT(active_start_date, 4) + ' at '
+                + REPLACE( RIGHT(CONVERT(varchar(30), CAST(convert(varchar(8), STUFF(STUFF(RIGHT('000000' + CAST(active_start_time as varchar(10)), 6), 3, 0, ':' ), 6, 0, ':' ), 8) as datetime) /* hh:mm:ss 24H */, 9), 14), ':000', ' ') /* HH:mm:ss:000AM/PM then replace the :000 with space.*/
+            WHEN 4 THEN 'Occurs every ' + CAST(freq_interval as varchar(10)) + ' day(s) '
+                + CASE freq_subday_type
+                    WHEN 1 THEN 'at '+ LTRIM(REPLACE( RIGHT(CONVERT(varchar(30), CAST(convert(varchar(8), STUFF(STUFF(RIGHT('000000' + CAST(active_start_time as varchar(10)), 6), 3, 0, ':' ), 6, 0, ':' ), 8) as datetime), 9), 14), ':000', ' '))
+                    WHEN 2 THEN 'every ' + CAST(freq_subday_interval as varchar(10)) + ' second(s)'
+                    WHEN 4 THEN 'every ' + CAST(freq_subday_interval as varchar(10)) + ' minute(s)'
+                    WHEN 8 THEN 'every ' + CAST(freq_subday_interval as varchar(10)) + ' hour(s)'
+                    ELSE '' 
+                    END
+                + CASE WHEN freq_subday_type in (2,4,8) /* repeat seconds/mins/hours */
+                        THEN ' between '+ LTRIM(REPLACE( RIGHT(CONVERT(varchar(30), CAST(convert(varchar(8), STUFF(STUFF(RIGHT('000000' + CAST(active_start_time as varchar(10)), 6), 3, 0, ':' ), 6, 0, ':' ), 8) as datetime), 9), 14), ':000', ' '))
+                        + ' and '
+                        + LTRIM(REPLACE( RIGHT(CONVERT(varchar(30), CAST(convert(varchar(8), STUFF(STUFF(RIGHT('000000' + CAST(active_end_time as varchar(10)), 6), 3, 0, ':' ), 6, 0, ':' ), 8) as datetime), 9), 14), ':000', ' '))
+                    ELSE ''
+                    END
+            WHEN 8 THEN 'Occurs every ' + CAST(freq_recurrence_factor as varchar(10))
+                + ' week(s) on '
+                +
+                REPLACE( CASE WHEN freq_interval&1 = 1 THEN 'Sunday, ' ELSE '' END
+                + CASE WHEN freq_interval&2 = 2 THEN 'Monday, ' ELSE '' END
+                + CASE WHEN freq_interval&4 = 4 THEN 'Tuesday, ' ELSE '' END
+                + CASE WHEN freq_interval&8 = 8 THEN 'Wednesday, ' ELSE '' END
+                + CASE WHEN freq_interval&16 = 16 THEN 'Thursday, ' ELSE '' END
+                + CASE WHEN freq_interval&32 = 32 THEN 'Friday, ' ELSE '' END
+                + CASE WHEN freq_interval&64 = 64 THEN 'Saturday, ' ELSE '' END
+                + '|', ', |', ' ') /* get rid of trailing comma */
+
+                + CASE freq_subday_type
+                    WHEN 1 THEN 'at '+ LTRIM(REPLACE( RIGHT(CONVERT(varchar(30), CAST(convert(varchar(8), STUFF(STUFF(RIGHT('000000' + CAST(active_start_time as varchar(10)), 6), 3, 0, ':' ), 6, 0, ':' ), 8) as datetime), 9), 14), ':000', ' '))
+                    WHEN 2 THEN 'every ' + CAST(freq_subday_interval as varchar(10)) + ' second(s)'
+                    WHEN 4 THEN 'every ' + CAST(freq_subday_interval as varchar(10)) + ' minute(s)'
+                    WHEN 8 THEN 'every ' + CAST(freq_subday_interval as varchar(10)) + ' hour(s)'
+                    ELSE '' 
+                    END
+                + CASE WHEN freq_subday_type in (2,4,8) /* repeat seconds/mins/hours */
+                        THEN ' between '+ LTRIM(REPLACE( RIGHT(CONVERT(varchar(30), CAST(convert(varchar(8), STUFF(STUFF(RIGHT('000000' + CAST(active_start_time as varchar(10)), 6), 3, 0, ':' ), 6, 0, ':' ), 8) as datetime), 9), 14), ':000', ' '))
+                        + ' and '
+                        + LTRIM(REPLACE( RIGHT(CONVERT(varchar(30), CAST(convert(varchar(8), STUFF(STUFF(RIGHT('000000' + CAST(active_end_time as varchar(10)), 6), 3, 0, ':' ), 6, 0, ':' ), 8) as datetime), 9), 14), ':000', ' '))
+                    ELSE ''
+                    END
+            WHEN 16 THEN 'Occurs every ' + CAST(freq_recurrence_factor as varchar(10))
+                + ' month(s) on '
+                + 'day ' + CAST(freq_interval as varchar(10)) + ' of that month ' 
+                + CASE freq_subday_type
+                    WHEN 1 THEN 'at '+ LTRIM(REPLACE( RIGHT(CONVERT(varchar(30), CAST(convert(varchar(8), STUFF(STUFF(RIGHT('000000' + CAST(active_start_time as varchar(10)), 6), 3, 0, ':' ), 6, 0, ':' ), 8) as datetime), 9), 14), ':000', ' '))
+                    WHEN 2 THEN 'every ' + CAST(freq_subday_interval as varchar(10)) + ' second(s)'
+                    WHEN 4 THEN 'every ' + CAST(freq_subday_interval as varchar(10)) + ' minute(s)'
+                    WHEN 8 THEN 'every ' + CAST(freq_subday_interval as varchar(10)) + ' hour(s)'
+                    ELSE '' 
+                    END
+                + CASE WHEN freq_subday_type in (2,4,8) /* repeat seconds/mins/hours */
+                        THEN ' between '+ LTRIM(REPLACE( RIGHT(CONVERT(varchar(30), CAST(convert(varchar(8), STUFF(STUFF(RIGHT('000000' + CAST(active_start_time as varchar(10)), 6), 3, 0, ':' ), 6, 0, ':' ), 8) as datetime), 9), 14), ':000', ' '))
+                        + ' and '
+                        + LTRIM(REPLACE( RIGHT(CONVERT(varchar(30), CAST(convert(varchar(8), STUFF(STUFF(RIGHT('000000' + CAST(active_end_time as varchar(10)), 6), 3, 0, ':' ), 6, 0, ':' ), 8) as datetime), 9), 14), ':000', ' '))
+                    ELSE ''
+                    END
+            WHEN 32 THEN 'Occurs ' 
+                + CASE freq_relative_interval
+                    WHEN 1 THEN 'every first '
+                    WHEN 2 THEN 'every second '
+                    WHEN 4 THEN 'every third '
+                    WHEN 8 THEN 'every fourth '
+                    WHEN 16 THEN 'on the last '
+                    END
+                + CASE freq_interval 
+                    WHEN 1 THEN 'Sunday'
+                    WHEN 2 THEN 'Monday'
+                    WHEN 3 THEN 'Tuesday'
+                    WHEN 4 THEN 'Wednesday'
+                    WHEN 5 THEN 'Thursday'
+                    WHEN 6 THEN 'Friday'
+                    WHEN 7 THEN 'Saturday'
+                    WHEN 8 THEN 'day'
+                    WHEN 9 THEN 'weekday'
+                    WHEN 10 THEN 'weekend'
+                    END
+                + ' of every ' + CAST(freq_recurrence_factor as varchar(10)) + ' month(s) '
+                + CASE freq_subday_type
+                    WHEN 1 THEN 'at '+ LTRIM(REPLACE( RIGHT(CONVERT(varchar(30), CAST(convert(varchar(8), STUFF(STUFF(RIGHT('000000' + CAST(active_start_time as varchar(10)), 6), 3, 0, ':' ), 6, 0, ':' ), 8) as datetime), 9), 14), ':000', ' '))
+                    WHEN 2 THEN 'every ' + CAST(freq_subday_interval as varchar(10)) + ' second(s)'
+                    WHEN 4 THEN 'every ' + CAST(freq_subday_interval as varchar(10)) + ' minute(s)'
+                    WHEN 8 THEN 'every ' + CAST(freq_subday_interval as varchar(10)) + ' hour(s)'
+                    ELSE '' 
+                    END
+                + CASE 
+                    WHEN freq_subday_type in (2,4,8) /* repeat seconds/mins/hours */
+                        THEN ' between '+ LTRIM(REPLACE( RIGHT(CONVERT(varchar(30), CAST(convert(varchar(8), STUFF(STUFF(RIGHT('000000' + CAST(active_start_time as varchar(10)), 6), 3, 0, ':' ), 6, 0, ':' ), 8) as datetime), 9), 14), ':000', ' '))
+                        + ' and '
+                        + LTRIM(REPLACE( RIGHT(CONVERT(varchar(30), CAST(convert(varchar(8), STUFF(STUFF(RIGHT('000000' + CAST(active_end_time as varchar(10)), 6), 3, 0, ':' ), 6, 0, ':' ), 8) as datetime), 9), 14), ':000', ' '))
+                    ELSE ''
+                    END
+            WHEN 64 THEN 'Runs when the SQL Server Agent service starts'
+            WHEN 128 THEN 'Runs when the computer is idle'
+            END 
+		AS ScheduleFrequency,
+		sysjobsteps.step_id AS StepID,
+		sysjobsteps.step_name AS StepName,
+		sysjobsteps.subsystem AS SubSystem,
+		sysjobsteps.command AS Command,
+		sysjobsteps.database_name AS DatabaseName
+FROM msdb.dbo.sysjobs
+JOIN msdb.dbo.syscategories ON sysjobs.category_id = syscategories.category_id
+JOIN msdb.dbo.sysjobschedules ON sysjobs.job_id = sysjobschedules.job_id
+JOIN msdb.dbo.sysschedules ON sysjobschedules.schedule_id = sysschedules.schedule_id
+JOIN msdb.dbo.sysjobsteps ON sysjobsteps.job_id = sysjobs.job_id
+END
+GO
+
+
+
+
+ALTER PROC [Catalogue].[GetLogins]
+AS
+BEGIN
+
+--get all logins on server
+SELECT	@@SERVERNAME AS ServerName,
+		principals_logins.name AS LoginName, 
+		principals_logins.sid AS SID, 
+		principals_roles.name AS RoleName,
+		NULL AS ID,
+		principals_logins.is_disabled AS IsDisabled,
+		LOGINPROPERTY(principals_logins.name, 'PasswordHash') AS PasswordHash,  -- **the varbinary of password hash is erroring in powershell, something to be looked at
+		principals_logins.type_desc AS LoginType
+FROM sys.server_role_members
+RIGHT OUTER JOIN sys.server_principals principals_roles 
+	ON server_role_members.role_principal_id = principals_roles.principal_id
+RIGHT OUTER JOIN sys.server_principals principals_logins 
+	ON server_role_members.member_principal_id = principals_logins.principal_id
+WHERE principals_logins.type IN ('G','S','U') --include only windows groups, windows logins and SQL logins
+ORDER BY principals_logins.name
+
+END
+GO
+
+
+
+ALTER PROC [Catalogue].[GetDatabases]
+AS
+
+BEGIN
+--get all databases on server
+
+SELECT	@@SERVERNAME AS ServerName,
+		databases.name AS DBName,
+		databases.database_id AS DatabaseID,
+		server_principals.name AS OwnerName,
+		databases.compatibility_level AS CompatibilityLevel,
+		databases.collation_name AS CollationName,
+		databases.recovery_model_desc AS RecoveryModelDesc,
+		availability_groups.name AS AGName,
+		files.FilePaths,
+		files.DatabaseSizeMB
+FROM sys.databases
+LEFT OUTER JOIN sys.server_principals ON server_principals.sid = databases.owner_sid
+LEFT OUTER JOIN sys.availability_replicas ON availability_replicas.replica_id = databases.replica_id
+LEFT OUTER JOIN sys.availability_groups ON availability_groups.group_id = availability_replicas.group_id
+JOIN	(SELECT database_id, (SUM(CAST (size AS BIGINT)) * 8)/1024 AS DatabaseSizeMB,STUFF((SELECT ', ' + files2.physical_name
+				FROM sys.master_files files2
+				WHERE files2.database_id = files1.database_id
+				FOR XML PATH('')
+			), 1, 2, '') AS FilePaths
+		FROM sys.master_files files1
+		GROUP BY database_id) files ON files.database_id = databases.database_id
+END
+GO
+
+
+Patch030:
+
+-------------------------------------------------------------------------------------------------------------------
+--Version 0.3.0 Changes
+-------------------------------------------------------------------------------------------------------------------
+
+--create audit tables
+
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'ADGroups_Audit')
+BEGIN
+	CREATE TABLE [Catalogue].[ADGroups_Audit](
+		[GroupName] [sysname] NOT NULL,
+		[AccountName] [sysname] NOT NULL,
+		[AccountType] [sysname] NOT NULL,
+		[Notes] [varchar](255) NULL,
+		[AuditDate] [datetime] NOT NULL
+	) ON [PRIMARY]
+END
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'AgentJobs_Audit')
+BEGIN
+	CREATE TABLE [Catalogue].[AgentJobs_Audit](
+		[ServerName] [nvarchar](128) NULL,
+		[JobID] [uniqueidentifier] NOT NULL,
+		[JobName] [sysname] NOT NULL,
+		[Enabled] [tinyint] NOT NULL,
+		[Description] [nvarchar](512) NULL,
+		[Category] [sysname] NOT NULL,
+		[ScheduleEnabled] [int] NOT NULL,
+		[ScheduleName] [sysname] NOT NULL,
+		[ScheduleFrequency] [varchar](8000) NULL,
+		[StepID] [int] NOT NULL,
+		[StepName] [sysname] NOT NULL,
+		[SubSystem] [nvarchar](40) NOT NULL,
+		[Command] [nvarchar](max) NULL,
+		[DatabaseName] [sysname] NULL,
+		[AuditDate] [datetime] NOT NULL
+	) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+END
+
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'AvailabilityGroups_Audit')
+BEGIN
+	CREATE TABLE [Catalogue].[AvailabilityGroups_Audit](
+		[AGName] [sysname] NOT NULL,
+		[ServerName] [nvarchar](256) NOT NULL,
+		[Role] [nvarchar](60) NULL,
+		[BackupPreference] [nvarchar](60) NULL,
+		[AvailabilityMode] [nvarchar](60) NULL,
+		[FailoverMode] [nvarchar](60) NULL,
+		[ConnectionsToSecondary] [nvarchar](60) NULL,
+		[Notes] [varchar](255) NULL,
+		[AuditDate] [datetime] NOT NULL
+	) ON [PRIMARY]
+END
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Databases_Audit')
+BEGIN
+	CREATE TABLE [Catalogue].[Databases_Audit](
+		[ServerName] [nvarchar](128) NOT NULL,
+		[DBName] [sysname] NOT NULL,
+		[DatabaseID] [int] NOT NULL,
+		[OwnerName] [sysname] NULL,
+		[CompatibilityLevel] [tinyint] NOT NULL,
+		[CollationName] [sysname] NULL,
+		[RecoveryModelDesc] [nvarchar](60) NULL,
+		[AGName] [sysname] NULL,
+		[FilePaths] [nvarchar](max) NULL,
+		[DatabaseSizeMB] [bigint] NULL,
+		[CustomerName] [varchar](50) NULL,
+		[ApplicationName] [varchar](50) NULL,
+		[Notes] [varchar](255) NULL,
+		[AuditDate] [datetime] NOT NULL
+	) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+END
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'ExplicitPermissions_Audit')
+BEGIN
+	CREATE TABLE [Catalogue].[ExplicitPermissions_Audit](
+		[Name] [sysname] NOT NULL,
+		[PermissionName] [nvarchar](128) NULL,
+		[StateDesc] [nvarchar](60) NULL,
+		[ServerName] [nvarchar](128) NULL,
+		[DBName] [nvarchar](128) NULL,
+		[MajorObject] [nvarchar](128) NULL,
+		[MinorObject] [nvarchar](128) NULL,
+		[Notes] [varchar](255) NULL,
+		[AuditDate] [datetime] NOT NULL
+	) ON [PRIMARY]
+END
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'LinkedServers_Server_Audit')
+BEGIN
+	CREATE TABLE [Catalogue].[LinkedServers_Server_Audit](
+		[Server] [nvarchar](128) NOT NULL,
+		[LinkedServerName] [nvarchar](128) NOT NULL,
+		[DataSource] [nvarchar](4000) NULL,
+		[Provider] [nvarchar](128) NULL,
+		[Product] [nvarchar](128) NULL,
+		[Location] [nvarchar](4000) NULL,
+		[ProviderString] [nvarchar](4000) NULL,
+		[Catalog] [nvarchar](128) NULL,
+		[Notes] [varchar](255) NULL,
+		[AuditDate] [datetime] NOT NULL
+	) ON [PRIMARY]
+END
+
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'LinkedServers_Users_Audit')
+BEGIN
+	CREATE TABLE [Catalogue].[LinkedServers_Users_Audit](
+		[Server] [nvarchar](128) NOT NULL,
+		[LinkedServerName] [nvarchar](128) NOT NULL,
+		[LocalUser] [nvarchar](128) NULL,
+		[Impersonate] [bit] NOT NULL,
+		[RemoteUser] [nvarchar](128) NULL,
+		[Notes] [varchar](255) NULL,
+		[AuditDate] [datetime] NOT NULL
+	) ON [PRIMARY]
+END
+
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Logins_Audit')
+BEGIN
+	CREATE TABLE [Catalogue].[Logins_Audit](
+		[ServerName] [nvarchar](128) NULL,
+		[LoginName] [sysname] NOT NULL,
+		[SID] [varbinary](85) NULL,
+		[RoleName] [sysname] NULL,
+		[IsDisabled] [bit] NULL,
+		[Notes] [varchar](255) NULL,
+		[PasswordHash] [varbinary](256) NULL,
+		[LoginType] [nvarchar](60) NULL,
+		[AuditDate] [datetime] NULL
+	) ON [PRIMARY]
+END
+
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Servers_Audit')
+BEGIN
+	CREATE TABLE [Catalogue].[Servers_Audit](
+		[ServerName] [nvarchar](128) NOT NULL,
+		[Collation] [nvarchar](128) NOT NULL,
+		[Edition] [nvarchar](128) NOT NULL,
+		[VersionNo] [nvarchar](128) NOT NULL,
+		[CustomerName] [varchar](50) NULL,
+		[ApplicationName] [varchar](50) NULL,
+		[Notes] [varchar](255) NULL,
+		[ServerStartTime] [datetime] NULL,
+		[CostThreshold] [int] NULL,
+		[MaxWorkerThreads] [int] NULL,
+		[MaxDOP] [int] NULL,
+		[CPUCount] [int] NULL,
+		[NUMACount] [int] NULL,
+		[PhysicalMemoryMB] [int] NULL,
+		[MaxMemoryMB] [int] NULL,
+		[MinMemoryMB] [int] NULL,
+		[MemoryModel] [nvarchar](128) NULL,
+		[IsClustered] [bit] NULL,
+		[VMType] [nvarchar](60) NULL,
+		[AuditDate] [datetime] NOT NULL
+	) ON [PRIMARY]
+END
+
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Tables_Audit')
+BEGIN
+	CREATE TABLE [Catalogue].[Tables_Audit](
+		[ServerName] [nvarchar](128) NOT NULL,
+		[DatabaseName] [nvarchar](128) NOT NULL,
+		[SchemaName] [sysname] NOT NULL,
+		[TableName] [sysname] NOT NULL,
+		[Columns] [xml] NULL,
+		[Notes] [varchar](255) NULL,
+		[AuditDate] [datetime] NOT NULL
+	) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+END
+
+
+IF NOT EXISTS (	SELECT 1
+				FROM sys.tables
+				JOIN sys.schemas ON tables.schema_id = schemas.schema_id
+				WHERE schemas.name = 'Catalogue' AND tables.name = 'Users_Audit')
+BEGIN
+	CREATE TABLE [Catalogue].[Users_Audit](
+		[ServerName] [nvarchar](128) NULL,
+		[DBName] [nvarchar](128) NULL,
+		[UserName] [sysname] NOT NULL,
+		[SID] [varbinary](85) NULL,
+		[RoleName] [sysname] NULL,
+		[MappedLoginName] [sysname] NOT NULL,
+		[Notes] [varchar](255) NULL,
+		[AuditDate] [datetime] NOT NULL
+	) ON [PRIMARY]
+END
+
+-- create audit triggers
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditADGroups')
+DROP TRIGGER [Catalogue].[AuditADGroups]
+GO
+
+CREATE TRIGGER [Catalogue].[AuditADGroups]
+ON [Catalogue].[ADGroups]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[ADGroups_Audit]
+		([GroupName], [AccountName], [AccountType], [Notes], AuditDate)
+		SELECT	[GroupName],
+				[AccountName],
+				[AccountType],
+				[Notes],
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(inserted.[GroupName],
+										inserted.[AccountName],
+										inserted.[AccountType],
+										inserted.[Notes])
+										!= 
+								CHECKSUM(deleted.[GroupName],
+										deleted.[AccountName],
+										deleted.[AccountType],
+										deleted.[Notes])
+							AND deleted.[GroupName] = inserted.[GroupName]
+							AND deleted.[AccountName] = inserted.[AccountName])
+END
+GO
+
+ALTER TABLE [Catalogue].[ADGroups] ENABLE TRIGGER [AuditADGroups]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditAgentJobs')
+DROP TRIGGER [Catalogue].[AuditAgentJobs]
+GO
+
+CREATE TRIGGER [Catalogue].[AuditAgentJobs]
+ON [Catalogue].[AgentJobs]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[AgentJobs_Audit]
+		([ServerName], [JobID], [JobName], [Enabled], [Description], [Category], [ScheduleEnabled], [ScheduleName], [ScheduleFrequency], [StepID], [StepName], [SubSystem], [Command], [DatabaseName], [AuditDate])
+		SELECT	[ServerName], 
+				[JobID], 
+				[JobName], 
+				[Enabled], 
+				[Description], 
+				[Category], 
+				[ScheduleEnabled], 
+				[ScheduleName], 
+				[ScheduleFrequency], 
+				[StepID], 
+				[StepName], 
+				[SubSystem], 
+				[Command], 
+				[DatabaseName],
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[ServerName], 
+											inserted.[JobID], 
+											inserted.[JobName], 
+											inserted.[Enabled], 
+											inserted.[Description], 
+											inserted.[Category], 
+											inserted.[ScheduleEnabled], 
+											inserted.[ScheduleName], 
+											inserted.[ScheduleFrequency], 
+											inserted.[StepID], 
+											inserted.[StepName], 
+											inserted.[SubSystem], 
+											inserted.[Command], 
+											inserted.[DatabaseName])
+										!= 
+								CHECKSUM(	deleted.[ServerName], 
+											deleted.[JobID], 
+											deleted.[JobName], 
+											deleted.[Enabled], 
+											deleted.[Description], 
+											deleted.[Category], 
+											deleted.[ScheduleEnabled], 
+											deleted.[ScheduleName], 
+											deleted.[ScheduleFrequency], 
+											deleted.[StepID], 
+											deleted.[StepName], 
+											deleted.[SubSystem], 
+											deleted.[Command], 
+											deleted.[DatabaseName])
+							AND deleted.[ServerName] = inserted.[ServerName]
+							AND deleted.[JobID] = inserted.[JobID]
+							AND deleted.[StepID] = inserted.[StepID]
+							AND deleted.ScheduleName = inserted.ScheduleName
+							)
+END
+GO
+
+ALTER TABLE [Catalogue].[AgentJobs] ENABLE TRIGGER [AuditAgentJobs]
+GO
+
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditAvailabilityGroups')
+DROP TRIGGER [Catalogue].[AuditAvailabilityGroups]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditAvailabilityGroups]
+ON [Catalogue].[AvailabilityGroups]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[AvailabilityGroups_Audit]
+		([AGName], [ServerName], [Role], [BackupPreference], [AvailabilityMode], [FailoverMode], [ConnectionsToSecondary], [Notes], [AuditDate])
+		SELECT	[AGName], 
+				[ServerName], 
+				[Role], 
+				[BackupPreference], 
+				[AvailabilityMode], 
+				[FailoverMode], 
+				[ConnectionsToSecondary], 
+				[Notes], 
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[AGName], 
+											inserted.[ServerName], 
+											inserted.[Role], 
+											inserted.[BackupPreference], 
+											inserted.[AvailabilityMode], 
+											inserted.[FailoverMode], 
+											inserted.[ConnectionsToSecondary], 
+											inserted.[Notes])
+										!= 
+								CHECKSUM(	deleted.[AGName], 
+											deleted.[ServerName], 
+											deleted.[Role], 
+											deleted.[BackupPreference], 
+											deleted.[AvailabilityMode], 
+											deleted.[FailoverMode], 
+											deleted.[ConnectionsToSecondary], 
+											deleted.[Notes])
+							AND deleted.[AGName] = inserted.[AGName]
+							AND deleted.[ServerName] = inserted.[ServerName])
+END
+GO
+
+ALTER TABLE [Catalogue].[AvailabilityGroups] ENABLE TRIGGER [AuditAvailabilityGroups]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditDatabases')
+DROP TRIGGER [Catalogue].[AuditDatabases]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditDatabases]
+ON [Catalogue].[Databases]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[Databases_Audit]
+		([ServerName], [DBName], [DatabaseID], [OwnerName], [CompatibilityLevel], [CollationName], [RecoveryModelDesc], [AGName], [FilePaths], [DatabaseSizeMB], [CustomerName], [ApplicationName], [Notes], [AuditDate])
+		SELECT	[ServerName], 
+				[DBName], 
+				[DatabaseID], 
+				[OwnerName], 
+				[CompatibilityLevel], 
+				[CollationName], 
+				[RecoveryModelDesc], 
+				[AGName], 
+				[FilePaths], 
+				[DatabaseSizeMB], 
+				[CustomerName], 
+				[ApplicationName], 
+				[Notes], 
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[ServerName], 
+											inserted.[DBName], 
+											inserted.[DatabaseID], 
+											inserted.[OwnerName], 
+											inserted.[CompatibilityLevel], 
+											inserted.[CollationName], 
+											inserted.[RecoveryModelDesc], 
+											inserted.[AGName], 
+											inserted.[FilePaths], 
+											inserted.[DatabaseSizeMB], 
+											inserted.[CustomerName], 
+											inserted.[ApplicationName], 
+											inserted.[Notes])
+																	!= 
+								CHECKSUM(	deleted.[ServerName], 
+											deleted.[DBName], 
+											deleted.[DatabaseID], 
+											deleted.[OwnerName], 
+											deleted.[CompatibilityLevel], 
+											deleted.[CollationName], 
+											deleted.[RecoveryModelDesc], 
+											deleted.[AGName], 
+											deleted.[FilePaths], 
+											deleted.[DatabaseSizeMB], 
+											deleted.[CustomerName], 
+											deleted.[ApplicationName], 
+											deleted.[Notes])
+							AND deleted.[DBName] = inserted.[DBName]
+							AND deleted.[ServerName] = inserted.[ServerName])
+END
+GO
+
+ALTER TABLE [Catalogue].[Databases] ENABLE TRIGGER [AuditDatabases]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditExplicitPermissions')
+DROP TRIGGER [Catalogue].[AuditExplicitPermissions]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditExplicitPermissions]
+ON [Catalogue].[ExplicitPermissions]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[ExplicitPermissions_Audit]
+		([Name], [PermissionName], [StateDesc], [ServerName], [DBName], [MajorObject], [MinorObject], [Notes], AuditDate)
+		SELECT	[Name], 
+				[PermissionName], 
+				[StateDesc], 
+				[ServerName], 
+				[DBName], 
+				[MajorObject], 
+				[MinorObject], 
+				[Notes], 
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[Name], 
+											inserted.[PermissionName], 
+											inserted.[StateDesc], 
+											inserted.[ServerName], 
+											inserted.[DBName], 
+											inserted.[MajorObject], 
+											inserted.[MinorObject], 
+											inserted.[Notes])
+																	!= 
+								CHECKSUM(	deleted.[Name], 
+											deleted.[PermissionName], 
+											deleted.[StateDesc], 
+											deleted.[ServerName], 
+											deleted.[DBName], 
+											deleted.[MajorObject], 
+											deleted.[MinorObject], 
+											deleted.[Notes])
+							AND deleted.Name = inserted.Name
+							AND deleted.PermissionName = inserted.PermissionName
+							AND deleted.StateDesc = inserted.StateDesc
+							AND deleted.ServerName = inserted.ServerName
+							AND deleted.DBName = inserted.DBName
+							AND ISNULL(deleted.MajorObject,'') = ISNULL(inserted.MajorObject,'')
+							AND ISNULL(deleted.MinorObject,'') = ISNULL(inserted.MinorObject,'')
+							)
+END
+GO
+
+ALTER TABLE [Catalogue].[ExplicitPermissions] ENABLE TRIGGER [AuditExplicitPermissions]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditLinkedServers_Server')
+DROP TRIGGER [Catalogue].[AuditLinkedServers_Server]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditLinkedServers_Server]
+ON [Catalogue].[LinkedServers_Server]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[LinkedServers_Server_Audit]
+		([Server], [LinkedServerName], [DataSource], [Provider], [Product], [Location], [ProviderString], [Catalog], [Notes], [AuditDate])
+		SELECT	[Server], 
+				[LinkedServerName], 
+				[DataSource], 
+				[Provider], 
+				[Product], 
+				[Location], 
+				[ProviderString], 
+				[Catalog], 
+				[Notes], 
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[Server], 
+											inserted.[LinkedServerName], 
+											inserted.[DataSource], 
+											inserted.[Provider], 
+											inserted.[Product], 
+											inserted.[Location], 
+											inserted.[ProviderString], 
+											inserted.[Catalog], 
+											inserted.[Notes])
+											!= 
+								CHECKSUM(	deleted.[Server], 
+											deleted.[LinkedServerName], 
+											deleted.[DataSource], 
+											deleted.[Provider], 
+											deleted.[Product], 
+											deleted.[Location], 
+											deleted.[ProviderString], 
+											deleted.[Catalog], 
+											deleted.[Notes])
+							AND deleted.[Server] = inserted.[Server]
+							AND deleted.[LinkedServerName] = inserted.[LinkedServerName]
+							)
+END
+GO
+
+ALTER TABLE [Catalogue].[LinkedServers_Server] ENABLE TRIGGER [AuditLinkedServers_Server]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditLinkedServers_Users')
+DROP TRIGGER [Catalogue].[AuditLinkedServers_Users]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditLinkedServers_Users]
+ON [Catalogue].[LinkedServers_Users]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[LinkedServers_Users_Audit]
+		([Server], [LinkedServerName], [LocalUser], [Impersonate], [RemoteUser], [Notes], [AuditDate])
+		SELECT	[Server], 
+				[LinkedServerName], 
+				[LocalUser], 
+				[Impersonate], 
+				[RemoteUser], 
+				[Notes],
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[Server], 
+											inserted.[LinkedServerName], 
+											inserted.[LocalUser], 
+											inserted.[Impersonate], 
+											inserted.[RemoteUser], 
+											inserted.[Notes])
+											!= 
+								CHECKSUM(	deleted.[Server], 
+											deleted.[LinkedServerName], 
+											deleted.[LocalUser], 
+											deleted.[Impersonate], 
+											deleted.[RemoteUser], 
+											deleted.[Notes])
+							AND deleted.[Server] = inserted.[Server]
+							AND deleted.[LinkedServerName] = inserted.[LinkedServerName]
+							AND deleted.[LocalUser] = inserted.[LocalUser]
+							)
+END
+GO
+
+ALTER TABLE [Catalogue].[LinkedServers_Users] ENABLE TRIGGER [AuditLinkedServers_Users]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditLogins')
+DROP TRIGGER [Catalogue].[AuditLogins]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditLogins]
+ON [Catalogue].[Logins]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[Logins_Audit]
+		([ServerName], [LoginName], [SID], [RoleName], [IsDisabled], [Notes], [PasswordHash], [LoginType], [AuditDate])
+		SELECT	ServerName,
+				LoginName,
+				SID,
+				RoleName,
+				IsDisabled,
+				Notes,
+				PasswordHash,
+				LoginType,
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(inserted.LoginName,
+										inserted.SID,
+										inserted.RoleName,
+										inserted.IsDisabled,
+										inserted.Notes,
+										inserted.PasswordHash,
+										inserted.LoginType)
+										!= 
+								CHECKSUM(deleted.LoginName,
+										deleted.SID,
+										deleted.RoleName,
+										deleted.IsDisabled,
+										deleted.Notes,
+										deleted.PasswordHash,
+										deleted.LoginType)
+							AND deleted.ServerName = inserted.ServerName
+							AND deleted.LoginName = inserted.LoginName
+							AND ISNULL(deleted.RoleName, '') = ISNULL(inserted.RoleName,''))
+END
+GO
+
+ALTER TABLE [Catalogue].[Logins] ENABLE TRIGGER [AuditLogins]
+GO
+
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditServers')
+DROP TRIGGER [Catalogue].[AuditServers]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditServers]
+ON [Catalogue].[Servers]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[Servers_Audit]
+		([ServerName], [Collation], [Edition], [VersionNo], [CustomerName], [ApplicationName], [Notes], [ServerStartTime], [CostThreshold], [MaxWorkerThreads], [MaxDOP], [CPUCount], [NUMACount], [PhysicalMemoryMB], [MaxMemoryMB], [MinMemoryMB], [MemoryModel], [IsClustered], [VMType], [AuditDate])
+		SELECT	[ServerName], 
+				[Collation], 
+				[Edition], 
+				[VersionNo],
+				[CustomerName], 
+				[ApplicationName], 
+				[Notes], 
+				[ServerStartTime], 
+				[CostThreshold], 
+				[MaxWorkerThreads], 
+				[MaxDOP], 
+				[CPUCount], 
+				[NUMACount], 
+				[PhysicalMemoryMB], 
+				[MaxMemoryMB], 
+				[MinMemoryMB], 
+				[MemoryModel], 
+				[IsClustered], 
+				[VMType],
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[ServerName], 
+											inserted.[Collation], 
+											inserted.[Edition], 
+											inserted.[VersionNo],
+											inserted.[CustomerName], 
+											inserted.[ApplicationName], 
+											inserted.[Notes], 
+											inserted.[ServerStartTime], 
+											inserted.[CostThreshold], 
+											inserted.[MaxWorkerThreads], 
+											inserted.[MaxDOP], 
+											inserted.[CPUCount], 
+											inserted.[NUMACount], 
+											inserted.[PhysicalMemoryMB], 
+											inserted.[MaxMemoryMB], 
+											inserted.[MinMemoryMB], 
+											inserted.[MemoryModel], 
+											inserted.[IsClustered], 
+											inserted.[VMType])
+										!= 
+								CHECKSUM(	deleted.[ServerName], 
+											deleted.[Collation], 
+											deleted.[Edition], 
+											deleted.[VersionNo], 
+											deleted.[CustomerName], 
+											deleted.[ApplicationName], 
+											deleted.[Notes], 
+											deleted.[ServerStartTime], 
+											deleted.[CostThreshold], 
+											deleted.[MaxWorkerThreads], 
+											deleted.[MaxDOP], 
+											deleted.[CPUCount], 
+											deleted.[NUMACount], 
+											deleted.[PhysicalMemoryMB], 
+											deleted.[MaxMemoryMB], 
+											deleted.[MinMemoryMB], 
+											deleted.[MemoryModel], 
+											deleted.[IsClustered], 
+											deleted.[VMType])
+							AND deleted.ServerName = inserted.ServerName)
+END
+GO
+
+ALTER TABLE [Catalogue].[Servers] ENABLE TRIGGER [AuditServers]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditTables')
+DROP TRIGGER [Catalogue].[AuditTables]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditTables]
+ON [Catalogue].[Tables]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[Tables_Audit]
+		([ServerName], [DatabaseName], [SchemaName], [TableName], [Columns], [Notes], [AuditDate])
+		SELECT	[ServerName], 
+				[DatabaseName], 
+				[SchemaName], 
+				[TableName], 
+				[Columns], 
+				[Notes],
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[ServerName], 
+											inserted.[DatabaseName], 
+											inserted.[SchemaName], 
+											inserted.[TableName], 
+											CAST(inserted.[Columns] AS VARCHAR(MAX)), 
+											inserted.[Notes])
+										!= 
+								CHECKSUM(	deleted.[ServerName], 
+											deleted.[DatabaseName], 
+											deleted.[SchemaName], 
+											deleted.[TableName], 
+											CAST(deleted.[Columns] AS VARCHAR(MAX)), 
+											deleted.[Notes])
+							AND deleted.ServerName = inserted.ServerName
+							AND deleted.[DatabaseName] = inserted.DatabaseName
+							AND deleted.[SchemaName] = inserted.SchemaName
+							ANd deleted.[TableName] = inserted.TableName)
+END
+GO
+
+
+ALTER TABLE [Catalogue].[Tables] ENABLE TRIGGER [AuditTables]
+GO
+
+
+IF EXISTS (	SELECT 1
+			FROM sys.objects
+			JOIN sys.schemas ON objects.schema_id = schemas.schema_id
+			WHERE objects.type = 'TR'
+				AND schemas.name = 'Catalogue' 
+				AND objects.name = 'AuditUsers')
+DROP TRIGGER [Catalogue].[AuditUsers]
+GO
+
+
+CREATE TRIGGER [Catalogue].[AuditUsers]
+ON [Catalogue].[Users]
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[Users_Audit]
+		([ServerName], [DBName], [UserName], [SID], [RoleName], [MappedLoginName], [Notes], [AuditDate])
+		SELECT	[ServerName], 
+				[DBName], 
+				[UserName], 
+				[SID], 
+				[RoleName], 
+				[MappedLoginName], 
+				[Notes],
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[ServerName], 
+											inserted.[DBName], 
+											inserted.[UserName], 
+											inserted.[SID], 
+											inserted.[RoleName], 
+											inserted.[MappedLoginName], 
+											inserted.[Notes])
+										!= 
+								CHECKSUM(	deleted.[ServerName], 
+											deleted.[DBName], 
+											deleted.[UserName], 
+											deleted.[SID], 
+											deleted.[RoleName], 
+											deleted.[MappedLoginName], 
+											deleted.[Notes])
+							AND deleted.ServerName = inserted.ServerName
+							AND deleted.[DBName] = inserted.[DBName]
+							AND deleted.[UserName] = inserted.[UserName]
+							AND ISNULL(deleted.RoleName ,'') = ISNULL(inserted.RoleName ,''))
+END
+GO
+
+ALTER TABLE [Catalogue].[Users] ENABLE TRIGGER [AuditUsers]
+GO
+
+
+--modification to UpdateLogins, roles weren't being collected properly before
+
+ALTER PROC [Catalogue].[UpdateLogins]
+AS
+BEGIN
+
+--update logins where they are known
+UPDATE	Catalogue.Logins 
+SET		ServerName = [Logins_Stage].ServerName,
+		LoginName = [Logins_Stage].LoginName,
+		SID = [Logins_Stage].SID,
+		RoleName = [Logins_Stage].RoleName,
+		PasswordHash = [Logins_Stage].PasswordHash,
+		LastRecorded = GETDATE(),
+		IsDisabled = [Logins_Stage].IsDisabled,
+		LoginType = [Logins_Stage].LoginType
+FROM	[Catalogue].[Logins_Stage]
+WHERE	Logins.ServerName = [Logins_Stage].ServerName
+		AND Logins.LoginName = [Logins_Stage].LoginName
+		AND ISNULL(Logins.RoleName, '') = ISNULL([Logins_Stage].RoleName, '')
+
+--insert logins that are unknown to the catlogue
+INSERT INTO Catalogue.Logins
+(ServerName,LoginName,SID,RoleName,FirstRecorded,LastRecorded, IsDisabled, PasswordHash,LoginType)
+SELECT ServerName,
+		LoginName,
+		SID,
+		RoleName,
+		GETDATE(),
+		GETDATE(),
+		IsDisabled,
+		PasswordHash,
+		LoginType
+FROM [Catalogue].[Logins_Stage]
+WHERE NOT EXISTS 
+(SELECT 1 FROM Catalogue.Logins
+		WHERE Logins.ServerName = [Logins_Stage].ServerName
+		AND Logins.LoginName = [Logins_Stage].LoginName
+		AND ISNULL(Logins.RoleName, '') = ISNULL([Logins_Stage].RoleName, ''))
+
+END
+GO
+
+--update version number
+UPDATE Catalogue.ConfigPoSH
+SET ParameterValue = '0.3.0'
+WHERE ParameterName = 'CatalogueVersion'
+
+--update 
+UPDATE Catalogue.ConfigPoSH
+SET ParameterValue = '1.0.0'
+WHERE ParameterName = 'DBAToolsRequirement'
+
+
+
