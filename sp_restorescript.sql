@@ -35,7 +35,7 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-sp_RestoreScript 1.5                                                                                                             
+sp_RestoreScript 1.6                                                                                                             
 Written By David Fowler
 29 June 2017
 Generate a set of backup commands to restore a database(s) to a specified time         
@@ -58,6 +58,9 @@ Fixed bug where not all databases would be set WITH RECOVERY or STANDBY on multi
 
 12 August 2019
 Backup type added to the output
+
+29 August 2019
+@Credential parameter added
 
 MIT License
 ------------
@@ -111,6 +114,9 @@ Parameters
 @BrokerOptions -	Valid options - ENABLE_BROKER, ERROR_BROKER_CONVERSATIONS, NEW_BROKER
 
 @StandBy -			Path for undo file, restores database in standby mode
+
+@Credential -		Credential to access Azure blob storage
+
 Full documentation and examples can be found at www.sqlundercover.com
 
 */
@@ -135,7 +141,8 @@ CREATE PROC sp_RestoreScript
 @NoRecovery BIT = 0,
 @BrokerOptions VARCHAR(30) = '',
 @StandBy VARCHAR(260) = NULL,
-@RestoreTimeEstimate BIT = 0
+@RestoreTimeEstimate BIT = 0,
+@Credential VARCHAR(128) = NULL
 )
 
 AS
@@ -498,6 +505,14 @@ BEGIN
 	UPDATE #BackupCommandsFinal
 	SET command = REPLACE(command,'NORECOVERY','STANDBY =''' + @StandBy + '''') 
 	WHERE backup_start_date = (SELECT backup_start_date FROM #LatestBackups WHERE DBName = LatestDBName)
+END
+
+--if Credential is set, add to statement
+IF @Credential IS NOT NULL
+BEGIN
+    UPDATE #BackupCommandsFinal
+    SET command = command + ', CREDENTIAL = '''+@Credential+''''
+    WHERE DBName = @DatabaseName
 END
 
 --if DiffOnly, delete full backup file from #BackupCommandsFinal
