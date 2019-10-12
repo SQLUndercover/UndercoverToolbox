@@ -4,6 +4,7 @@ Written by David Fowler, 28/08/2018
 Update 0.2.0 - 28/01/2019
 Update 0.2.1 - 14/02/2019
 Update 0.3.0 - 27/08/2019
+Update 0.4.0 - 
 
 MIT License
 ------------
@@ -27,9 +28,9 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 Import-Module dbatools
 
 #configuration variables
-$ConfigServer = "<config server>"
+$ConfigServer = "LAPTOP-FOWLERD\SQL2016_2"
 $SQLUndercoverDatabase = "SQLUndercover"
-$ScriptVersion = "0.3.0"
+$ScriptVersion = "0.4.0"
 
 Clear-Host
 
@@ -72,7 +73,7 @@ Write-Host "|                                  cKkl,                            
 Write-Host "|                                  ;c.                                      |" -ForegroundColor White -BackgroundColor Black                                                                      
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "|                           Undercover Catalogue                            |" -ForegroundColor White -BackgroundColor Black
-Write-Host "|                              version 0.3.0                                |" -ForegroundColor White -BackgroundColor Black
+Write-Host "|                              version 0.4.0                                |" -ForegroundColor White -BackgroundColor Black
 Write-Host "|                          ©2019 sqlundercover.com                          |" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
@@ -156,7 +157,7 @@ Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Que
 $Instances = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT [ServerName] FROM Catalogue.ConfigInstances WHERE Active = 1" -As DataSet
 
 #get all active modules
-$Modules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT [ModuleName], [GetProcName], [UpdateProcName], [StageTableName], [MainTableName] FROM Catalogue.ConfigModules WHERE Active = 1" -As DataSet
+$Modules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT ConfigModules.[ModuleName], ConfigModules.[GetProcName], ConfigModules.[UpdateProcName], ConfigModules.[StageTableName], ConfigModules.[MainTableName], ConfigModulesDefinitions.[GetDefinition],ConfigModulesDefinitions.[UpdateDefinition] FROM Catalogue.ConfigModules JOIN Catalogue.ConfigModulesDefinitions ON ConfigModules.ID = ConfigModulesDefinitions.ModuleID WHERE ConfigModules.Active = 1" -As DataSet
 
 #for every instance in the ConfigInstances table
 ForEach ($instance in $Instances.Tables[0].Rows)
@@ -165,34 +166,36 @@ ForEach ($instance in $Instances.Tables[0].Rows)
     {
         Write-Host "Interrogating Instance: "$instance.ItemArray[0].ToString() "..." -ForegroundColor Yellow
 
-        Write-Host "Checking Local Catalogue Version..." -ForegroundColor Yellow
+        #Local Version check code has been deprecated
+        #Write-Host "Checking Local Catalogue Version..." -ForegroundColor Yellow
         #check local catalogue version
-        $LocalConfig = Invoke-DbaQuery -SQLInstance $instance.ItemArray[0].ToString() -Database $SQLUndercoverDatabase -Query "SELECT ParameterName, ParameterValue FROM Catalogue.ConfigPoSH" -As DataSet -WarningVariable WarningMessage
-        $LocalCatalogueVersion = $LocalConfig.Tables[0].Select("ParameterName = 'CatalogueVersion'").ItemArray[1].ToString()
-        If ($LocalCatalogueVersion -eq $CatalogueVersion) #if catalogue version ok, carry on with interrogation
-        {Write-Host "Version Check OK" -ForegroundColor Green
+        #$LocalConfig = Invoke-DbaQuery -SQLInstance $instance.ItemArray[0].ToString() -Database $SQLUndercoverDatabase -Query "SELECT ParameterName, ParameterValue FROM Catalogue.ConfigPoSH" -As DataSet -WarningVariable WarningMessage
+        #$LocalCatalogueVersion = $LocalConfig.Tables[0].Select("ParameterName = 'CatalogueVersion'").ItemArray[1].ToString()
+        #If ($LocalCatalogueVersion -eq $CatalogueVersion) #if catalogue version ok, carry on with interrogation
+        #{Write-Host "Version Check OK" -ForegroundColor Green
+       
         #for every active module in the ConfigModules table
         ForEach ($row in $Modules.Tables[0].Rows)
         {
             Write-Host "   Processing Module: "$row.ItemArray[0].ToString() "..." -ForegroundColor Yellow
 
             #set execution variables
-            $GetProcName = "EXEC Catalogue." + $row.ItemArray[1].ToString()
-            $UpdateProcName = "EXEC Catalogue." + $row.ItemArray[2]
+            $GetProcName = $row.ItemArray[5].ToString()
+            $UpdateProcName = $row.ItemArray[6].ToString()
             $StageTableName = $row.ItemArray[3].ToString()
 
             #process module
             #Run the get procedure against remote instance
-            $DataSet = Invoke-DbaQuery -SQLInstance $instance.ItemArray[0].ToString() -Database $SQLUndercoverDatabase -Query $GetProcName -As DataSet
+            $DataSet = Invoke-DbaQuery -SQLInstance $instance.ItemArray[0].ToString() -Query $GetProcName -As DataSet
             #insert data from get procedure into staging table on central server
             Write-DbaDataTable -SqlInstance $ConfigServer -InputObject $DataSet.Tables[0] -Database $SQLUndercoverDatabase -Schema "Catalogue" -Table $StageTableName -Truncate -confirm:$false
             #run the update procedure on the central server
             Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateProcName
-            }
         }
-        Else {
-        $ErrorMessage = "The Catalogue version on " + $instance.ItemArray[0].ToString() + " does not match the configuration database.  Interrogation cannot continue."
-    Throw $ErrorMessage}
+        #}
+        #Else {
+        #$ErrorMessage = "The Catalogue version on " + $instance.ItemArray[0].ToString() + " does not match the configuration database.  Interrogation cannot continue."
+    #Throw $ErrorMessage}
     }
     catch
     {

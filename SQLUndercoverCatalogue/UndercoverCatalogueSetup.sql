@@ -3553,3 +3553,60 @@ WHERE ParameterName = 'DBAToolsRequirement'
 
 
 
+
+------------------------------------------------------------------------------------------------
+--Version 0.4
+------------------------------------------------------------------------------------------------
+
+--setup and populate ConfigModulesDefinitions table
+
+CREATE TABLE Catalogue.ConfigModulesDefinitions
+(ModuleID INT NOT NULL PRIMARY KEY,
+Online BIT NOT NULL,
+GetDefinition VARCHAR(MAX),
+UpdateDefinition VARCHAR(MAX))
+GO
+
+TRUNCATE TABLE Catalogue.ConfigModulesDefinitions
+GO
+
+--get module proc definitions and insert them into ConfigModuleDefinitions
+
+INSERT INTO Catalogue.ConfigModulesDefinitions
+SELECT ConfigModules.ID, 
+		1, 
+		SUBSTRING(OBJECT_DEFINITION(GetProcs.object_id), PATINDEX('%BEGIN%', OBJECT_DEFINITION(GetProcs.object_id)), LEN(OBJECT_DEFINITION(GetProcs.object_id))),
+		SUBSTRING(OBJECT_DEFINITION(UpdateProcs.object_id), PATINDEX('%BEGIN%', OBJECT_DEFINITION(UpdateProcs.object_id)), LEN(OBJECT_DEFINITION(UpdateProcs.object_id)))
+FROM Catalogue.ConfigModules
+JOIN sys.procedures GetProcs ON GetProcs.name = ConfigModules.GetProcName
+JOIN sys.procedures UpdateProcs ON UpdateProcs.name = ConfigModules.UpdateProcName
+GO
+
+
+--drop redundant module procs
+
+DECLARE @DropGetProc NVARCHAR(1000)
+DECLARE @DropUpdateProc NVARCHAR(1000)
+
+DECLARE DropCur CURSOR LOCAL FAST_FORWARD
+FOR
+SELECT	N'DROP PROC ' + QUOTENAME(SCHEMA_NAME(GetProcs.schema_id)) + N'.' + QUOTENAME(GetProcs.name),
+		N'DROP PROC ' + QUOTENAME(SCHEMA_NAME(UpdateProcs.schema_id)) + N'.' + QUOTENAME(UpdateProcs.name)
+FROM Catalogue.ConfigModules
+JOIN sys.procedures GetProcs ON GetProcs.name = ConfigModules.GetProcName
+JOIN sys.procedures UpdateProcs ON UpdateProcs.name = ConfigModules.UpdateProcName
+
+OPEN DropCur
+
+FETCH NEXT FROM DropCur INTO @DropGetProc, @DropUpdateProc
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+	EXEC sp_executesql @DropGetProc
+	EXEC sp_executesql @DropUpdateProc
+
+	FETCH NEXT FROM DropCur INTO @DropGetProc, @DropUpdateProc
+END
+
+CLOSE DropCur
+DEALLOCATE DropCur
