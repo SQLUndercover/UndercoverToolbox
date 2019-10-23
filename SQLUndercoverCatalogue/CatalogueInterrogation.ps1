@@ -157,7 +157,7 @@ Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Que
 $Instances = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT [ServerName] FROM Catalogue.ConfigInstances WHERE Active = 1" -As DataSet
 
 #get all active modules
-$Modules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT ConfigModules.[ModuleName], ConfigModules.[GetProcName], ConfigModules.[UpdateProcName], ConfigModules.[StageTableName], ConfigModules.[MainTableName], ConfigModulesDefinitions.[GetDefinition],ConfigModulesDefinitions.[UpdateDefinition] FROM Catalogue.ConfigModules JOIN Catalogue.ConfigModulesDefinitions ON ConfigModules.ID = ConfigModulesDefinitions.ModuleID WHERE ConfigModules.Active = 1" -As DataSet
+$Modules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT ConfigModules.[ModuleName], ConfigModules.[GetProcName], ConfigModules.[UpdateProcName], ConfigModules.[StageTableName], ConfigModules.[MainTableName], ConfigModulesDefinitions.[GetDefinition],ConfigModulesDefinitions.[UpdateDefinition],ConfigModulesDefinitions.[GetURL],ConfigModulesDefinitions.[UpdateURL],ConfigModulesDefinitions.[Online] FROM Catalogue.ConfigModules JOIN Catalogue.ConfigModulesDefinitions ON ConfigModules.ID = ConfigModulesDefinitions.ModuleID WHERE ConfigModules.Active = 1" -As DataSet
 
 #for every instance in the ConfigInstances table
 ForEach ($instance in $Instances.Tables[0].Rows)
@@ -179,18 +179,45 @@ ForEach ($instance in $Instances.Tables[0].Rows)
         {
             Write-Host "   Processing Module: "$row.ItemArray[0].ToString() "..." -ForegroundColor Yellow
 
-            #set execution variables
-            $GetProcName = $row.ItemArray[5].ToString()
-            $UpdateProcName = $row.ItemArray[6].ToString()
+            #load in module definitions
+            if ($row.ItemArray[9] -eq 1) #if module definition online, attempt to get definitions from URL
+            {
+                try
+                {
+                    $GetModuleCode = Invoke-WebRequest $row.ItemArray[7];
+                }
+                catch
+                {
+                    Write-Host "Failed to retrieve online 'Get' module definition, loading definition from database" -ForegroundColor Red
+                    $GetModuleCode = $row.ItemArray[5].ToString()
+                }
+
+                try
+                {
+                    $UpdateModuleCode = Invoke-WebRequest $row.ItemArray[8];
+                }
+                catch
+                {
+                    Write-Host "Failed to retrieve online 'Update' module definition, loading definition from database" -ForegroundColor Red
+                    $UpdateModuleCode = $row.ItemArray[6].ToString()
+                }
+            }
+            else
+            {
+                #set execution variables
+                $GetModuleCode = $row.ItemArray[5].ToString()
+                $UpdateModuleCode = $row.ItemArray[6].ToString()
+            }
+
             $StageTableName = $row.ItemArray[3].ToString()
 
             #process module
             #Run the get procedure against remote instance
-            $DataSet = Invoke-DbaQuery -SQLInstance $instance.ItemArray[0].ToString() -Query $GetProcName -As DataSet
+            $DataSet = Invoke-DbaQuery -SQLInstance $instance.ItemArray[0].ToString() -Query $GetModuleCode -As DataSet
             #insert data from get procedure into staging table on central server
             Write-DbaDataTable -SqlInstance $ConfigServer -InputObject $DataSet.Tables[0] -Database $SQLUndercoverDatabase -Schema "Catalogue" -Table $StageTableName -Truncate -confirm:$false
             #run the update procedure on the central server
-            Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateProcName
+            Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateModuleCode
         }
         #}
         #Else {
