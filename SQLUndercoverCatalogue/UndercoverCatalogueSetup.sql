@@ -3564,10 +3564,9 @@ CREATE TABLE Catalogue.ConfigModulesDefinitions
 (ModuleID INT NOT NULL PRIMARY KEY,
 Online BIT NOT NULL,
 GetDefinition VARCHAR(MAX),
-UpdateDefinition VARCHAR(MAX))
-GO
-
-TRUNCATE TABLE Catalogue.ConfigModulesDefinitions
+UpdateDefinition VARCHAR(MAX),
+GetURL VARCHAR(2048) NULL,
+UpdateURL VARCHAR(2048) NULL)
 GO
 
 --get module proc definitions and insert them into ConfigModuleDefinitions
