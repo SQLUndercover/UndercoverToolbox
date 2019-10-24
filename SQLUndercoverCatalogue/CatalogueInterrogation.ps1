@@ -146,6 +146,41 @@ Else
 Write-Host "Auto Discover Instances: Disabled" -ForegroundColor Yellow
 }
 
+
+####################  Auto Update #####################################################################################
+
+if ($AutoUpdate -eq 1)
+{
+    Write-Host "Auto Update: Enabled" -ForegroundColor Yellow
+
+    Write-Host "Checking for module updates...." -ForegroundColor Yellow
+
+    $UpdateModules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT  ConfigModules.ID, 
+                                                                                                                ConfigModules.ModuleName,
+		                                                                                                        ConfigModulesDefinitions.GetDefinition, 
+		                                                                                                        ConfigModulesDefinitions.UpdateDefinition,
+		                                                                                                        ConfigModulesDefinitions.GetURL, 
+		                                                                                                        ConfigModulesDefinitions.UpdateURL
+                                                                                                        FROM	Catalogue.ConfigModules
+                                                                                                        JOIN	Catalogue.ConfigModulesDefinitions ON  ConfigModules.ID = ConfigModulesDefinitions.ModuleID
+                                                                                                        WHERE	Catalogue.ConfigModulesDefinitions.Online = 1" -As DataSet
+
+    foreach ($UpdateModule in $UpdateModules)
+    {
+        Write-Host "Checking Module: $($UpdateModule.ItemArray[1])"
+    }
+
+}
+else
+{
+    Write-Host "Auto Update: Disabled" -ForegroundColor Yellow
+}
+
+######################################################################################################################
+
+
+
+
 #Update Execution Audit
 Write-Host "Updating Execution Audit" -ForegroundColor Yellow
 Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "INSERT INTO Catalogue.ExecutionLog(ExecutionDate) VALUES(GETDATE())"
