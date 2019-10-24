@@ -86,6 +86,7 @@ $CatalogueVersion = $Config.Tables[0].Select("ParameterName = 'CatalogueVersion'
 $AutoDiscoverInstances = $Config.Tables[0].Select("ParameterName = 'AutoDiscoverInstances'").ItemArray[1].ToString()
 $AutoUpdate = $Config.Tables[0].Select("ParameterName = 'AutoUpdate'").ItemArray[1].ToString()
 $AutoInstall= $Config.Tables[0].Select("ParameterName = 'AutoInstall'").ItemArray[1].ToString()
+$InstallLocation= $Config.Tables[0].Select("ParameterName = 'InstallationScriptPath'").ItemArray[1].ToString()
 
 ####################     Display congif info    #########################################################################
 
@@ -153,23 +154,10 @@ if ($AutoUpdate -eq 1)
 {
     Write-Host "Auto Update: Enabled" -ForegroundColor Yellow
 
-    Write-Host "Checking for module updates...." -ForegroundColor Yellow
+    $Manifest = Invoke-WebRequest "$($InstallLocation)Manifest.csv" | Import-Csv
 
-    $UpdateModules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT  ConfigModules.ID, 
-                                                                                                                ConfigModules.ModuleName,
-		                                                                                                        ConfigModulesDefinitions.GetDefinition, 
-		                                                                                                        ConfigModulesDefinitions.UpdateDefinition,
-		                                                                                                        ConfigModulesDefinitions.GetURL, 
-		                                                                                                        ConfigModulesDefinitions.UpdateURL
-                                                                                                        FROM	Catalogue.ConfigModules
-                                                                                                        JOIN	Catalogue.ConfigModulesDefinitions ON  ConfigModules.ID = ConfigModulesDefinitions.ModuleID
-                                                                                                        WHERE	Catalogue.ConfigModulesDefinitions.Online = 1" -As DataSet
-
-    foreach ($UpdateModule in $UpdateModules)
-    {
-        Write-Host "Checking Module: $($UpdateModule.ItemArray[1])"
-    }
-
+    Write-Host $Manifest
+   
 }
 else
 {
