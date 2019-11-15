@@ -403,7 +403,7 @@ function Invoke-SQLUndercoverInspector {
             New-item -Path $Path -ItemType "directory" | out-null;
         }
 
-        $FinalReportQry = "SELECT TOP (1) ReportData FROM [$LoggingDb].[Inspector].[ReportData] WHERE [ModuleConfig] = $ModuleConfig ORDER BY ID DESC;"
+        $FinalReportQry = "SELECT TOP (1) ReportData FROM [$LoggingDb].[Inspector].[ReportData] WHERE [ModuleConfig] = '$ModuleConfig' ORDER BY ID DESC;"
         $Report = $CentralConnection.Query($FinalReportQry)
         $Report | Format-Table -Wrap -HideTableHeaders | Out-File -FilePath $FileName -Width 4000
 
