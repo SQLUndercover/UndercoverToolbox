@@ -8517,7 +8517,7 @@ SELECT @TableHeader =
     ''<b><A NAME = "''+REPLACE(@Servername,''\'','''')+''''+@Modulename+''''+''"></a>''+@Tableheadermessage+''</b>
     <br> <table cellpadding=0 cellspacing=0 border=0> 
     <tr>''+
-	(SELECT ''<td bgcolor=''+ISNULL(@TableHeaderColour,'''')+''><b>''+ISNULL([value],'''')+''</b></font></td>'' FROM string_split(@Columnnames,'','') FOR XML PATH(''''), TYPE) .value(''.'', ''VARCHAR(MAX)'');
+	(SELECT ''<td bgcolor=''+ISNULL(@TableHeaderColour,'''')+''><b>''+ISNULL([StringElement],'''')+''</b></font></td>'' FROM master.dbo.fn_SplitString(@Columnnames,'','') FOR XML PATH(''''), TYPE) .value(''.'', ''VARCHAR(MAX)'');
 
 	RETURN(@TableHeader);
 END
