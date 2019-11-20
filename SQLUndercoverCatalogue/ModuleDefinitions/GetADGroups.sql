@@ -26,9 +26,9 @@ CREATE TABLE #FinalResults(
 --cursor to hold all windows groups
 
 DECLARE GroupsCur CURSOR FAST_FORWARD LOCAL FOR
-	SELECT DISTINCT LoginName
-	FROM Catalogue.Logins
-	WHERE LoginType = 'WINDOWS_GROUP'
+	SELECT name
+	FROM sys.server_principals
+	WHERE type_desc = 'WINDOWS_GROUP'
 
 OPEN GroupsCur
 

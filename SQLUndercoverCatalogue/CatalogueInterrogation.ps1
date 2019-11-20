@@ -272,10 +272,13 @@ ForEach ($instance in $Instances.Tables[0].Rows)
 
             #process module
             #Run the get procedure against remote instance
+            Write-Host "Running GET"
             $DataSet = Invoke-DbaQuery -SQLInstance $instance.ItemArray[0].ToString() -Query $GetModuleCode -As DataSet
             #insert data from get procedure into staging table on central server
+            Write-Host "Loading to Staging"
             Write-DbaDataTable -SqlInstance $ConfigServer -InputObject $DataSet.Tables[0] -Database $SQLUndercoverDatabase -Schema "Catalogue" -Table $StageTableName -Truncate -confirm:$false
             #run the update procedure on the central server
+            Write-Host "Running UPDATE"
             Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateModuleCode
         }
         #}
