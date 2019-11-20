@@ -148,7 +148,7 @@ Write-Host "Auto Discover Instances: Disabled" -ForegroundColor Yellow
 }
 
 
-####################  Auto Update #####################################################################################
+####################  Auto Update  #####################################################################################
 
 if ($AutoUpdate -eq 1)
 {
@@ -156,9 +156,6 @@ if ($AutoUpdate -eq 1)
 
     $Manifest = Invoke-WebRequest "$($InstallLocation)Manifest.csv"
     $ManifestArray = $Manifest.Content.Split([Environment]::NewLine)
-
-    Write-Host $ManifestArray[1].Split(",")[1]
-    Write-Host $ScriptVersion
 
     #check for main version updates
     if ($ManifestArray[0].Split(",")[1] -ne $CatalogueVersion)
@@ -171,11 +168,12 @@ if ($AutoUpdate -eq 1)
             $UpdateDetails = $Update.Split(",")
             if ($UpdateDetails[0] -eq "Update")
             {
-                if ($UpdateDetails[1] -gt $CatalogueVersion) #if update is for a later version than currently installed
+                if ($UpdateDetails[1] -gt $CatalogueVersion) #if update is for a later version than currently installed then run it in
                 {
-                    Write-Host $UpdateDetails[0] -BackgroundColor Magenta
-                    Write-Host $UpdateDetails[1] -BackgroundColor Magenta
-                    Write-Host $UpdateDetails[2] -BackgroundColor Magenta
+                    Write-Host "Installing update $($UpdateDetails[1])" -ForegroundColor Yellow
+                    $UpdateStmt = Invoke-WebRequest "$InstallLocation$($UpdateDetails[2])"
+
+                    Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateStmt
                 }
             }
         }
