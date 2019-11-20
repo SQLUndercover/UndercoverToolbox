@@ -157,9 +157,10 @@ if ($AutoUpdate -eq 1)
     $Manifest = Invoke-WebRequest "$($InstallLocation)Manifest.csv"
     $ManifestArray = $Manifest.Content.Split([Environment]::NewLine)
 
-    Write-Host $ManifestArray[0].Split(",")[1]
-    Write-Host $CatalogueVersion
+    Write-Host $ManifestArray[1].Split(",")[1]
+    Write-Host $ScriptVersion
 
+    #check for main version updates
     if ($ManifestArray[0].Split(",")[1] -ne $CatalogueVersion)
     {
         Write-Host "An update is available" -ForegroundColor Yellow
@@ -169,6 +170,16 @@ if ($AutoUpdate -eq 1)
         Write-Host "You're running on the most recent version" -ForegroundColor Green
     }
 
+    #check minimum PoSH script version
+        #check for main version updates
+    if ($ManifestArray[1].Split(",")[1] -gt $ScriptVersion)
+    {
+        Write-Host "Your PowerShell Script needs updating" -ForegroundColor Yellow
+    }
+    else
+    {
+        Write-Host "You're running a compatible version of the PowerShell script" -ForegroundColor Green
+    }
 }
 else
 {
