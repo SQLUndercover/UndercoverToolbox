@@ -157,6 +157,9 @@ if ($AutoUpdate -eq 1)
     $Manifest = Invoke-WebRequest "$($InstallLocation)Manifest.csv"
     $ManifestArray = $Manifest.Content.Split([Environment]::NewLine)
 
+    Write-Host $ManifestArray[0].Split(",")[1]
+    Write-Host $CatalogueVersion
+
     if ($ManifestArray[0].Split(",")[1] -ne $CatalogueVersion)
     {
         Write-Host "An update is available" -ForegroundColor Yellow
