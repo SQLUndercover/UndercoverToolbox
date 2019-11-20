@@ -154,10 +154,18 @@ if ($AutoUpdate -eq 1)
 {
     Write-Host "Auto Update: Enabled" -ForegroundColor Yellow
 
-    $Manifest = Invoke-WebRequest "$($InstallLocation)Manifest.csv" | Import-Csv
+    $Manifest = Invoke-WebRequest "$($InstallLocation)Manifest.csv"
+    $ManifestArray = $Manifest.Content.Split([Environment]::NewLine)
 
-    Write-Host $Manifest
-   
+    if ($ManifestArray[0].Split(",")[1] -ne $CatalogueVersion)
+    {
+        Write-Host "An update is available" -ForegroundColor Yellow
+    }
+    else
+    {
+        Write-Host "You're running on the most recent version" -ForegroundColor Green
+    }
+
 }
 else
 {
