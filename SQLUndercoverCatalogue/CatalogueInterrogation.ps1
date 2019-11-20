@@ -163,19 +163,22 @@ if ($AutoUpdate -eq 1)
     #check for main version updates
     if ($ManifestArray[0].Split(",")[1] -ne $CatalogueVersion)
     {
-        Write-Host "An update is available" -ForegroundColor Yellow
+        Write-Host "Updates are available" -ForegroundColor Yellow
 
+        #get required updates from the manifest
         foreach ($Update in $ManifestArray)
         {
             $UpdateDetails = $Update.Split(",")
-            Write-Host $UpdateDetails[0] -BackgroundColor Magenta
-            Write-Host $UpdateDetails[1] -BackgroundColor Magenta
-            Write-Host $UpdateDetails[2] -BackgroundColor Magenta
+            if ($UpdateDetails[0] -eq "Update")
+            {
+                if ($UpdateDetails[1] -gt $CatalogueVersion) #if update is for a later version than currently installed
+                {
+                    Write-Host $UpdateDetails[0] -BackgroundColor Magenta
+                    Write-Host $UpdateDetails[1] -BackgroundColor Magenta
+                    Write-Host $UpdateDetails[2] -BackgroundColor Magenta
+                }
+            }
         }
-
-
-
-
     }
     else
     {
