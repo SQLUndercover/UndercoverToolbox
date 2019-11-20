@@ -105,9 +105,10 @@ ELSE
 
 ####################    Check Script Version Matches Config Database Version     ########################################
 
-If ($ScriptVersion -eq $CatalogueVersion) {Write-Host "Config Version Check - OK" -ForegroundColor Green}
-ELSE
-{Throw "There is a version mismatch between the Powershell collector and the version of the Catalogue config database"}
+#Script version check obsolete since check was based on the manifest file in 0.4.0
+#If ($ScriptVersion -eq $CatalogueVersion) {Write-Host "Config Version Check - OK" -ForegroundColor Green}
+#ELSE
+#{Throw "There is a version mismatch between the Powershell collector and the version of the Catalogue config database"}
 
 ###################    auto discover SQL instances     ##################################################################
 
@@ -187,7 +188,7 @@ if ($AutoUpdate -eq 1)
         #check for main version updates
     if ($ManifestArray[1].Split(",")[1] -gt $ScriptVersion)
     {
-        Write-Host "Your PowerShell Script needs updating" -ForegroundColor Yellow
+        Throw "You're running an incompatible version of the PowerShell script, this should be updated.  Please visit SQL Undercover for the latest version"
     }
     else
     {
