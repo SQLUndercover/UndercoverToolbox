@@ -164,6 +164,18 @@ if ($AutoUpdate -eq 1)
     if ($ManifestArray[0].Split(",")[1] -ne $CatalogueVersion)
     {
         Write-Host "An update is available" -ForegroundColor Yellow
+
+        foreach ($Update in $ManifestArray)
+        {
+            $UpdateDetails = $Update.Split(",")
+            Write-Host $UpdateDetails[0] -BackgroundColor Magenta
+            Write-Host $UpdateDetails[1] -BackgroundColor Magenta
+            Write-Host $UpdateDetails[2] -BackgroundColor Magenta
+        }
+
+
+
+
     }
     else
     {
