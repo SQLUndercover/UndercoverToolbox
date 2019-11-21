@@ -1,73 +1,41 @@
+
+
 BEGIN
-	
-	IF OBJECT_ID('tempdb.dbo.#Tables') IS NOT NULL
-	DROP TABLE #Tables
 
-	CREATE TABLE #Tables
-		(ServerName NVARCHAR(128) NOT NULL,
-		DatabaseName NVARCHAR(128) NOT NULL,
-		SchemaName SYSNAME NOT NULL,
-		TableName SYSNAME NOT NULL,
-		Columns XML
-		)
+--update tables where they are known to the catalogue
+UPDATE Catalogue.Tables 
+SET		ServerName = Tables_Stage.ServerName
+		,DatabaseName = Tables_Stage.DatabaseName
+		,SchemaName = Tables_Stage.SchemaName
+		,TableName = Tables_Stage.TableName
+		,Columns = Tables_Stage.Columns
+		,LastRecorded = GETDATE()
+FROM	Catalogue.Tables_Stage
+WHERE	Tables.ServerName = Tables_Stage.ServerName
+		AND Tables.SchemaName = Tables_Stage.SchemaName
+		AND Tables.TableName = Tables_Stage.TableName
+		AND Tables.DatabaseName = Tables_Stage.DatabaseName
 
-	DECLARE @DBName SYSNAME
 
-	--cursor to hold database
-	DECLARE DBCur CURSOR FAST_FORWARD LOCAL FOR
-	SELECT name 
-	FROM sys.databases
 
-	DECLARE @cmd NVARCHAR(2000)
-
-	OPEN DBCur
-
-	FETCH NEXT FROM DBCur INTO @DBName
-
-	WHILE @@FETCH_STATUS = 0
-	BEGIN
-
-		SET @cmd = N'USE ' + QUOTENAME(@DBName) + N';
-			SELECT	@@SERVERNAME AS NameServer,
-			DB_NAME() AS DatabaseName, 
-			schemas.name AS SchemaName, 
-			tables.name AS TableName,
-			CAST((
-				SELECT columns.name AS ColName,
-				types.name AS DataType, 
-				CASE 
-					WHEN columns.max_length = -1 THEN ''MAX''
-					WHEN types.name IN (''nchar'',''nvarchar'') THEN CAST(columns.max_length/2 AS VARCHAR)
-					ELSE CAST(columns.max_length AS VARCHAR)
-				END AS Length, 
-				columns.is_nullable AS IsNullable,
-				columns.is_identity AS IsIdentity,
-				columns.is_computed AS IsComputed
-				FROM sys.columns
-				JOIN sys.types ON columns.user_type_id = types.user_type_id
-				WHERE columns.object_id = tables.object_id		
-				FOR XML RAW
-			) AS XML) Cols
-			FROM sys.tables
-			JOIN sys.schemas ON tables.schema_id = schemas.schema_id'
-	
-	BEGIN TRY
-		INSERT INTO #Tables
-		EXEC sp_executesql @cmd
-	END TRY
-	BEGIN CATCH
-		--if database in in accessible do nothing and move on to next database
-	END CATCH
-
-	FETCH NEXT FROM DBCur INTO @DBName
-
-	END
-
-	SELECT	ServerName
-			,DatabaseName
-			,SchemaName
-			,TableName
-			,Columns
-	FROM #Tables
+--insert tables that are unknown to the catlogue
+INSERT INTO Catalogue.Tables
+(ServerName,DatabaseName,SchemaName,TableName,Columns,FirstRecorded,LastRecorded)
+SELECT ServerName,
+		DatabaseName,
+		SchemaName,
+		TableName,
+		Columns,
+		GETDATE(),
+		GETDATE()
+FROM Catalogue.Tables_Stage
+WHERE NOT EXISTS 
+(SELECT 1 FROM Catalogue.Tables
+WHERE	Tables.ServerName = Tables_Stage.ServerName
+		AND Tables.SchemaName = Tables_Stage.SchemaName
+		AND Tables.TableName = Tables_Stage.TableName
+		AND Tables.DatabaseName = Tables_Stage.DatabaseName)
 
 END
+
+
