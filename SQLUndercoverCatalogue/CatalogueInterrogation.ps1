@@ -151,12 +151,14 @@ Write-Host "Auto Discover Instances: Disabled" -ForegroundColor Yellow
 
 ####################  Auto Update  #####################################################################################
 
+$Manifest = Invoke-WebRequest "$($InstallLocation)Manifest.csv"
+$ManifestArray = $Manifest.Content.Split([Environment]::NewLine)
+
 if ($AutoUpdate -eq 1)
 {
     Write-Host "Auto Update: Enabled" -ForegroundColor Yellow
 
-    $Manifest = Invoke-WebRequest "$($InstallLocation)Manifest.csv"
-    $ManifestArray = $Manifest.Content.Split([Environment]::NewLine)
+
 
     #check for main version updates
     if ($ManifestArray[0].Split(",")[1] -ne $CatalogueVersion)
@@ -183,21 +185,20 @@ if ($AutoUpdate -eq 1)
     {
         Write-Host "You're running on the most recent version" -ForegroundColor Green
     }
-
-    #check minimum PoSH script version
-        #check for main version updates
-    if ($ManifestArray[1].Split(",")[1] -gt $ScriptVersion)
-    {
-        Throw "You're running an incompatible version of the PowerShell script, this should be updated.  Please visit SQL Undercover for the latest version"
-    }
-    else
-    {
-        Write-Host "You're running a compatible version of the PowerShell script" -ForegroundColor Green
-    }
 }
 else
 {
     Write-Host "Auto Update: Disabled" -ForegroundColor Yellow
+}
+
+#check minimum PoSH script version
+if ($ManifestArray[1].Split(",")[1] -gt $ScriptVersion)
+{
+    Throw "You're running an incompatible version of the PowerShell script, this should be updated.  Please visit SQL Undercover for the latest version"
+}
+else
+{
+    Write-Host "You're running a compatible version of the PowerShell script" -ForegroundColor Green
 }
 
 ######################################################################################################################
@@ -216,7 +217,7 @@ Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Que
 $Instances = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT [ServerName] FROM Catalogue.ConfigInstances WHERE Active = 1" -As DataSet
 
 #get all active modules
-$Modules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT ConfigModules.[ModuleName], ConfigModules.[GetProcName], ConfigModules.[UpdateProcName], ConfigModules.[StageTableName], ConfigModules.[MainTableName], ConfigModulesDefinitions.[GetDefinition],ConfigModulesDefinitions.[UpdateDefinition],ConfigModulesDefinitions.[GetURL],ConfigModulesDefinitions.[UpdateURL],ConfigModulesDefinitions.[Online] FROM Catalogue.ConfigModules JOIN Catalogue.ConfigModulesDefinitions ON ConfigModules.ID = ConfigModulesDefinitions.ModuleID WHERE ConfigModules.Active = 1" -As DataSet
+$Modules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT ConfigModules.[ModuleName], ConfigModules.[GetProcName], ConfigModules.[UpdateProcName], ConfigModules.[StageTableName], ConfigModules.[MainTableName], ConfigModulesDefinitions.[GetDefinition],ConfigModulesDefinitions.[UpdateDefinition],ConfigModulesDefinitions.[GetURL],ConfigModulesDefinitions.[UpdateURL],ConfigModulesDefinitions.[Online], ConfigModulesDefinitions.[ModuleID] FROM Catalogue.ConfigModules JOIN Catalogue.ConfigModulesDefinitions ON ConfigModules.ID = ConfigModulesDefinitions.ModuleID WHERE ConfigModules.Active = 1" -As DataSet
 
 #for every instance in the ConfigInstances table
 ForEach ($instance in $Instances.Tables[0].Rows)
@@ -254,6 +255,12 @@ ForEach ($instance in $Instances.Tables[0].Rows)
                 try
                 {
                     $UpdateModuleCode = Invoke-WebRequest $row.ItemArray[8];
+
+                    #check for differences between git and local definitions
+                    if ($($UpdateModuleCode -replace "`n|`r") -ne $($row.ItemArray[6].ToString() -replace "`n|`r"))
+                    {
+                        Write-Host "A difference has been detected between the online and local definitions" -ForegroundColor Red
+                    }
                 }
                 catch
                 {
@@ -286,6 +293,7 @@ ForEach ($instance in $Instances.Tables[0].Rows)
     catch
     {
         Write-Host "Interrogation encountered an error and could not continue." -ForegroundColor Red
+        Write-Host $Error[0].Exception.Message
         #Write-Host $WarningMessage -ForegroundColor Red
         #if version mismatch
         If ($Error[0].Exception.Message -like "*The Catalogue version*") 
