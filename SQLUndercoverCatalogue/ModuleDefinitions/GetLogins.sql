@@ -5,7 +5,6 @@ SELECT	@@SERVERNAME AS ServerName,
 		principals_logins.name AS LoginName, 
 		principals_logins.sid AS SID, 
 		principals_roles.name AS RoleName,
-		NULL AS ID,
 		principals_logins.is_disabled AS IsDisabled,
 		LOGINPROPERTY(principals_logins.name, 'PasswordHash') AS PasswordHash,  -- **the varbinary of password hash is erroring in powershell, something to be looked at
 		principals_logins.type_desc AS LoginType
