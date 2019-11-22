@@ -12,14 +12,15 @@ SET		ServerName = Databases_Stage.ServerName,
 		AGName = Databases_Stage.AGName,
 		FilePaths = Databases_Stage.FilePaths,
 		DatabaseSizeMB= Databases_Stage.DatabaseSizeMB,
-		LastRecorded = GETDATE()
+		LastRecorded = GETDATE(),
+		StateDesc = Databases_Stage.StateDesc
 FROM Catalogue.Databases_Stage
 WHERE	Databases.ServerName = Databases_Stage.ServerName
 		AND Databases.DBName = Databases_Stage.DBName
 
 --insert jobs that are unknown to the catlogue
 INSERT INTO Catalogue.Databases
-(ServerName, DBName, DatabaseID, OwnerName, CompatibilityLevel, CollationName, RecoveryModelDesc, AGName,FilePaths,DatabaseSizeMB,FirstRecorded,LastRecorded)
+(ServerName, DBName, DatabaseID, OwnerName, CompatibilityLevel, CollationName, RecoveryModelDesc, AGName,FilePaths,DatabaseSizeMB,FirstRecorded,LastRecorded, StateDesc)
 SELECT ServerName,
 		DBName,
 		DatabaseID,
@@ -31,7 +32,8 @@ SELECT ServerName,
 		FilePaths,
 		DatabaseSizeMB,
 		GETDATE(),
-		GETDATE()
+		GETDATE(),
+		StateDesc
 FROM Catalogue.Databases_Stage
 WHERE NOT EXISTS 
 (SELECT 1 FROM Catalogue.Databases

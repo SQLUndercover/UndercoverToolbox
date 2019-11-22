@@ -58,179 +58,60 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 */
 
+ALTER TABLE Catalogue.Logins_Stage
+DROP CONSTRAINT PK_Logins_Stage
 
+ALTER TABLE Catalogue.Logins_Stage
+DROP COLUMN ID
 
---setup and populate ConfigModulesDefinitions table
-
-CREATE TABLE Catalogue.ConfigModulesDefinitions
-(ModuleID INT NOT NULL PRIMARY KEY,
-Online BIT NOT NULL,
-GetDefinition VARCHAR(MAX),
-UpdateDefinition VARCHAR(MAX),
-GetURL VARCHAR(2048) NULL,
-UpdateURL VARCHAR(2048) NULL)
 GO
 
---get module proc definitions and insert them into ConfigModuleDefinitions
+--local interrogation proc
 
-INSERT INTO Catalogue.ConfigModulesDefinitions
-SELECT ConfigModules.ID, 
-		1, 
-		SUBSTRING(OBJECT_DEFINITION(GetProcs.object_id), PATINDEX('%BEGIN%', OBJECT_DEFINITION(GetProcs.object_id)), LEN(OBJECT_DEFINITION(GetProcs.object_id))),
-		SUBSTRING(OBJECT_DEFINITION(UpdateProcs.object_id), PATINDEX('%BEGIN%', OBJECT_DEFINITION(UpdateProcs.object_id)), LEN(OBJECT_DEFINITION(UpdateProcs.object_id)))
-FROM Catalogue.ConfigModules
-JOIN sys.procedures GetProcs ON GetProcs.name = ConfigModules.GetProcName
-JOIN sys.procedures UpdateProcs ON UpdateProcs.name = ConfigModules.UpdateProcName
-GO
+CREATE PROC Catalogue.LocalInterrogation
+AS
 
 
---drop redundant module procs
+BEGIN
 
-DECLARE @DropGetProc NVARCHAR(1000)
-DECLARE @DropUpdateProc NVARCHAR(1000)
+SET NOCOUNT ON
 
-DECLARE DropCur CURSOR LOCAL FAST_FORWARD
+DECLARE @GetDefinition NVARCHAR(MAX)
+DECLARE @UpdateDefinition NVARCHAR(MAX)
+DECLARE @StageTableName NVARCHAR(128)
+DECLARE @cmd NVARCHAR(MAX)
+
+DECLARE Modules CURSOR STATIC FORWARD_ONLY
 FOR
-SELECT	N'DROP PROC ' + QUOTENAME(SCHEMA_NAME(GetProcs.schema_id)) + N'.' + QUOTENAME(GetProcs.name),
-		N'DROP PROC ' + QUOTENAME(SCHEMA_NAME(UpdateProcs.schema_id)) + N'.' + QUOTENAME(UpdateProcs.name)
-FROM Catalogue.ConfigModules
-JOIN sys.procedures GetProcs ON GetProcs.name = ConfigModules.GetProcName
-JOIN sys.procedures UpdateProcs ON UpdateProcs.name = ConfigModules.UpdateProcName
+	SELECT GetDefinition, UpdateDefinition, StageTableName
+	FROM Catalogue.ConfigModules
+	JOIN Catalogue.ConfigModulesDefinitions ON ConfigModules.ID = ConfigModulesDefinitions.ModuleID
+	WHERE Active = 1
+	--AND ModuleName = 'Databases'
 
-OPEN DropCur
+OPEN Modules
 
-FETCH NEXT FROM DropCur INTO @DropGetProc, @DropUpdateProc
-
-WHILE @@FETCH_STATUS = 0
-BEGIN
-	EXEC sp_executesql @DropGetProc
-	EXEC sp_executesql @DropUpdateProc
-
-	FETCH NEXT FROM DropCur INTO @DropGetProc, @DropUpdateProc
-END
-
-CLOSE DropCur
-DEALLOCATE DropCur
-
-
---Fix issue for ADGroups module
-
-
-
-update Catalogue.ConfigModulesDefinitions
-set GetDefinition =
-
-'BEGIN
-
-DECLARE @GroupName SYSNAME
-
---create temp table to hold results from xp_logininfo
-IF OBJECT_ID(''tempdb.dbo.#LoginInfo'') IS NOT NULL
-DROP TABLE #LoginInfo
-
-CREATE TABLE #LoginInfo
-(accountname SYSNAME NULL,
- type CHAR(8) NULL,
- privilege CHAR(9) NULL,
- mappedloginname SYSNAME NULL,
- permissionpath SYSNAME NULL)
-
---create temp table to hold final results
-IF OBJECT_ID(''tempdb.dbo.#FinalResults'') IS NOT NULL
-DROP TABLE #FinalResults
-
-CREATE TABLE #FinalResults(
-	GroupName SYSNAME NOT NULL,
-	AccountName SYSNAME NOT NULL,
-	AccountType CHAR(8) NOT NULL)
- 
-
---cursor to hold all windows groups
-
-DECLARE GroupsCur CURSOR FAST_FORWARD LOCAL FOR
-	SELECT name
-	FROM sys.server_principals
-	WHERE type_desc = ''WINDOWS_GROUP''
-
-OPEN GroupsCur
-
-FETCH NEXT FROM GroupsCur INTO @GroupName
+FETCH NEXT FROM Modules INTO @GetDefinition, @UpdateDefinition, @StageTableName
 
 WHILE @@FETCH_STATUS = 0
 BEGIN
-	TRUNCATE TABLE #LoginInfo  --truncate work table to prevent data from previous loop being carried through
+	--truncate stage tables
+	EXEC ('TRUNCATE TABLE Catalogue.' + @StageTableName )
 
-	DECLARE @SQL VARCHAR(100)
-	SET @SQL = ''EXEC xp_logininfo '''''' + @GroupName + '''''', ''''members''''''
+	--insert into stage tables
+	SET @cmd = N'INSERT INTO Catalogue.' + @StageTableName + '
+				EXEC (@GetDefinition)'
+
+	EXEC sp_executesql @cmd, N'@GetDefinition VARCHAR(MAX)', @GetDefinition = @GetDefinition
 	
-	--populate #LoginInfo
-	BEGIN TRY
-		INSERT INTO #LoginInfo
-		EXEC (@SQL)
-	END TRY
-	BEGIN CATCH --catch if there''s an issue evaluating the group for some reason
-		INSERT INTO #LoginInfo (accountname, type)
-		VALUES (@GroupName, ''*ERROR*'')
-	END CATCH
+	--execute update code
+	EXEC sp_executesql @UpdateDefinition
 
-	--append to final results temp table
-	INSERT INTO #FinalResults (GroupName,AccountName,AccountType)
-	SELECT @GroupName, accountname, type
-	FROM #LoginInfo
+	FETCH NEXT FROM Modules INTO @GetDefinition, @UpdateDefinition, @StageTableName
 
-	FETCH NEXT FROM GroupsCur INTO @GroupName
 END
 
-SELECT GroupName,AccountName,AccountType
-FROM #FinalResults
+CLOSE Modules
+DEALLOCATE Modules
 
-END'
-
-where ModuleID = 8
-
-
---fix issue with Tables module
-
-
-UPDATE Catalogue.ConfigModulesDefinitions
-SET UpdateDefinition = 
-'BEGIN
-
---update tables where they are known to the catalogue
-UPDATE Catalogue.Tables 
-SET		ServerName = Tables_Stage.ServerName
-		,DatabaseName = Tables_Stage.DatabaseName
-		,SchemaName = Tables_Stage.SchemaName
-		,TableName = Tables_Stage.TableName
-		,Columns = Tables_Stage.Columns
-		,LastRecorded = GETDATE()
-FROM	Catalogue.Tables_Stage
-WHERE	Tables.ServerName = Tables_Stage.ServerName
-		AND Tables.SchemaName = Tables_Stage.SchemaName
-		AND Tables.TableName = Tables_Stage.TableName
-		AND Tables.DatabaseName = Tables_Stage.DatabaseName
-
-
-
---insert tables that are unknown to the catlogue
-INSERT INTO Catalogue.Tables
-(ServerName,DatabaseName,SchemaName,TableName,Columns,FirstRecorded,LastRecorded)
-SELECT ServerName,
-		DatabaseName,
-		SchemaName,
-		TableName,
-		Columns,
-		GETDATE(),
-		GETDATE()
-FROM Catalogue.Tables_Stage
-WHERE NOT EXISTS 
-(SELECT 1 FROM Catalogue.Tables
-WHERE	Tables.ServerName = Tables_Stage.ServerName
-		AND Tables.SchemaName = Tables_Stage.SchemaName
-		AND Tables.TableName = Tables_Stage.TableName
-		AND Tables.DatabaseName = Tables_Stage.DatabaseName)
-
-END'
-
-WHERE ModuleID = 10
-
+END

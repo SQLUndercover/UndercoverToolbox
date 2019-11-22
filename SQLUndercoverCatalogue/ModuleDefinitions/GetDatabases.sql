@@ -10,7 +10,8 @@ SELECT	@@SERVERNAME AS ServerName,
 		databases.recovery_model_desc AS RecoveryModelDesc,
 		availability_groups.name AS AGName,
 		files.FilePaths,
-		files.DatabaseSizeMB
+		files.DatabaseSizeMB,
+		databases.state_desc AS StateDesc
 FROM sys.databases
 LEFT OUTER JOIN sys.server_principals ON server_principals.sid = databases.owner_sid
 LEFT OUTER JOIN sys.availability_replicas ON availability_replicas.replica_id = databases.replica_id
@@ -23,3 +24,4 @@ JOIN	(SELECT database_id, (SUM(CAST (size AS BIGINT)) * 8)/1024 AS DatabaseSizeM
 		FROM sys.master_files files1
 		GROUP BY database_id) files ON files.database_id = databases.database_id
 END
+
