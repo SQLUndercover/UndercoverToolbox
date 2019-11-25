@@ -28,7 +28,7 @@ FROM sys.dm_os_sys_info,
 (
 	SELECT [max worker threads],[cost threshold for parallelism],[max degree of parallelism],[min server memory (MB)],[max server memory (MB)]
 	FROM 
-	(SELECT name, value_in_use
+	(SELECT name, CAST(value_in_use AS INT) AS value_in_use
 	FROM sys.configurations
 	WHERE name in ('max worker threads','cost threshold for parallelism','max degree of parallelism','min server memory (MB)','max server memory (MB)')) AS Source
 	PIVOT
