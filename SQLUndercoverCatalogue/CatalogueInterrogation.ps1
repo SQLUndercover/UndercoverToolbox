@@ -257,7 +257,6 @@ ForEach ($instance in $Instances.Tables[0].Rows)
                         elseif ($AutoUpdate -eq 1)
                         {
                             Write-Host "Local definition will be automatically updated to match online definition" -ForegroundColor Yellow
-                            Write-Host "UPDATE [Catalogue].[ConfigModulesDefinitions] SET GetDefinition = '$($GetModuleCode  -replace "'", "''")' WHERE ModuleId = $($row.ItemArray[10].ToString())"
                             Invoke-DbaQuery  -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "UPDATE [Catalogue].[ConfigModulesDefinitions] SET GetDefinition = '$($GetModuleCode  -replace "'", "''")' WHERE ModuleID = $($row.ItemArray[10].ToString())"
                             Write-Host "Module Definition Updated" -ForegroundColor Green
                         }
@@ -277,6 +276,16 @@ ForEach ($instance in $Instances.Tables[0].Rows)
                     if ($($UpdateModuleCode -replace "`n|`r") -ne $($row.ItemArray[6].ToString() -replace "`n|`r"))
                     {
                         Write-Host "A difference has been detected between the online and local definitions" -ForegroundColor Red
+                        if ($AutoUpdate -eq 0)
+                        {
+                            Write-Host "Autoupdate is disabled, you may need to manually update the module definition" -ForegroundColor Yellow
+                        }
+                        elseif ($AutoUpdate -eq 1)
+                        {
+                            Write-Host "Local definition will be automatically updated to match online definition" -ForegroundColor Yellow
+                            Invoke-DbaQuery  -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "UPDATE [Catalogue].[ConfigModulesDefinitions] SET UpdateDefinition = '$($UpdateModuleCode  -replace "'", "''")' WHERE ModuleID = $($row.ItemArray[10].ToString())"
+                            Write-Host "Module Definition Updated" -ForegroundColor Green
+                        }
                     }
                 }
                 catch

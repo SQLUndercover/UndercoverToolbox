@@ -1,3 +1,10 @@
+--Undercover Catalogue
+--David Fowler
+--Version 0.4.0 - 25 November 2019
+--Module: ADGroups
+--Script: Update
+
+
 BEGIN
 
 --update LastRecorded date where the account and group is known to the catalogue

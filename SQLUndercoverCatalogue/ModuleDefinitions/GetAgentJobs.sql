@@ -1,3 +1,9 @@
+--Undercover Catalogue
+--David Fowler
+--Version 0.4.0 - 25 November 2019
+--Module: AgentJobs
+--Script: Get
+
 BEGIN
 --get all agent jobs on server
 SELECT	@@SERVERNAME AS ServerName,

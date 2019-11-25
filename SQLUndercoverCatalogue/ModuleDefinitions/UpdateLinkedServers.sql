@@ -1,3 +1,10 @@
+--Undercover Catalogue
+--David Fowler
+--Version 0.4.0 - 25 November 2019
+--Module: Linked Server
+--Script: Update
+
+
 BEGIN
 
 --temp table used to prevent duplicate entries from the denormalised stage table

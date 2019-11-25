@@ -1,3 +1,9 @@
+--Undercover Catalogue
+--David Fowler
+--Version 0.4.0 - 25 November 2019
+--Module: Tables
+--Script: Get
+
 BEGIN
 	
 	IF OBJECT_ID('tempdb.dbo.#Tables') IS NOT NULL

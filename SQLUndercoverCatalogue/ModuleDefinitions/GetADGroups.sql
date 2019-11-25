@@ -1,5 +1,8 @@
+--Undercover Catalogue
 --David Fowler
---v0.4.0
+--Version 0.4.0 - 25 November 2019
+--Module: ADGroups
+--Script: Get
 
 BEGIN
 

@@ -1,3 +1,10 @@
+--Undercover Catalogue
+--David Fowler
+--Version 0.4.0 - 25 November 2019
+--Module: Users
+--Script: Get
+
+
 BEGIN
 
 DECLARE @DBName SYSNAME

@@ -1,3 +1,10 @@
+--Undercover Catalogue
+--David Fowler
+--Version 0.4.0 - 25 November 2019
+--Module: AvailabilityGroups
+--Script: Update
+
+
 BEGIN
 
 --update AGs where they are known

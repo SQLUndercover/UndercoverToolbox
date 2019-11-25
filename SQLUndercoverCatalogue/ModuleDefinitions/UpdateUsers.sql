@@ -1,3 +1,11 @@
+--Undercover Catalogue
+--David Fowler
+--Version 0.4.0 - 25 November 2019
+--Module: Users
+--Script: Update
+
+
+
 BEGIN
 
 --update users where they are known

@@ -1,3 +1,10 @@
+--Undercover Catalogue
+--David Fowler
+--Version 0.4.0 - 25 November 2019
+--Module: Servers
+--Script: Update
+
+
 BEGIN
 --update servers where they are known to the catalogue
 UPDATE Catalogue.Servers 

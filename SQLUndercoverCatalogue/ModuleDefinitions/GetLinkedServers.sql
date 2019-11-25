@@ -1,3 +1,9 @@
+--Undercover Catalogue
+--David Fowler
+--Version 0.4.0 - 25 November 2019
+--Module: LinkedServers
+--Script: Get
+
 BEGIN
 
 SELECT	@@SERVERNAME AS Server, 
