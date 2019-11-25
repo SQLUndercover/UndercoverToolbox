@@ -20,7 +20,7 @@ SET		ServerName = [Logins_Stage].ServerName,
 FROM	[Catalogue].[Logins_Stage]
 WHERE	Logins.ServerName = [Logins_Stage].ServerName
 		AND Logins.LoginName = [Logins_Stage].LoginName
-		AND Logins.RoleName = [Logins_Stage].RoleName
+		AND ISNULL(Logins.RoleName, '') = ISNULL([Logins_Stage].RoleName, '')
 
 --insert logins that are unknown to the catlogue
 INSERT INTO Catalogue.Logins
@@ -39,6 +39,6 @@ WHERE NOT EXISTS
 (SELECT 1 FROM Catalogue.Logins
 		WHERE Logins.ServerName = [Logins_Stage].ServerName
 		AND Logins.LoginName = [Logins_Stage].LoginName
-		AND Logins.RoleName = [Logins_Stage].RoleName)
+		AND ISNULL(Logins.RoleName, '') = ISNULL([Logins_Stage].RoleName, ''))
 
 END
