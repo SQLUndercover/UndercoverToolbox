@@ -10078,7 +10078,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 06/11/2019
+--Revision date: 25/11/2019
 
 SET NOCOUNT ON;
 
@@ -10096,7 +10096,7 @@ DECLARE @LastTruncate DATE;
 DECLARE @ReportWarningsOnly BIT;
 
 
-    IF EXISTS (SELECT ModuleConfig_Desc FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[Modules] WHERE ModuleConfig_Desc = @ModuleConfig) OR @ModuleConfig IS NULL 
+    IF EXISTS (SELECT ModuleConfig_Desc FROM [Inspector].[Modules] WHERE ModuleConfig_Desc = @ModuleConfig) OR @ModuleConfig IS NULL 
     BEGIN
 		--Truncate the ExecutionLog daily
 		SELECT @LastTruncate = (SELECT TOP 1 CAST([ExecutionDate] AS DATE) FROM [Inspector].[ExecutionLog] ORDER BY [ID] DESC)
@@ -10119,7 +10119,7 @@ DECLARE @ReportWarningsOnly BIT;
 	    IF (@ModuleConfig IS NULL)
 	    BEGIN
 		   SELECT @ModuleConfig = ISNULL(ModuleConfig_Desc,''Default'')
-		   FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[CurrentServers]
+		   FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS VARCHAR(256))+'[Inspector].[CurrentServers]
 		   WHERE IsActive = 1 
 		   AND Servername = @Servername;
 	    END
@@ -10138,7 +10138,7 @@ DECLARE @ReportWarningsOnly BIT;
 			[Modulename],
 			[CollectionProcedurename],
 			[Frequency]
-			FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ModuleSchedulesDue]
+			FROM [Inspector].[ModuleSchedulesDue]
 			WHERE [ModuleConfig_Desc] = @ModuleConfig
 			UNION 
 			--Ignore schedule and get all Enabled modules for @ModuleConfig or all if NULL
@@ -10147,7 +10147,7 @@ DECLARE @ReportWarningsOnly BIT;
 			[Modulename],
 			[CollectionProcedurename],
 			NULL
-			FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[Modules]
+			FROM [Inspector].[Modules]
 			WHERE @IgnoreSchedules = 1 
 			AND IsActive = 1
 			AND [ModuleConfig_Desc] = ISNULL(@ModuleConfig,[ModuleConfig_Desc])
@@ -10158,7 +10158,7 @@ DECLARE @ReportWarningsOnly BIT;
 			[Modulename],
 			[CollectionProcedurename],
 			[Frequency]
-			FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ModuleSchedulesDue]
+			FROM [Inspector].[ModuleSchedulesDue]
 			WHERE [ModuleConfig_Desc] != @ModuleConfig
 			ORDER BY [CollectionProcedurename] ASC;
 
