@@ -1,3 +1,6 @@
+--David Fowler
+--v0.4.0
+
 BEGIN
 
 DECLARE @GroupName SYSNAME
