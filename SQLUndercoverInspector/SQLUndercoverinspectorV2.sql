@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 13/11/2019
+Revision date: 26/11/2019
 Version: 2.00
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -146,7 +146,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V2.00
---Revision date: 13/11/2019
+--Revision date: 26/11/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -1816,6 +1816,13 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				VALUES ('ReportDataDetailedSummary','1');
 			END
 
+			--New Setting for V2.00
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'CentraliseExecutionLog')
+			BEGIN 
+				INSERT INTO [Inspector].[Settings] ([Description],[Value])
+				VALUES('CentraliseExecutionLog',0);
+			END 
+
 			--Update email banner for V2
 			IF (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = 'EmailBannerURL') = 'http://bit.ly/InspectorEmailBanner'
 			BEGIN
@@ -1865,7 +1872,7 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''LongRunningTransactionThreshold'',@LongRunningTransactionThreshold),
 		(''ReportDataRetention'',''30''),
 		(''BackupsPath'',@BackupsPath),
-		(''EmailBannerURL'',''http://bit.ly/InspectorV2EmailBanner''),
+		(''EmailBannerURL'',''http://bit.ly/InspectorV2''),
 		(''PSEmailBannerURL'',''http://bit.ly/PSInspectorEmailBanner''),
 		(''DatabaseOwnerExclusions'',@DatabaseOwnerExclusions),
 		(''AgentJobOwnerExclusions'',@AgentJobOwnerExclusions),
@@ -1876,7 +1883,8 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''LogDrives'',@LogDrive),
 		(''InspectorUpgradeFilenameSync'',''1''),
 		(''UseMedianCalculationForDriveSpaceCalc'',''0''),
-		(''ReportDataDetailedSummary'',''1'');
+		(''ReportDataDetailedSummary'',''1''),
+		(''CentraliseExecutionLog'',''0'');
 		
 IF NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfig])
 BEGIN 
@@ -5240,11 +5248,55 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 @PSCollection BIT
 )
 AS
---Revision Date: 23/10/2019
+--Revision Date: 26/11/2019
+DECLARE @Linkedservername NVARCHAR(128) = (SELECT UPPER([Value]) FROM [Inspector].[Settings] WHERE [Description] = ''LinkedServername'');
+DECLARE @CentraliseExecutionLog BIT = (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''CentraliseExecutionLog'');
+DECLARE @LinkedServerInsert NVARCHAR(1000)
+
+--Default to zero if NULL
+SET @CentraliseExecutionLog = ISNULL(@CentraliseExecutionLog,0);
+
+--If the value is not set to off evaluate the value to ensure its valid otherwise default to off
+IF (@CentraliseExecutionLog != 0)
+BEGIN 
+	IF (@CentraliseExecutionLog != 1)
+	BEGIN 
+		SET @CentraliseExecutionLog = 0
+	END
+END
+
+--Evaluate LinkedServername
+IF (EXISTS(SELECT 1 FROM sys.servers WHERE name = @Linkedservername) AND @CentraliseExecutionLog = 1)
+BEGIN 
+	BEGIN 
+		SET @LinkedServerInsert = ''
+		INSERT INTO [''+CAST(@Linkedservername AS VARCHAR(128))+''].[''+CAST(DB_NAME() AS VARCHAR(128))+''].[Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection)
+		VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection);''
+
+		EXEC sp_executesql @LinkedServerInsert,
+		N''@RunDatetime DATETIME,
+		@Servername NVARCHAR(128),
+		@ModuleConfigDesc VARCHAR(20),
+		@Procname NVARCHAR(128),
+		@Frequency SMALLINT = NULL,
+		@Duration MONEY,
+		@PSCollection BIT'',
+		@RunDatetime = @RunDatetime,
+		@Servername = @Servername,
+		@ModuleConfigDesc = @ModuleConfigDesc,
+		@Procname = @Procname,
+		@Frequency = @Frequency,
+		@Duration = @Duration,
+		@PSCollection = @PSCollection;	
+	END 
+
+END
+ELSE --If Linked server is invalid or @CentraliseExecutionLog = 0 insert locally
 BEGIN
 	INSERT INTO [Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection)
 	VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection);
-END'
+END
+'
 
 EXEC(@SQLStatement);
 
@@ -9787,7 +9839,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 SET NOCOUNT ON;
---Revision date: 21/10/2019
+--Revision date: 26/11/2019
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 DECLARE @BackupPath NVARCHAR(1000) = (SELECT NULLIF([Value],'''') From '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[Settings] where [Description] = ''BackupsPath'');
@@ -9821,6 +9873,7 @@ FROM (
     INNER JOIN msdb.dbo.backupmediafamily ON backupset.media_set_id = backupmediafamily.media_set_id
     LEFT JOIN BackupPaths ON backupmediafamily.physical_device_name LIKE ''''+BackupPath+''%''
     WHERE backup_start_date >= DATEADD(DAY,-7,CAST(GETDATE() AS DATE))
+	AND NOT EXISTS (SELECT 1 FROM msdb.dbo.restorehistory WHERE backupset.backup_set_id = restorehistory.backup_set_id)
     GROUP BY 
     DATENAME(WEEKDAY,backup_start_date),
     CAST(backup_start_date AS DATE),
@@ -9857,11 +9910,12 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 )
 AS
 BEGIN
---Revision date: 21/10/2019
+--Revision date: 26/11/2019
 --Excluded from Warning level control
 	DECLARE @BackupPathToCheck VARCHAR(256)
 	DECLARE @BackupPaths NVARCHAR(1000) 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @Server NVARCHAR(128)
 
 	SET @HtmlOutput = '''';
 
@@ -9875,17 +9929,20 @@ BEGIN
 	@Modulename,
 	@ServerSpecific,
 	''Backup space information against backup path(s): ''+ISNULL(@BackupPaths,''''),@TableHeaderColour,
-	''Backup location,Backup Estimate For Tonight GB,Backup Server FreeSpace GB,Backup Server Free Space After Backups GB'')
+	''Servername,Backup location,Backup Estimate For Tonight GB,Backup Server FreeSpace GB,Backup Server Free Space After Backups GB'')
 	);
 
 	DECLARE DriveSpace_cur CURSOR LOCAL STATIC
 	FOR 
-	SELECT StringElement
-	FROM master.dbo.fn_SplitString(@BackupPaths,'','');
+  	SELECT 
+	ISNULL(BackupSpace.Servername,''N\A''),
+	StringElement
+	FROM master.dbo.fn_SplitString(@BackupPaths,'','') Paths
+	LEFT JOIN (SELECT DISTINCT Servername,BackupPath FROM [Inspector].[BackupSpace]) AS BackupSpace ON Paths.StringElement = BackupSpace.BackupPath;
 
 	OPEN DriveSpace_cur
 
-	FETCH NEXT FROM DriveSpace_cur INTO @BackupPathToCheck
+	FETCH NEXT FROM DriveSpace_cur INTO @Server,@BackupPathToCheck
 
 	WHILE @@FETCH_STATUS = 0 
 	BEGIN 
@@ -9963,19 +10020,16 @@ BEGIN
 		END
 		ELSE
 		BEGIN 
-			--SET @AlertHeader = @AlertHeader + ''<A HREF = "#''+''BackupStorage''+''BackupStorage''+''">''+''BackupStorage''+''</a><font color= ''+@WarningHighlight+''>  - xp_cmdshell must be enabled for module BackupSizesCheck to run</font><p>'';
-			--SET @Importance = ''High'';
 			SET @ErrorEncountered = 1;
 			SET @ErrorEncounteredText = ''xp_cmdshell must be enabled'';
-			--SET @TotalWarningCount = @TotalWarningCount + 1;
 		END
 
 		
 		SET @BackupSizeForNextWeekday = 
 		(SELECT ISNULL(CAST(SUM(((TotalSizeInBytes)/1024)/1024)/1024 AS DECIMAL (10,1)),0) 
 		FROM [Inspector].[BackupSpace]
-		WHERE [DayOfWeek] = DATENAME(WEEKDAY,DATEADD(DAY,1,Getdate()))
-		AND [Servername] = @Servername
+		WHERE [DayOfWeek] = DATENAME(WEEKDAY,Getdate())
+		AND [Servername] = @Server
 		AND [BackupPath] = @BackupPathRaw
 		)
 
@@ -9996,6 +10050,7 @@ BEGIN
 					THEN @WarningHighlight 
 					ELSE ''#FFFFFF'' 
 				END AS [@bgcolor],
+				@Server AS ''td'','''',+
 				@BackupPathToCheck AS ''td'','''',+
 				@BackupSizeForNextWeekday AS ''td'','''',+
 				@FreeSpace_GB  AS ''td'','''',+
@@ -10008,6 +10063,7 @@ BEGIN
 				SELECT @HtmlOutput = @HtmlOutput +
 				(SELECT 
 				@WarningHighlight AS [@bgcolor],
+				@Server AS ''td'','''',+
 				@BackupPathToCheck AS ''td'','''',+
 				@BackupSizeForNextWeekday AS ''td'','''',+
 				@ErrorEncounteredText  AS ''td'','''',+
@@ -10020,6 +10076,7 @@ BEGIN
 			SET @BackupSpaceLessStorageSpace = CAST(@FreeSpace_GB AS DECIMAL(10,1)) - @BackupSizeForNextWeekday;
 			SELECT @HtmlOutput = @HtmlOutput +
 			(SELECT @WarningHighlight AS [@bgcolor],
+			@Server AS ''td'','''',+
 			@BackupPathToCheck AS ''td'','''',+
 			@BackupSizeForNextWeekday AS ''td'','''',+
 			''BackupPath is Set to NULL, Check Inspector.Settings''  AS ''td'','''',+
@@ -10027,7 +10084,7 @@ BEGIN
 			FOR XML PATH(''tr''),ELEMENTS);
 		END 
 
-	FETCH NEXT FROM DriveSpace_cur INTO @BackupPathToCheck
+	FETCH NEXT FROM DriveSpace_cur INTO @Server,@BackupPathToCheck
 END
 
 CLOSE DriveSpace_cur
