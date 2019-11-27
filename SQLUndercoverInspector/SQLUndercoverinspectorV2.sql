@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 26/11/2019
+Revision date: 27/11/2019
 Version: 2.00
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -146,7 +146,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V2.00
---Revision date: 26/11/2019
+--Revision date: 27/11/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -5500,7 +5500,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 )
 AS
 BEGIN
---Revision date: 06/11/2019
+--Revision date: 27/11/2019
 --TableAction: 1 delete, 2 delete with retention, 3 Stage/merge
 --InsertAction: 1 ALL, 2 Todays'' data only
 
@@ -5530,9 +5530,10 @@ FROM
 ) AS ActiveServers
 INNER JOIN [Inspector].[PSConfig] ON [ActiveServers].ModuleConfig_Desc = [PSConfig].[ModuleConfig_Desc]
 									AND [ActiveServers].[Servername] = [PSConfig].[Servername]
-INNER JOIN [Inspector].[ModuleSchedulesDue] ON ([PSConfig].ModuleConfig_Desc = [ModuleSchedulesDue].[ModuleConfig_Desc] AND [PSConfig].[Modulename] = [ModuleSchedulesDue].[Modulename]) OR @PSExecModules = 1
 WHERE [PSConfig].[IsActive] = 1
-UNION ALL
+AND (EXISTS(SELECT 1 FROM [Inspector].[ModuleSchedulesDue] WHERE ([PSConfig].ModuleConfig_Desc = [ModuleSchedulesDue].[ModuleConfig_Desc] AND [PSConfig].[Modulename] = [ModuleSchedulesDue].[Modulename]))
+OR @PSExecModules = 1)
+UNION
 SELECT 
 @Servername, 
 [ActiveServers].[ModuleConfig_Desc], 
@@ -10135,7 +10136,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 25/11/2019
+--Revision date: 27/11/2019
 
 SET NOCOUNT ON;
 
@@ -10205,7 +10206,7 @@ DECLARE @ReportWarningsOnly BIT;
 			[CollectionProcedurename],
 			NULL
 			FROM [Inspector].[Modules]
-			WHERE @IgnoreSchedules = 1 
+			WHERE (@IgnoreSchedules = 1 OR @PSExecModules = 1)
 			AND IsActive = 1
 			AND [ModuleConfig_Desc] = ISNULL(@ModuleConfig,[ModuleConfig_Desc])
 			UNION 
