@@ -10204,7 +10204,7 @@ DECLARE @ReportWarningsOnly BIT;
 			[ModuleConfig_Desc],
 			[Modulename],
 			[CollectionProcedurename],
-			NULL
+			[Frequency]
 			FROM [Inspector].[Modules]
 			WHERE (@IgnoreSchedules = 1 OR @PSExecModules = 1)
 			AND IsActive = 1
