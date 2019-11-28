@@ -216,8 +216,6 @@ Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Que
 #get all instances
 $Instances = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT [ServerName] FROM Catalogue.ConfigInstances WHERE Active = 1" -As DataSet
 
-#get all active modules
-$Modules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT ConfigModules.[ModuleName], ConfigModules.[GetProcName], ConfigModules.[UpdateProcName], ConfigModules.[StageTableName], ConfigModules.[MainTableName], ConfigModulesDefinitions.[GetDefinition],ConfigModulesDefinitions.[UpdateDefinition],ConfigModulesDefinitions.[GetURL],ConfigModulesDefinitions.[UpdateURL],ConfigModulesDefinitions.[Online], ConfigModulesDefinitions.[ModuleID] FROM Catalogue.ConfigModules JOIN Catalogue.ConfigModulesDefinitions ON ConfigModules.ID = ConfigModulesDefinitions.ModuleID WHERE ConfigModules.Active = 1" -As DataSet
 
 #for every instance in the ConfigInstances table
 ForEach ($instance in $Instances.Tables[0].Rows)
@@ -225,6 +223,9 @@ ForEach ($instance in $Instances.Tables[0].Rows)
     Try
     {
         Write-Host "Interrogating Instance: "$instance.ItemArray[0].ToString() "..." -ForegroundColor Yellow
+
+        #get all active modules
+        $Modules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "EXEC Catalogue.GetModuleDetails '$($instance.ItemArray[0].ToString())'" -As DataSet
 
         #Local Version check code has been deprecated
         #Write-Host "Checking Local Catalogue Version..." -ForegroundColor Yellow
@@ -344,7 +345,6 @@ ForEach ($instance in $Instances.Tables[0].Rows)
             Write-Host "An fatal error occured during interrogation" -ForegroundColor Red
         }
     }
-
 }
 
 #Update Execution Audit

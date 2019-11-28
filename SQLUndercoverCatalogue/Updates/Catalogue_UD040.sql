@@ -182,8 +182,12 @@ DECLARE Modules CURSOR STATIC FORWARD_ONLY
 FOR
 	SELECT GetDefinition, UpdateDefinition, StageTableName
 	FROM Catalogue.ConfigModules
-	JOIN Catalogue.ConfigModulesDefinitions ON ConfigModules.ID = ConfigModulesDefinitions.ModuleID
-	WHERE Active = 1
+	JOIN Catalogue.ConfigModulesDefinitions 
+		ON ConfigModules.ID = ConfigModulesDefinitions.ModuleID
+	LEFT OUTER JOIN Catalogue.ConfigModulesInstances
+		ON Catalogue.ConfigModules.ModuleName = ConfigModulesInstances.ModuleName 
+		AND ConfigModulesInstances.ServerName = @@SERVERNAME
+	WHERE ISNULL(ConfigModulesInstances.Active, ConfigModules.Active) = 1
 	--AND ModuleName = 'Databases'
 
 OPEN Modules
@@ -1461,3 +1465,44 @@ WHERE ParameterName = 'InstallationScriptPath'
 Update Catalogue.ConfigPoSH
 SET ParameterValue = 1
 WHERE ParameterName = 'AutoUpdate'
+
+
+
+
+-------------------------------------------
+--Instance Level Configuration
+
+
+CREATE TABLE Catalogue.ConfigModulesInstances
+(ServerName VARCHAR(128),
+ModuleName VARCHAR(20),
+Active BIT)
+GO
+
+
+
+CREATE PROC Catalogue.GetModuleDetails (@ServerName VARCHAR(128))
+AS
+
+BEGIN
+
+SELECT	ConfigModules.[ModuleName], 
+		ConfigModules.[GetProcName], 
+		ConfigModules.[UpdateProcName], 
+		ConfigModules.[StageTableName], 
+		ConfigModules.[MainTableName], 
+		ConfigModulesDefinitions.[GetDefinition],
+		ConfigModulesDefinitions.[UpdateDefinition],
+		ConfigModulesDefinitions.[GetURL],
+		ConfigModulesDefinitions.[UpdateURL],
+		ConfigModulesDefinitions.[Online], 
+		ConfigModulesDefinitions.[ModuleID]
+FROM	Catalogue.ConfigModules 
+JOIN Catalogue.ConfigModulesDefinitions 
+		ON ConfigModules.ID = ConfigModulesDefinitions.ModuleID
+LEFT OUTER JOIN Catalogue.ConfigModulesInstances
+		ON Catalogue.ConfigModules.ModuleName = ConfigModulesInstances.ModuleName 
+		AND ConfigModulesInstances.ServerName = @ServerName
+WHERE ISNULL(ConfigModulesInstances.Active, ConfigModules.Active) = 1
+
+END
