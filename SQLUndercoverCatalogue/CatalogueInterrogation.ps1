@@ -28,7 +28,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 Import-Module dbatools
 
 #configuration variables
-$ConfigServer = "LAPTOP-FOWLERD\SQL2016_2"
+$ConfigServer = "LAPTOP-FOWLERD\SQL2017_3"
 $SQLUndercoverDatabase = "SQLUndercover"
 $ScriptVersion = "0.4.0"
 
