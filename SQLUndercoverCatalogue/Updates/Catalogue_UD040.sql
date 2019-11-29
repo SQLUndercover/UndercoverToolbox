@@ -79,6 +79,19 @@ ADD StateDesc NVARCHAR(60)
 GO
 
 
+------------------------------------------------------------------------
+--ConfigModulesInstances
+
+CREATE TABLE [Catalogue].[ConfigModulesInstances](
+	[ServerName] [varchar](128) NULL,
+	[ModuleName] [varchar](20) NULL,
+	[Active] [bit] NULL
+) ON [PRIMARY]
+GO
+
+
+
+
 ----------------------------------------------------------------------
 --ConfigModuleDefinitions
 ----------------------------------------------------------------------
