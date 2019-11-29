@@ -176,8 +176,7 @@ if ($AutoUpdate -eq 1)
                     Write-Host "Installing update $($UpdateDetails[1])" -ForegroundColor Yellow
                     $UpdateStmt = Invoke-WebRequest "$InstallLocation$($UpdateDetails[2])"
 
-                    Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateStmt
-
+                    Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateStmt 
                     Start-Sleep -s 10
                 }
             }
