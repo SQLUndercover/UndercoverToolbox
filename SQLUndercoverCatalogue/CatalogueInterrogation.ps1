@@ -177,6 +177,8 @@ if ($AutoUpdate -eq 1)
                     $UpdateStmt = Invoke-WebRequest "$InstallLocation$($UpdateDetails[2])"
 
                     Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateStmt
+
+                    Start-Sleep -s 10
                 }
             }
         }

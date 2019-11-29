@@ -61,18 +61,23 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 --schema changes
 ALTER TABLE Catalogue.ConfigPoSH
 ALTER COLUMN ParameterValue VARCHAR(256)
+GO
 
 ALTER TABLE Catalogue.Logins_Stage
 DROP CONSTRAINT PK_Logins_Stage
+GO
 
 ALTER TABLE Catalogue.Logins_Stage
 DROP COLUMN ID
+GO
 
 ALTER TABLE Catalogue.Databases_Stage
 ADD StateDesc NVARCHAR(60)
+GO
 
 ALTER TABLE Catalogue.Databases
 ADD StateDesc NVARCHAR(60)
+GO
 
 ALTER TABLE Catalogue.Databases_Audit
 ADD StateDesc NVARCHAR(60)
@@ -110,6 +115,7 @@ PRIMARY KEY CLUSTERED
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
+
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (1, 1, N'--Undercover Catalogue
 --David Fowler
 --Version 0.4.0 - 25 November 2019
@@ -197,6 +203,7 @@ END
 
 ', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetDatabases.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateDatabases.sql')
 GO
+
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (2, 1, N'--Undercover Catalogue
 --David Fowler
 --Version 0.4.0 - 25 November 2019
@@ -312,6 +319,7 @@ WHERE NOT EXISTS
 END
 ', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetServers.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateServers.sql')
 GO
+
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (3, 1, N'--Undercover Catalogue
 --David Fowler
 --Version 0.4.0 - 25 November 2019
@@ -383,6 +391,7 @@ WHERE NOT EXISTS
 END
 ', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetLogins.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateLogins.sql')
 GO
+
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (4, 1, N'--Undercover Catalogue
 --David Fowler
 --Version 0.4.0 - 25 November 2019
@@ -573,6 +582,7 @@ WHERE NOT EXISTS
 END
 ', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetAgentJobs.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateAgentJobs.sql')
 GO
+
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (5, 1, N'--Undercover Catalogue
 --David Fowler
 --Version 0.4.0 - 25 November 2019
@@ -643,6 +653,7 @@ WHERE NOT EXISTS
 END
 ', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetAvailabilityGroups.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateAvailabilityGroups.sql')
 GO
+
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (6, 1, N'--Undercover Catalogue
 --David Fowler
 --Version 0.4.0 - 25 November 2019
@@ -765,6 +776,7 @@ WHERE NOT EXISTS
 END
 ', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetUsers.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateUsers.sql')
 GO
+
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (7, 1, N'--Undercover Catalogue
 --David Fowler
 --Version 0.4.0 - 25 November 2019
@@ -890,6 +902,7 @@ WHERE NOT EXISTS
 END
 ', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetExplicitPermissions.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateExplicitPermissions.sql')
 GO
+
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (8, 1, N'--Undercover Catalogue
 --David Fowler
 --Version 0.4.0 - 25 November 2019
@@ -996,6 +1009,7 @@ WHERE NOT EXISTS
 END
 ', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetADGroups.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateADGroups.sql')
 GO
+
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (9, 1, N'--Undercover Catalogue
 --David Fowler
 --Version 0.4.0 - 25 November 2019
@@ -1130,6 +1144,7 @@ END
 
 ', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetLinkedServers.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateLinkedServers.sql')
 GO
+
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (10, 1, N'--Undercover Catalogue
 --David Fowler
 --Version 0.4.0 - 25 November 2019
@@ -1466,7 +1481,7 @@ BEGIN
 							AND deleted.[DBName] = inserted.[DBName]
 							AND deleted.[ServerName] = inserted.[ServerName])
 END
-
+GO
 
 
 ------------------------------------
@@ -1475,26 +1490,16 @@ END
 UPDATE Catalogue.ConfigPoSH
 SET ParameterValue = '0.4.0'
 WHERE ParameterName = 'CatalogueVersion'
+GO
 
 UPDATE Catalogue.ConfigPoSH
 SET ParameterValue = 'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/Updates/'
 WHERE ParameterName = 'InstallationScriptPath'
+GO
 
 Update Catalogue.ConfigPoSH
 SET ParameterValue = 1
 WHERE ParameterName = 'AutoUpdate'
-
-
-
-
--------------------------------------------
---Instance Level Configuration
-
-
-CREATE TABLE Catalogue.ConfigModulesInstances
-(ServerName VARCHAR(128),
-ModuleName VARCHAR(20),
-Active BIT)
 GO
 
 
@@ -1524,3 +1529,4 @@ LEFT OUTER JOIN Catalogue.ConfigModulesInstances
 WHERE ISNULL(ConfigModulesInstances.Active, ConfigModules.Active) = 1
 
 END
+GO
