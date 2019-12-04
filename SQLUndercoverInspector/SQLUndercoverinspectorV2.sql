@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 27/11/2019
+Revision date: 04/12/2019
 Version: 2.00
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -146,7 +146,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V2.00
---Revision date: 27/11/2019
+--Revision date: 04/12/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -7510,7 +7510,7 @@ SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
 )
 AS
 BEGIN
---Revision date: 14/09/2019
+--Revision date: 04/12/2019
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @DatabaseOwnerExclusions VARCHAR(255) = (SELECT REPLACE([Value],'' '' ,'''') FROM [Inspector].[Settings] WHERE [Description] = ''DatabaseOwnerExclusions'')
@@ -7555,13 +7555,8 @@ BEGIN
 		IF @HtmlOutput IS NULL
 		BEGIN
 			SET @HtmlOutput = 
-			(SELECT
-			CASE 
-				WHEN @WarningLevel IS NULL THEN @AdvisoryHighlight
-				WHEN @WarningLevel = 1 THEN @WarningHighlight
-				WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
-				WHEN @WarningLevel = 3 THEN @InfoHighlight
-			END AS [@bgcolor],
+			(SELECT 
+			''#FFFFFF'' AS [@bgcolor],
 			''N/A'' AS ''td'','''', + 
 			''N/A'' AS ''td'','''', + 
 			''No Database Ownership issues present'' AS ''td'','''', + 
