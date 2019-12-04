@@ -4,6 +4,7 @@ Description: CPU Custom module for the Inspector
 			 procedure [Inspector].[CPUReport]
 Author: Adrian Buckman
 Revision date: 04/12/2019
+Credit: David Fowler for the CPU collection query body as this was a snippt taken from a stored procedure he had called sp_CPU_Time
 
 © www.sqlundercover.com 
 
