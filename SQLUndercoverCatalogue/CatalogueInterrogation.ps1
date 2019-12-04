@@ -151,14 +151,13 @@ Write-Host "Auto Discover Instances: Disabled" -ForegroundColor Yellow
 
 ####################  Auto Update  #####################################################################################
 
-$Manifest = Invoke-WebRequest "$($InstallLocation)Manifest.csv"
-$ManifestArray = $Manifest.Content.Split([Environment]::NewLine)
 
 if ($AutoUpdate -eq 1)
 {
     Write-Host "Auto Update: Enabled" -ForegroundColor Yellow
 
-
+    $Manifest = Invoke-WebRequest "$($InstallLocation)Manifest.csv"
+    $ManifestArray = $Manifest.Content.Split([Environment]::NewLine)
 
     #check for main version updates
     if ($ManifestArray[0].Split(",")[1] -ne $CatalogueVersion)
