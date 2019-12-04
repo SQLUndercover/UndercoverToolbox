@@ -1062,8 +1062,27 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[Suppress] BIT
 				);
 			END
-				
 			
+			
+			IF EXISTS (SELECT * FROM sys.views WHERE [schema_id] = SCHEMA_ID(N'Inspector') AND [name]= N'MultiWarningModules')
+			BEGIN
+				DROP VIEW [Inspector].[MultiWarningModules];			
+			END
+
+			IF OBJECT_ID('Inspector.MultiWarningModules',N'U') IS NULL 
+			BEGIN  
+				CREATE TABLE [Inspector].[MultiWarningModules] (
+				[Modulename] VARCHAR(50) NULL
+				);
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[MultiWarningModules] WHERE [Modulename] IN ('DriveSpace','DatabaseGrowths','DatabaseStates'))
+			BEGIN 
+				EXEC sp_executesql N'INSERT INTO [Inspector].[MultiWarningModules] ([Modulename])
+				VALUES(''DriveSpace''),(''DatabaseGrowths''),(''DatabaseStates'');';
+			END
+
+
 			IF OBJECT_ID('Inspector.AGCheck') IS NULL
 			BEGIN
 				CREATE TABLE [Inspector].[AGCheck](
@@ -2064,36 +2083,6 @@ END
 	' 
 	END
 
-	IF NOT EXISTS (SELECT * FROM sys.views WHERE object_id = OBJECT_ID(N'[Inspector].[MultiWarningModules]'))
-	BEGIN
-	EXEC dbo.sp_executesql @statement = N'CREATE VIEW [Inspector].[MultiWarningModules] 
-	AS 
-	--Any Modules specified in this view are allowed to generate more than one header.
-	--For example you may set warning level to be a 2 but you may want to have more than one highlight colour for that module
-	--therefore having the module name here will allow all 3 warning levels to be evaulated. Your report proc needs to highlight accordingly
-	--in the [BGcolor] column.
-	SELECT Modulename 
-	FROM (VALUES
-			(''DriveSpace''),
-			(''DatabaseGrowths''),
-			(''DatabaseStates'')
-		) ModulesList(Modulename);';
-	END
-	ELSE 
-	BEGIN 
-	EXEC dbo.sp_executesql @statement = N'ALTER VIEW [Inspector].[MultiWarningModules] 
-	AS 
-	--Any Modules specified in this view are allowed to generate more than one header.
-	--For example you may set warning level to be a 2 but you may want to have more than one highlight colour for that module
-	--therefore having the module name here will allow all 3 warning levels to be evaulated. Your report proc needs to highlight accordingly
-	--in the [BGcolor] column.
-	SELECT Modulename 
-	FROM (VALUES
-			(''DriveSpace''),
-			(''DatabaseGrowths''),
-			(''DatabaseStates'')
-		) ModulesList(Modulename);';
-	END
 
 	IF NOT EXISTS (SELECT * FROM sys.views WHERE object_id = OBJECT_ID(N'[Inspector].[ModuleSchedulesDue]'))
 	BEGIN
