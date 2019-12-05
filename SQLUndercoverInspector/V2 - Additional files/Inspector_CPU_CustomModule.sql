@@ -1,7 +1,6 @@
 /*********************************************
 Description: CPU Custom module for the Inspector
-			 Collect CPU % and report when % over 75%, 75% can be configured by changing the default parameter value @CPUThreshold in 
-			 procedure [Inspector].[CPUReport]
+			 Collect CPU % and report when % over CPU Thresholds which can be configured by changing the values for CPUThreshold in [Inspector].[Settings]
 Author: Adrian Buckman
 Revision date: 04/12/2019
 Credit: David Fowler for the CPU collection query body as this was a snippt taken from a stored procedure he had called sp_CPU_Time
@@ -60,20 +59,42 @@ BEGIN
 	VALUES('CPUHistoryRetentionInDays','7');
 END
 
+IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'CPUThresholdWarningHighlight')
+BEGIN 
+	INSERT INTO [Inspector].[Settings] ([Description],[Value])
+	VALUES('CPUThresholdWarningHighlight','90');
+END
+
+IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'CPUThresholdAdvisoryHighlight')
+BEGIN 
+	INSERT INTO [Inspector].[Settings] ([Description],[Value])
+	VALUES('CPUThresholdAdvisoryHighlight','85');
+END
+
+IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'CPUThresholdInfoHighlight')
+BEGIN 
+	INSERT INTO [Inspector].[Settings] ([Description],[Value])
+	VALUES('CPUThresholdInfoHighlight','75');
+END
 
 
 IF OBJECT_ID('Inspector.CPUInsert',N'P') IS NULL 
 BEGIN 
-EXEC('CREATE PROCEDURE [Inspector].[CPUInsert]
+	EXEC('CREATE PROCEDURE [Inspector].[CPUInsert] AS');
+END 
+
+IF OBJECT_ID('Inspector.CPUInsert',N'P') IS NOT NULL
+BEGIN 
+EXEC('ALTER PROCEDURE [Inspector].[CPUInsert]
 AS
 BEGIN 
---Revision date: 04/12/2019
+--Revision date: 05/12/2019
 	DECLARE @ts_now BIGINT
 	DECLARE @Frequency INT 
 	DECLARE @CPUHistoryRetentionInDays INT 
 	
 	SET @CPUHistoryRetentionInDays = (SELECT ISNULL(TRY_CAST([Value] AS INT),7) FROM [Inspector].[Settings] WHERE [Description] = ''CPUHistoryRetentionInDays'');
-	SET @Frequency = (SELECT Frequency FROM Inspector.Modules WHERE Modulename = ''CPU'' AND ModuleConfig_Desc = ''Default'');
+	SET @Frequency = (SELECT MAX([Frequency]) FROM Inspector.Modules WHERE Modulename = ''CPU''); 
 	SET @ts_now = (SELECT cpu_ticks / (cpu_ticks/ms_ticks)  FROM sys.dm_os_sys_info);
 
 	IF @CPUHistoryRetentionInDays IS NULL BEGIN SET @CPUHistoryRetentionInDays = 7 END;
@@ -86,8 +107,8 @@ BEGIN
 	@@SERVERNAME,
 	GETDATE(),
 	EventTime, 
-	COALESCE(system_cpu_utilization_post_sp2, system_cpu_utilization_pre_sp2) AS SystemCPUUtilization,
-	COALESCE(sql_cpu_utilization_post_sp2, sql_cpu_utilization_pre_sp2) AS SQLCPUUtilization
+	ISNULL(system_cpu_utilization_post_sp2, system_cpu_utilization_pre_sp2) AS SystemCPUUtilization,
+	ISNULL(sql_cpu_utilization_post_sp2, sql_cpu_utilization_pre_sp2) AS SQLCPUUtilization
 	FROM 
 	(
 	  SELECT 
@@ -129,20 +150,32 @@ EXEC('CREATE PROCEDURE [Inspector].[CPUReport] (
 @HtmlOutput VARCHAR(MAX) OUTPUT,
 @CollectionOutOfDate BIT OUTPUT,
 @PSCollection BIT,
-@Debug BIT = 0,
-@CPUThreshold INT = 75
+@Debug BIT = 0
 )
 AS
 
---Revision date: 04/12/2019
+--Revision date: 05/12/2019
 BEGIN
 --Excluded from Warning level control
 	DECLARE @HtmlTableHead VARCHAR(4000);
 	DECLARE @Columnnames VARCHAR(2000);
 	DECLARE @SQLtext NVARCHAR(4000);
+	DECLARE @CPUThresholdWarningHighlight INT
+	DECLARE @CPUThresholdAdvisoryHighlight INT
+	DECLARE @CPUThresholdInfoHighlight INT
+	DECLARE @Frequency INT
+
+	SET @CPUThresholdWarningHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),90) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdWarningHighlight'');
+	SET @CPUThresholdAdvisoryHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),85) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdAdvisoryHighlight'');
+	SET @CPUThresholdInfoHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),75) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdInfoHighlight'');
+	SET @Frequency = (SELECT [Frequency] FROM Inspector.ModuleConfig WHERE ModuleConfig_Desc = @ModuleConfig); 
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
+	--Set defaults if NULL
+	IF @CPUThresholdWarningHighlight IS NULL BEGIN SET @CPUThresholdInfoHighlight = 90 END;
+	IF @CPUThresholdAdvisoryHighlight IS NULL BEGIN SET @CPUThresholdInfoHighlight = 85 END;
+	IF @CPUThresholdInfoHighlight IS NULL BEGIN SET @CPUThresholdInfoHighlight = 75 END;
 
 /********************************************************/
 	--Your query MUST have a case statement that determines which colour to highlight rows
@@ -153,9 +186,9 @@ BEGIN
 
 SELECT 
 CASE 
-	WHEN SystemCPUUtilization >= @CPUThreshold+15 THEN @WarningHighlight
-	WHEN SystemCPUUtilization > @CPUThreshold+10 AND SystemCPUUtilization < @CPUThreshold+15 THEN @AdvisoryHighlight
-	WHEN SystemCPUUtilization > @CPUThreshold AND SystemCPUUtilization < @CPUThreshold+10 THEN @InfoHighlight
+	WHEN SystemCPUUtilization >= @CPUThresholdWarningHighlight THEN @WarningHighlight
+	WHEN SystemCPUUtilization > @CPUThresholdAdvisoryHighlight AND SystemCPUUtilization < @CPUThresholdWarningHighlight THEN @AdvisoryHighlight
+	WHEN SystemCPUUtilization > @CPUThresholdInfoHighlight AND SystemCPUUtilization < @CPUThresholdAdvisoryHighlight THEN @InfoHighlight
 END AS [@bgcolor],
 Servername,
 CONVERT(VARCHAR(21),EventTime,113) AS EventTime,
@@ -164,8 +197,8 @@ SQLCPUUtilization,
 OtherCPU
 INTO #InspectorModuleReport
 FROM [Inspector].[CPU]
-WHERE SystemCPUUtilization > @CPUThreshold
-AND EventTime > DATEADD(HOUR,-12,GETDATE())
+WHERE SystemCPUUtilization > @CPUThresholdInfoHighlight
+AND EventTime > DATEADD(HOUR,-@Frequency,GETDATE())
 ORDER BY EventTime ASC 
 
 /********************************************************/
@@ -189,7 +222,7 @@ ORDER BY EventTime ASC
 	@Servername,
 	@Modulename,
 	@ServerSpecific,
-	''CPU greater than ''+CAST(@CPUThreshold AS VARCHAR(3))+''%'', --Title for the HTML table, you can use a string here instead such as ''My table title here'' if you want to
+	''CPU greater than ''+CAST(@CPUThresholdInfoHighlight AS VARCHAR(3))+''%'', --Title for the HTML table, you can use a string here instead such as ''My table title here'' if you want to
 	@TableHeaderColour,
 	@Columnnames)
 	);
