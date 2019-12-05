@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 04/12/2019
+Revision date: 05/12/2019
 Version: 2.00
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -146,7 +146,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V2.00
---Revision date: 04/12/2019
+--Revision date: 05/12/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -9895,7 +9895,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 )
 AS
 BEGIN
---Revision date: 26/11/2019
+--Revision date: 05/12/2019
 --Excluded from Warning level control
 	DECLARE @BackupPathToCheck VARCHAR(256)
 	DECLARE @BackupPaths NVARCHAR(1000) 
@@ -9923,7 +9923,7 @@ BEGIN
 	ISNULL(BackupSpace.Servername,''N\A''),
 	StringElement
 	FROM master.dbo.fn_SplitString(@BackupPaths,'','') Paths
-	LEFT JOIN (SELECT DISTINCT Servername,BackupPath FROM [Inspector].[BackupSpace]) AS BackupSpace ON Paths.StringElement = BackupSpace.BackupPath;
+	LEFT JOIN (SELECT DISTINCT Servername,BackupPath FROM [Inspector].[BackupSpace]) AS BackupSpace ON Paths.StringElement COLLATE DATABASE_DEFAULT = BackupSpace.BackupPath;
 
 	OPEN DriveSpace_cur
 
