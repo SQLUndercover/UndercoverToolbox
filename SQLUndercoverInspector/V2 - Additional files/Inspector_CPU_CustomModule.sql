@@ -2,7 +2,7 @@
 Description: CPU Custom module for the Inspector
 			 Collect CPU % and report when % over CPU Thresholds which can be configured by changing the values for CPUThreshold in [Inspector].[Settings]
 Author: Adrian Buckman
-Revision date: 04/12/2019
+Revision date: 07/12/2019
 Credit: David Fowler for the CPU collection query body as this was a snippt taken from a stored procedure he had called sp_CPU_Time
 
 © www.sqlundercover.com 
@@ -88,7 +88,7 @@ BEGIN
 EXEC('ALTER PROCEDURE [Inspector].[CPUInsert]
 AS
 BEGIN 
---Revision date: 05/12/2019
+--Revision date: 07/12/2019
 	DECLARE @ts_now BIGINT
 	DECLARE @Frequency INT 
 	DECLARE @CPUHistoryRetentionInDays INT 
@@ -125,7 +125,7 @@ BEGIN
 	    AND record LIKE ''%<SystemHealth>%'') AS t
 	) AS t
 	WHERE EventTime > DATEADD(MINUTE,-@Frequency,GETDATE())
-	AND NOT EXISTS (SELECT 1 FROM Inspector.CPU WHERE CPU.EventTime  = t.EventTime);
+	AND NOT EXISTS (SELECT 1 FROM Inspector.CPU WHERE CPU.EventTime  = t.EventTime AND CPU.Servername = @@SERVERNAME);
 END');
 END
 
