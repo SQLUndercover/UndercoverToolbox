@@ -26,8 +26,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #set variables
 #if you are using a Github URL this must be the raw URL.
 
-#$ScriptPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverInspector/SQLUndercoverinspectorV2.sql"
-$ScriptPath = "C:\Temp\SQLUndercoverinspectorV2.sql"
+$ScriptPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverInspector/SQLUndercoverinspectorV2.sql"
+#$ScriptPath = "C:\Temp\SQLUndercoverinspectorV2.sql"
 $SQLInstances = "SQL01,SQL02,SQL03" #if this is a linked server install ensure that the central server appears first in the list
 $LoggingDB = "SQLUndercover"
 $UseWindowsAuth = "Y"  #"Y" or "N"
@@ -44,7 +44,7 @@ $EmailRecipients = "NULL" #Semi colon delimited eg "Email@domain.com;Email2@doma
 #Do not change anything beyond this point
 $TempDir = "C:\Temp\"
 
-IF ($TempDir.EndsWith("\") -eq $falsw) {
+IF ($TempDir.EndsWith("\") -eq $false) {
     $TempDir = $TempDir+"\";
 }
 
@@ -140,6 +140,10 @@ $BackupsPath = "'"+$BackupsPath+"'";
 
 IF ($LinkedServername -ne "NULL") {
 $LinkedServername = "'"+$LinkedServername+"'";
+};
+
+IF ($EmailRecipients -ne "NULL") {
+$EmailRecipients = "'"+$EmailRecipients+"'";
 };
 
 
