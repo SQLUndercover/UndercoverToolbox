@@ -277,9 +277,9 @@ CASE
 	WHEN BucketWaits.Rownum = 1 THEN ''#E6E6FA''
 	ELSE ''#FFFFFF''
 END AS [@bgcolor],
-[ServerName],
+[BucketWaits].[ServerName],
 CONVERT(VARCHAR(17),[HourlyBucket],113) AS [HourlyBucket],
-[wait_type],
+[BucketWaits].[wait_type],
 [wait_time_ms_delta],
 CAST([wait_time_minutes_delta] AS DECIMAL(8,2)) AS [wait_time_minutes_delta],
 CAST([wait_time_minutes_per_minute] AS DECIMAL(8,2)) AS [wait_time_minutes_per_minute],
