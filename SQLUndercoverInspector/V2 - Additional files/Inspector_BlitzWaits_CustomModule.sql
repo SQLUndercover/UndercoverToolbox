@@ -138,6 +138,7 @@ BEGIN
 	DECLARE @Top INT = (SELECT ISNULL(TRY_CAST([Value] AS INT),3) FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsTopXRows''); 
 	DECLARE @HourlyBucketSize INT = (SELECT ISNULL(TRY_CAST([Value] AS INT),3) FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsHourlyBucketSize''); 
 	DECLARE @CheckDate DATETIMEOFFSET(7) = DATEADD(MINUTE,-@Frequency,SYSDATETIMEOFFSET());
+	DECLARE @DistinctBuckets INT;
 
 
 	IF @Top IS NULL BEGIN SET @Top = 3 END;
@@ -196,6 +197,8 @@ FROM [dbo].[BlitzFirst_WaitStats]
 WHERE CheckDate >= @CheckDate
 AND ServerName = @Servername
 GROUP BY [ServerName], [CheckDate];
+
+SET @DistinctBuckets = (SELECT DISTINCT COUNT([CheckDateBucket]) FROM #RowDates);
 
 WITH CheckDates as
 (
@@ -274,7 +277,7 @@ CASE
 	WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 1 THEN @WarningHighlight
 	WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 2 THEN @AdvisoryHighlight
 	WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 3 THEN @InfoHighlight
-	WHEN BucketWaits.Rownum = 1 THEN ''#E6E6FA''
+	WHEN @DistinctBuckets > 1 AND BucketWaits.Rownum = 1 THEN @TableHeaderColour
 	ELSE ''#FFFFFF''
 END AS [@bgcolor],
 [BucketWaits].[ServerName],
