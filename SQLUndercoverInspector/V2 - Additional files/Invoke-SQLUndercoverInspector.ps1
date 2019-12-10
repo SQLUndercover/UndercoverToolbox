@@ -2,8 +2,24 @@
 # SON: We'll create a .psm1 a .psd1 file and put the above into the $RequiredModules field there.
 
 #Script version 1.2
-#Revision date: 06/11/2019
+#Revision date: 10/12/2019
 #Minimum Inspector version 2.00
+
+<#
+If you are running the ps1 from an agent job in SQL server (cmdexec) then you can use the following samples to help you get started
+
+--Let the Inspector check for all Module config to run
+powershell.exe " cd <Path containing SQLUndercoverInspector.ps1>; import-module .\Invoke-SQLUndercoverInspector.ps1; Invoke-SQLUndercoverInspector -LoggingDB SQLUndercover -CentralServer SQL02 -ModuleConfig Default -NoClutter $true";
+
+--Force the inspector to check for only the Default Moduleconfig, replace default for others that you wish to run on their own i.e PeriodicBackupCheck
+powershell.exe " cd <Path containing SQLUndercoverInspector.ps1>; import-module .\Invoke-SQLUndercoverInspector.ps1; Invoke-SQLUndercoverInspector -LoggingDB SQLUndercover -CentralServer SQL02 -ModuleConfig Default -NoClutter $true"
+
+There are two new parameters due to the nature of V2 and the way it now polls for executions/reports that are due every minute, the powershell collection by default will now only centralise what is currently due to run however
+you can use these two new parameters to change the behaviour: 
+
+-RunCollection $true - this will ignore schedules and force execution
+-CreateReport $true - will generate a report at run time and ignore report schedules
+#>
 
 function Invoke-SQLUndercoverInspector {
     [CmdletBinding()]
