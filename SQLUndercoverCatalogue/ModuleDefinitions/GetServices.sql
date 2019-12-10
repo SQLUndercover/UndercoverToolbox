@@ -4,5 +4,10 @@
 --Module: Services
 --Script: Get
 
-SELECT @@SERVERNAME, servicename, startup_type_desc, status_desc, service_account, instant_file_initialization_enabled
+SELECT	@@SERVERNAME AS ServerName, 
+		servicename AS ServiceName, 
+		startup_type_desc AS StartupType, 
+		status_desc AS StatusDesc, 
+		service_account AS ServiceAccount, 
+		instant_file_initialization_enabled AS InstantFileInit
 FROM sys.dm_server_services
