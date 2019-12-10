@@ -1638,3 +1638,39 @@ VALUES	(@ModuleID,
 
 GO
 
+
+
+
+
+CREATE TRIGGER [Catalogue].[AuditServices]
+ON [Catalogue].Services
+AFTER UPDATE
+AS
+BEGIN
+		--audit old record
+		INSERT INTO [Catalogue].[Services_Audit]
+		([ServerName], [ServiceName], [StartupType], [StatusDesc], [ServiceAccount], [InstantFileInit], [AuditDate])
+		SELECT	[ServerName], 
+				[ServiceName], 
+				[StartupType], 
+				[StatusDesc], 
+				[ServiceAccount], 
+				[InstantFileInit], 
+				GETDATE()
+			FROM deleted
+			WHERE EXISTS (SELECT 1 
+						  FROM inserted 
+						  WHERE CHECKSUM(	inserted.[StartupType], 
+											inserted.[StatusDesc], 
+											inserted.[ServiceAccount], 
+											inserted.[InstantFileInit])
+								!= 
+								CHECKSUM(	deleted.[StartupType], 
+											deleted.[StatusDesc], 
+											deleted.[ServiceAccount],
+											deleted.[InstantFileInit])
+							AND deleted.[ServiceName] = inserted.[ServiceName]
+							AND deleted.[ServerName] = inserted.[ServerName])
+END
+GO
+
