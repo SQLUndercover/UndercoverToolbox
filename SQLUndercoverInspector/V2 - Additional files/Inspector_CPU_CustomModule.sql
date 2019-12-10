@@ -199,6 +199,7 @@ INTO #InspectorModuleReport
 FROM [Inspector].[CPU]
 WHERE SystemCPUUtilization > @CPUThresholdInfoHighlight
 AND EventTime > DATEADD(HOUR,-@Frequency,GETDATE())
+AND Servername = @Servername
 ORDER BY EventTime ASC 
 
 /********************************************************/
