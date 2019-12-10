@@ -1530,3 +1530,111 @@ WHERE ISNULL(ConfigModulesInstances.Active, ConfigModules.Active) = 1
 
 END
 GO
+
+
+--Services Module
+
+
+CREATE TABLE Catalogue.Services_Stage
+(
+	ServerName		SYSNAME,
+	ServiceName		NVARCHAR(256),
+	StartupType		NVARCHAR(256),
+	StatusDesc		NVARCHAR(256),
+	ServiceAccount	NVARCHAR(256),
+	InstantFileInit	NVARCHAR(1)
+)
+GO
+
+CREATE TABLE Catalogue.Services
+(
+	ServerName		SYSNAME,
+	ServiceName		NVARCHAR(256),
+	StartupType		NVARCHAR(256),
+	StatusDesc		NVARCHAR(256),
+	ServiceAccount	NVARCHAR(256),
+	InstantFileInit	NVARCHAR(1),
+	FirstRecorded	DATETIME,
+	LastRecorded	DATETIME,
+	CONSTRAINT PK_Services PRIMARY KEY (ServerName, ServiceName)
+)
+GO
+
+CREATE TABLE Catalogue.Services_Audit
+(
+	ServerName		SYSNAME,
+	ServiceName		NVARCHAR(256),
+	StartupType		NVARCHAR(256),
+	StatusDesc		NVARCHAR(256),
+	ServiceAccount	NVARCHAR(256),
+	InstantFileInit	NVARCHAR(1),
+	AuditDate	DATETIME
+)
+GO
+
+INSERT INTO Catalogue.ConfigModules (ModuleName,GetProcName,UpdateProcName,StageTableName,MainTableName,Active)
+VALUES ('Services','GetServices','UpdateServices','Services_Stage','Services',1)
+GO
+
+
+
+
+DECLARE @ModuleID INT
+
+SELECT @ModuleID = ID
+FROM	Catalogue.ConfigModules
+WHERE ConfigModules.ModuleName = 'Services'
+
+
+
+INSERT INTO Catalogue.ConfigModulesDefinitions (ModuleID,Online,GetDefinition,UpdateDefinition,GetURL,UpdateURL)
+VALUES	(@ModuleID,
+		1,
+		'--Undercover Catalogue
+		--David Fowler
+		--Version 0.4.0 - 10 December 2019
+		--Module: Services
+		--Script: Get
+
+		SELECT @@SERVERNAME, servicename, startup_type_desc, status_desc, service_account, instant_file_initialization_enabled
+		FROM sys.dm_server_services',
+		'--Undercover Catalogue
+		--David Fowler
+		--Version 0.4.0 - 10 December 2019
+		--Module: Services
+		--Script: Update
+
+		--update where known to catalogue
+		UPDATE Catalogue.Services
+		SET		ServerName = Services_Stage.ServerName,
+				ServiceName = Services_Stage.ServiceName,
+				StartupType = Services_Stage.StartupType,
+				StatusDesc = Services_Stage.StatusDesc,
+				ServiceAccount = Services_Stage.ServiceAccount,
+				InstantFileInit = Services_Stage.InstantFileInit,
+				LastRecorded = GETDATE()
+		FROM	Catalogue.Services_Stage
+		WHERE	Services.ServerName = Services_Stage.ServerName
+		AND		Services.ServiceName = Services_Stage.ServiceName
+
+		--insert where not known to catalogue
+		INSERT INTO Catalogue.Services 
+		(ServerName, ServiceName, StartupType,StatusDesc, ServiceAccount, InstantFileInit, FirstRecorded, LastRecorded)
+		SELECT	ServerName,
+				ServiceName,
+				StartupType,
+				StatusDesc,
+				ServiceAccount, 
+				InstantFileInit, 
+				GETDATE(),
+				GETDATE()
+		FROM	Catalogue.Services_Stage
+		WHERE NOT EXISTS 
+		(SELECT 1 FROM Catalogue.Services
+		WHERE	Services.ServerName = Services_Stage.ServerName
+		AND		Services.ServiceName = Services_Stage.ServiceName)',
+		'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetServices.sql',
+		'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateServices.sql')
+
+GO
+
