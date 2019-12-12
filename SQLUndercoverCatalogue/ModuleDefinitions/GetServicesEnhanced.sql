@@ -53,11 +53,11 @@ SET ServiceName = REPLACE(ServiceName, 'SERVICE_NAME: ','')
 INSERT INTO #Services(ServerName,ServiceName,StatusDesc)
 SELECT @@SERVERNAME, ServiceName, State
 FROM
-	(SELECT ServiceName, ROW_NUMBER() OVER (ORDER BY rowno) AS ServiceID 
+	(SELECT ServiceName, ROW_NUMBER() OVER (ORDER BY RowNo) AS ServiceID 
 	FROM #RawServices
 	WHERE ServiceName NOT IN ('RUNNING','STOPPED','START_PENDING','STOP_PENDING','UNKNOWN')) AS ServicesNames
 JOIN
-	(SELECT ServiceName AS State, ROW_NUMBER() OVER (ORDER BY rowno) AS ServiceID 
+	(SELECT ServiceName AS State, ROW_NUMBER() OVER (ORDER BY RowNo) AS ServiceID 
 	FROM #RawServices
 	WHERE ServiceName IN ('RUNNING','STOPPED','START_PENDING','STOP_PENDING','UNKNOWN')) AS States ON States.ServiceID = ServicesNames.ServiceID
 
