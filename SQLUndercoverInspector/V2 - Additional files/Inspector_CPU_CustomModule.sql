@@ -187,7 +187,7 @@ BEGIN
 SELECT 
 CASE 
 	WHEN SystemCPUUtilization >= @CPUThresholdWarningHighlight THEN @WarningHighlight
-	WHEN SystemCPUUtilization > @CPUThresholdAdvisoryHighlight AND SystemCPUUtilization < @CPUThresholdWarningHighlight THEN @AdvisoryHighlight
+	WHEN SystemCPUUtilization >= @CPUThresholdAdvisoryHighlight AND SystemCPUUtilization < @CPUThresholdWarningHighlight THEN @AdvisoryHighlight
 	WHEN SystemCPUUtilization > @CPUThresholdInfoHighlight AND SystemCPUUtilization < @CPUThresholdAdvisoryHighlight THEN @InfoHighlight
 END AS [@bgcolor],
 Servername,
