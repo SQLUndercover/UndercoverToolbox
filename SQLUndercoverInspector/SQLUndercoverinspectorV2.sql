@@ -64,8 +64,8 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 05/12/2019
-Version: 2.00
+Revision date: 18/12/2019
+Version: 2.01
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
 
@@ -145,8 +145,8 @@ END
 IF @Help = 1
 BEGIN 
 PRINT '
---Inspector V2.00
---Revision date: 05/12/2019
+--Inspector V2.01
+--Revision date: 18/12/2019
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -271,7 +271,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 
 			DECLARE @SQLStatement VARCHAR(MAX) 
 			DECLARE @DatabaseFileSizesResult INT
-			DECLARE @Build VARCHAR(6) ='2.00'
+			DECLARE @Build VARCHAR(6) ='2.01'
 			DECLARE @CurrentBuild VARCHAR(6)
 			 
 			
@@ -1842,6 +1842,13 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				VALUES('CentraliseExecutionLog',0);
 			END 
 
+			--New setting for V2.01
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'BackupSpaceWeekdayOffset')
+			BEGIN 
+				INSERT INTO [Inspector].[Settings] ([Description],[Value])
+				VALUES('BackupSpaceWeekdayOffset','1');
+			END 
+
 			--Update email banner for V2
 			IF (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = 'EmailBannerURL') = 'http://bit.ly/InspectorEmailBanner'
 			BEGIN
@@ -1903,7 +1910,8 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''InspectorUpgradeFilenameSync'',''1''),
 		(''UseMedianCalculationForDriveSpaceCalc'',''0''),
 		(''ReportDataDetailedSummary'',''1''),
-		(''CentraliseExecutionLog'',''0'');
+		(''CentraliseExecutionLog'',''0''),
+		(''BackupSpaceWeekdayOffset'',''1'');
 		
 IF NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfig])
 BEGIN 
@@ -9824,7 +9832,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS
 BEGIN
 SET NOCOUNT ON;
---Revision date: 26/11/2019
+--Revision date: 18/12/2019
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 DECLARE @BackupPath NVARCHAR(1000) = (SELECT NULLIF([Value],'''') From '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[Settings] where [Description] = ''BackupsPath'');
@@ -9858,6 +9866,7 @@ FROM (
     INNER JOIN msdb.dbo.backupmediafamily ON backupset.media_set_id = backupmediafamily.media_set_id
     LEFT JOIN BackupPaths ON backupmediafamily.physical_device_name LIKE ''''+BackupPath+''%''
     WHERE backup_start_date >= DATEADD(DAY,-7,CAST(GETDATE() AS DATE))
+	AND backup_start_date < CAST(GETDATE() AS DATE)
 	AND NOT EXISTS (SELECT 1 FROM msdb.dbo.restorehistory WHERE backupset.backup_set_id = restorehistory.backup_set_id)
     GROUP BY 
     DATENAME(WEEKDAY,backup_start_date),
@@ -9895,14 +9904,18 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 )
 AS
 BEGIN
---Revision date: 05/12/2019
+--Revision date: 18/12/2019
 --Excluded from Warning level control
 	DECLARE @BackupPathToCheck VARCHAR(256)
 	DECLARE @BackupPaths NVARCHAR(1000) 
 	DECLARE @HtmlTableHead VARCHAR(2000);
-	DECLARE @Server NVARCHAR(128)
+	DECLARE @Server NVARCHAR(128);
+	DECLARE @WeekdayOffset INT = (SELECT TRY_CAST([Value] AS INT) FROM Inspector.Settings WHERE [Description] = ''BackupSpaceWeekdayOffset'');
 
 	SET @HtmlOutput = '''';
+
+	IF @WeekdayOffset IS NULL BEGIN SET @WeekdayOffset = 0 END;
+	IF @WeekdayOffset > 1 BEGIN SET @WeekdayOffset = 1 END ELSE BEGIN SET @WeekdayOffset = 0 END;
 
 	SET @BackupPaths = (SELECT NULLIF([Value],'''') From [Inspector].[Settings] where [Description] = ''BackupsPath'');
 
@@ -9913,8 +9926,9 @@ BEGIN
 	@Servername,
 	@Modulename,
 	@ServerSpecific,
-	''Backup space information against backup path(s): ''+ISNULL(@BackupPaths,''''),@TableHeaderColour,
-	''Servername,Backup location,Backup Estimate For Tonight GB,Backup Server FreeSpace GB,Backup Server Free Space After Backups GB'')
+	''Backup space information against backup path(s): ''+ISNULL(@BackupPaths,''''),
+	@TableHeaderColour,
+	''Servername,Backup location,Backup Estimate For ''+CASE WHEN @WeekdayOffset = 1 THEN ''tomorrow'' ELSE ''Tonight'' END+'' GB,Backup Server FreeSpace GB,Backup Server Free Space After Backups GB'')
 	);
 
 	DECLARE DriveSpace_cur CURSOR LOCAL STATIC
@@ -10013,7 +10027,7 @@ BEGIN
 		SET @BackupSizeForNextWeekday = 
 		(SELECT ISNULL(CAST(SUM(((TotalSizeInBytes)/1024)/1024)/1024 AS DECIMAL (10,1)),0) 
 		FROM [Inspector].[BackupSpace]
-		WHERE [DayOfWeek] = DATENAME(WEEKDAY,Getdate())
+		WHERE [DayOfWeek] = DATENAME(WEEKDAY,DATEADD(DAY,@WeekdayOffset,Getdate()))
 		AND [Servername] = @Server
 		AND [BackupPath] = @BackupPathRaw
 		)
