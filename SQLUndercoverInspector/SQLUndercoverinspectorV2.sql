@@ -9915,7 +9915,7 @@ BEGIN
 	SET @HtmlOutput = '''';
 
 	IF @WeekdayOffset IS NULL BEGIN SET @WeekdayOffset = 0 END;
-	IF @WeekdayOffset > 1 BEGIN SET @WeekdayOffset = 1 END ELSE BEGIN SET @WeekdayOffset = 0 END;
+	IF @WeekdayOffset > 1 BEGIN SET @WeekdayOffset = 1 END;
 
 	SET @BackupPaths = (SELECT NULLIF([Value],'''') From [Inspector].[Settings] where [Description] = ''BackupsPath'');
 
