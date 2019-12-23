@@ -132,10 +132,14 @@ END
 
 
 
-
 IF OBJECT_ID('Inspector.CPUReport',N'P') IS NULL 
 BEGIN 
-EXEC('CREATE PROCEDURE [Inspector].[CPUReport] (
+	EXEC('CREATE PROCEDURE [Inspector].[CPUReport] AS');
+END 
+
+IF OBJECT_ID('Inspector.CPUReport',N'P') IS NOT NULL 
+BEGIN 
+EXEC('ALTER PROCEDURE [Inspector].[CPUReport] (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
 @TableHeaderColour VARCHAR(7) = ''#E6E6FA'',
