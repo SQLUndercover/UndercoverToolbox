@@ -64,7 +64,7 @@ JOIN
 --remove the services that we're no worried about
 
 DELETE FROM #Services
-WHERE   ServiceName NOT LIKE 'MSOLAP%'
+WHERE   ServiceName NOT LIKE 'MS%OLAP%'
     AND  ServiceName NOT LIKE 'MsDtsServer%'
     AND  ServiceName != 'SQLServerReportingServices' 
     AND  ServiceName NOT LIKE 'ReportServer%'
