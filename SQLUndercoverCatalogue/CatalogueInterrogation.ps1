@@ -4,7 +4,7 @@ Written by David Fowler, 28/08/2018
 Update 0.2.0 - 28/01/2019
 Update 0.2.1 - 14/02/2019
 Update 0.3.0 - 27/08/2019
-Update 0.4.0 - 
+Update 0.4.0 - 23/12/2019
 
 MIT License
 ------------
@@ -28,7 +28,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 Import-Module dbatools
 
 #configuration variables
-$ConfigServer = "<server>"
+$ConfigServer = "LAPTOP-FOWLERD\SQL2017_3"
 $SQLUndercoverDatabase = "SQLUndercover"
 $ScriptVersion = "0.4.0"
 

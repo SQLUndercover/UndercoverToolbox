@@ -133,6 +133,6 @@ SELECT  ServerName,
         StartupType,
         StatusDesc,
         ServiceAccount,
-        'N'
+        'N' AS InstantFileInit
 FROM #Services
 
