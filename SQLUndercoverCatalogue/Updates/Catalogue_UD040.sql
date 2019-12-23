@@ -38,6 +38,7 @@
                                                                                                                             
 Sequential Upgrade - 0.4.0
 David Fowler
+23/12/2019
 
 MIT License
 ------------
