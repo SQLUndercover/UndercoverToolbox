@@ -24,13 +24,14 @@ FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TOR
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  
 #>
 
-#import dbatools
-Import-Module dbatools
-
-#configuration variables
+#configuration variables, change these to suit your setup
 $ConfigServer = "<servername>"
 $SQLUndercoverDatabase = "SQLUndercover"
+
 $ScriptVersion = "0.4.0"
+
+#import dbatools
+Import-Module dbatools
 
 Clear-Host
 
@@ -102,13 +103,6 @@ $module =Get-Module dbatools
 If ($module.Version -lt $dbatoolsRequiredVersion) {Throw "Your either don't have dbatools installed or your installed module doesn't meet the required version.  Check out dbatools.io for full details."}
 ELSE
 {Write-Host "dbatools, installed version: "$module.Version ", required version: "$dbatoolsRequiredVersion -ForegroundColor Green}
-
-####################    Check Script Version Matches Config Database Version     ########################################
-
-#Script version check obsolete since check was based on the manifest file in 0.4.0
-#If ($ScriptVersion -eq $CatalogueVersion) {Write-Host "Config Version Check - OK" -ForegroundColor Green}
-#ELSE
-#{Throw "There is a version mismatch between the Powershell collector and the version of the Catalogue config database"}
 
 ###################    auto discover SQL instances     ##################################################################
 
@@ -226,14 +220,6 @@ ForEach ($instance in $Instances.Tables[0].Rows)
 
         #get all active modules
         $Modules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "EXEC Catalogue.GetModuleDetails '$($instance.ItemArray[0].ToString())'" -As DataSet
-
-        #Local Version check code has been deprecated
-        #Write-Host "Checking Local Catalogue Version..." -ForegroundColor Yellow
-        #check local catalogue version
-        #$LocalConfig = Invoke-DbaQuery -SQLInstance $instance.ItemArray[0].ToString() -Database $SQLUndercoverDatabase -Query "SELECT ParameterName, ParameterValue FROM Catalogue.ConfigPoSH" -As DataSet -WarningVariable WarningMessage
-        #$LocalCatalogueVersion = $LocalConfig.Tables[0].Select("ParameterName = 'CatalogueVersion'").ItemArray[1].ToString()
-        #If ($LocalCatalogueVersion -eq $CatalogueVersion) #if catalogue version ok, carry on with interrogation
-        #{Write-Host "Version Check OK" -ForegroundColor Green
        
         #for every active module in the ConfigModules table
         ForEach ($row in $Modules.Tables[0].Rows)
@@ -312,10 +298,6 @@ ForEach ($instance in $Instances.Tables[0].Rows)
             #run the update procedure on the central server
             Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateModuleCode
         }
-        #}
-        #Else {
-        #$ErrorMessage = "The Catalogue version on " + $instance.ItemArray[0].ToString() + " does not match the configuration database.  Interrogation cannot continue."
-    #Throw $ErrorMessage}
     }
     catch
     {
