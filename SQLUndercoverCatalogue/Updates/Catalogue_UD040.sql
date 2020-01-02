@@ -202,7 +202,7 @@ WHERE NOT EXISTS
 END
 
 
-', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetDatabases.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateDatabases.sql')
+', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/GetDatabases.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/UpdateDatabases.sql')
 GO
 
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (2, 1, N'--Undercover Catalogue
@@ -318,7 +318,7 @@ WHERE NOT EXISTS
 (SELECT 1 FROM Catalogue.Servers
 		WHERE Servers.ServerName = Servers_Stage.ServerName)
 END
-', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetServers.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateServers.sql')
+', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/GetServers.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/UpdateServers.sql')
 GO
 
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (3, 1, N'--Undercover Catalogue
@@ -390,7 +390,7 @@ WHERE NOT EXISTS
 		AND ISNULL(Logins.RoleName, '''') = ISNULL([Logins_Stage].RoleName, ''''))
 
 END
-', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetLogins.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateLogins.sql')
+', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/GetLogins.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/UpdateLogins.sql')
 GO
 
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (4, 1, N'--Undercover Catalogue
@@ -581,7 +581,7 @@ WHERE NOT EXISTS
 		AND ServerName = AgentJobs_Stage.ServerName)
 
 END
-', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetAgentJobs.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateAgentJobs.sql')
+', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/GetAgentJobs.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/UpdateAgentJobs.sql')
 GO
 
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (5, 1, N'--Undercover Catalogue
@@ -652,7 +652,7 @@ WHERE NOT EXISTS
 --					AND Role = ''Primary'')
 
 END
-', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetAvailabilityGroups.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateAvailabilityGroups.sql')
+', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/GetAvailabilityGroups.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/UpdateAvailabilityGroups.sql')
 GO
 
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (6, 1, N'--Undercover Catalogue
@@ -775,7 +775,7 @@ WHERE NOT EXISTS
 		AND ISNULL(RoleName,'''') = ISNULL(RoleName,''''))
 
 END
-', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetUsers.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateUsers.sql')
+', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/GetUsers.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/UpdateUsers.sql')
 GO
 
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (7, 1, N'--Undercover Catalogue
@@ -901,7 +901,7 @@ WHERE NOT EXISTS
 
 
 END
-', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetExplicitPermissions.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateExplicitPermissions.sql')
+', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/GetExplicitPermissions.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/UpdateExplicitPermissions.sql')
 GO
 
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (8, 1, N'--Undercover Catalogue
@@ -1008,7 +1008,7 @@ WHERE NOT EXISTS
 				AND ADGroups.AccountName = ADGroups_Stage.AccountName)
 
 END
-', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetADGroups.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateADGroups.sql')
+', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/GetADGroups.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/UpdateADGroups.sql')
 GO
 
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (9, 1, N'--Undercover Catalogue
@@ -1143,7 +1143,7 @@ WHERE NOT EXISTS
 
 END
 
-', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetLinkedServers.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateLinkedServers.sql')
+', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/GetLinkedServers.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/UpdateLinkedServers.sql')
 GO
 
 INSERT [Catalogue].[ConfigModulesDefinitions] ([ModuleID], [Online], [GetDefinition], [UpdateDefinition], [GetURL], [UpdateURL]) VALUES (10, 1, N'--Undercover Catalogue
@@ -1272,7 +1272,7 @@ WHERE	Tables.ServerName = Tables_Stage.ServerName
 END
 
 
-', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetTables.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateTables.sql')
+', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/GetTables.sql', N'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/UpdateTables.sql')
 GO
 
 
@@ -1494,7 +1494,7 @@ WHERE ParameterName = 'CatalogueVersion'
 GO
 
 UPDATE Catalogue.ConfigPoSH
-SET ParameterValue = 'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/Updates/'
+SET ParameterValue = 'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/Updates/'
 WHERE ParameterName = 'InstallationScriptPath'
 GO
 
@@ -1640,8 +1640,8 @@ VALUES	(@ModuleID,
 		(SELECT 1 FROM Catalogue.Services
 		WHERE	Services.ServerName = Services_Stage.ServerName
 		AND		Services.ServiceName = Services_Stage.ServiceName)',
-		'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetServices.sql',
-		'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateServices.sql')
+		'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/GetServices.sql',
+		'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/UpdateServices.sql')
 
 GO
 
@@ -1870,8 +1870,8 @@ FROM #Services
 		(SELECT 1 FROM Catalogue.Services
 		WHERE	Services.ServerName = Services_Stage.ServerName
 		AND		Services.ServiceName = Services_Stage.ServiceName)',
-		'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/GetServicesEnhanced.sql',
-		'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Catalogue-v0.4-dev/SQLUndercoverCatalogue/ModuleDefinitions/UpdateServicesEnhanced.sql')
+		'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/GetServicesEnhanced.sql',
+		'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/UpdateServicesEnhanced.sql')
 
 GO
 
