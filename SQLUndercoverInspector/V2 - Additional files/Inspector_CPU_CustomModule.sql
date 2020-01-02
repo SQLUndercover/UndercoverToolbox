@@ -2,7 +2,7 @@
 Description: CPU Custom module for the Inspector
 			 Collect CPU % and report when % over CPU Thresholds which can be configured by changing the values for CPUThreshold in [Inspector].[Settings]
 Author: Adrian Buckman
-Revision date: 07/12/2019
+Revision date: 02/01/2020
 Credit: David Fowler for the CPU collection query body as this was a snippt taken from a stored procedure he had called sp_CPU_Time
 
 © www.sqlundercover.com 
@@ -157,7 +157,7 @@ EXEC('ALTER PROCEDURE [Inspector].[CPUReport] (
 )
 AS
 
---Revision date: 10/12/2019
+--Revision date: 02/01/2020
 BEGIN
 --Excluded from Warning level control
 	DECLARE @HtmlTableHead VARCHAR(4000);
@@ -190,7 +190,7 @@ BEGIN
 SELECT 
 CASE 
 	WHEN SystemCPUUtilization >= @CPUThresholdWarningHighlight THEN @WarningHighlight
-	WHEN SystemCPUUtilization > @CPUThresholdAdvisoryHighlight AND SystemCPUUtilization < @CPUThresholdWarningHighlight THEN @AdvisoryHighlight
+	WHEN SystemCPUUtilization >= @CPUThresholdAdvisoryHighlight AND SystemCPUUtilization < @CPUThresholdWarningHighlight THEN @AdvisoryHighlight
 	WHEN SystemCPUUtilization > @CPUThresholdInfoHighlight AND SystemCPUUtilization < @CPUThresholdAdvisoryHighlight THEN @InfoHighlight
 END AS [@bgcolor],
 Servername,
