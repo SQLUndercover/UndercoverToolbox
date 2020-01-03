@@ -10,7 +10,7 @@ Description: BlitzWaits Custom module for the Inspector
 			 it is up to you how much you want to see.
 
 Author: Adrian Buckman
-Revision date: 07/12/2019
+Revision date: 03/01/2020
 Credit: Brent Ozar unlimited and its contributors, part of the code used in [Inspector].[BlitzWaitsReport] is a revision of the view [dbo].[BlitzFirst_WaitStats_Deltas].
 
 © www.sqlundercover.com 
@@ -42,15 +42,43 @@ SET QUOTED_IDENTIFIER ON;
 DECLARE @BlitzWaitsTopXRows TINYINT = 3;
 DECLARE @BlitzWaitsHourlyBucketSize TINYINT = 2;
 
---Schedule specific variables
+--Set the ModuleConfig to use, specify an existing one or a new one to if you want this to report independently
+DECLARE @ModuleConfig VARCHAR(20) = 'Default'; -- Append to the Default ModuleConfig or specify a new ModuleConfig i.e 'BlitzWaits'
+
+--Frequency ,Start and End times only apply if the @ModuleConfig does not exist as we do not want to update your existing schedules.
 DECLARE @ReportFrequencyMins SMALLINT = 1440;  --Maximum supported value is 1440 (once a day)
 DECLARE @ReportStartTime TIME(0) = '09:00';
 DECLARE @ReportEndTime TIME(0) = '18:00';
+
+--Enable or Disable the module following installation
 DECLARE @EnableModule BIT = 1;
 
+--Highlight Poison wait types? only works when the watched waits table is empty i.e first install
+DECLARE @HighlightPoisonWaitTypes BIT = 1;
+
+/*
+Poison waits included:
+CMEMTHREAD 
+IO_QUEUE_LIMIT 
+IO_RETRY 
+LOG_RATE_GOVERNOR 
+POOL_LOG_RATE_GOVERNOR 
+PREEMPTIVE_DEBUG 
+RESMGR_THROTTLED 
+RESOURCE_SEMAPHORE 
+RESOURCE_SEMAPHORE_QUERY_COMPILE 
+THREADPOOL
+*/
 
 
+--Ensure that Blitz tables exist
+IF (OBJECT_ID(N'dbo.BlitzFirst_WaitStats') IS NULL OR OBJECT_ID(N'dbo.BlitzFirst_WaitStats_Categories') IS NULL)
+BEGIN 
+	RAISERROR('BlitzFirst_WaitStats and BlitzFirst_WaitStats_Categories Tables not present in this database, please double check the database name is correct - the Inspector must be installed in the same database where your Blitz collection data is stored',11,0);
+	RETURN;
+END		
 
+--Ensure that the Inspector schema exists
 IF SCHEMA_ID(N'Inspector') IS NOT NULL
 BEGIN 
 
@@ -59,7 +87,8 @@ BEGIN
 	CREATE TABLE [Inspector].[BlitzWaits_WatchedWaitTypes](
 		[Servername] [NVARCHAR](128) NOT NULL,
 		[Wait_type] [NVARCHAR](60) NOT NULL,
-		[WarningLevel] [TINYINT] NOT NULL
+		[WarningLevel] [TINYINT] NOT NULL,
+		[IsActive] BIT NOT NULL
 	);
 END
 
@@ -67,6 +96,31 @@ IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE object_id = OBJECT_ID(N
 BEGIN
 	ALTER TABLE [Inspector].[BlitzWaits_WatchedWaitTypes] WITH CHECK ADD CONSTRAINT [CheckBlitzWaitWarningLevel] CHECK  (([WarningLevel]<(4)));
 END
+
+
+IF NOT EXISTS(SELECT 1 FROM [Inspector].[BlitzWaits_WatchedWaitTypes])
+BEGIN 
+	INSERT INTO [Inspector].[BlitzWaits_WatchedWaitTypes] ([Servername],[Wait_type],[WarningLevel],[IsActive])
+	SELECT 
+	[Servername],
+	[Waits].[WaitType],
+	1 AS [WarningLevel],
+	@HighlightPoisonWaitTypes
+	FROM [Inspector].[CurrentServers]
+	CROSS APPLY (
+				VALUES
+				('CMEMTHREAD'),
+				('IO_QUEUE_LIMIT'),
+				('IO_RETRY'),
+				('LOG_RATE_GOVERNOR'),
+				('POOL_LOG_RATE_GOVERNOR'),
+				('PREEMPTIVE_DEBUG'),
+				('RESMGR_THROTTLED'),
+				('RESOURCE_SEMAPHORE'),
+				('RESOURCE_SEMAPHORE_QUERY_COMPILE'), 
+				('THREADPOOL')) AS Waits (WaitType)
+
+END 
 
 
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'BlitzWaitsTopXRows')
@@ -120,7 +174,7 @@ ALTER PROCEDURE [Inspector].[BlitzWaitsReport] (
 )
 AS
 
---Revision date: 08/12/2019
+--Revision date: 04/01/2020
 /*
 Explanation of the logic used here:
 DATEADD(HOUR,(DATEPART(HOUR,CheckDate)%@HourlyBucketSize)/-1,DATEADD(HOUR, DATEDIFF(HOUR, 0, CheckDate), 0))
@@ -320,7 +374,8 @@ FROM
 				 ORDER BY wait_time_ms_delta DESC
 				 ) AS TopBucketWaits
 ) BucketWaits
-LEFT JOIN [Inspector].[BlitzWaits_WatchedWaitTypes] ON BucketWaits.[wait_type] = [BlitzWaits_WatchedWaitTypes].[Wait_type]
+LEFT JOIN [Inspector].[BlitzWaits_WatchedWaitTypes] ON BucketWaits.[wait_type] = [BlitzWaits_WatchedWaitTypes].[Wait_type] AND BucketWaits.ServerName = [BlitzWaits_WatchedWaitTypes].[Servername]
+WHERE ([BlitzWaits_WatchedWaitTypes].[IsActive] = 1 OR [BlitzWaits_WatchedWaitTypes].[IsActive] IS NULL)
 ORDER BY 
 HourlyBucket ASC,
 wait_time_ms_delta DESC
@@ -417,34 +472,28 @@ END
 
 END
 
-IF NOT EXISTS(SELECT 1 FROM [Inspector].[ModuleConfig] WHERE [ModuleConfig_Desc] = 'BlitzWaits')
+IF NOT EXISTS(SELECT 1 FROM [Inspector].[ModuleConfig] WHERE [ModuleConfig_Desc] = @ModuleConfig)
 BEGIN 
 	INSERT INTO [Inspector].[ModuleConfig] ([ModuleConfig_Desc], [IsActive], [Frequency], [StartTime], [EndTime], [LastRunDateTime], [ReportWarningsOnly], [NoClutter], [ShowDisabledModules])
-	VALUES('BlitzWaits', @EnableModule, @ReportFrequencyMins, @ReportStartTime, @ReportEndTime, NULL, 0, 0, 0);
-END
-ELSE 
-BEGIN 
-	UPDATE [Inspector].[ModuleConfig]
-	SET [IsActive] = @EnableModule, [Frequency] = @ReportFrequencyMins, [StartTime] = @ReportStartTime, [EndTime] = @ReportEndTime
-	WHERE [ModuleConfig_Desc] = 'BlitzWaits';
+	VALUES(@ModuleConfig, @EnableModule, @ReportFrequencyMins, @ReportStartTime, @ReportEndTime, NULL, 0, 0, 0);
 END
 
 --No need to update this one as the schedule information here is not used as its a Report only module, the row just needs to exist.
-IF NOT EXISTS(SELECT 1 FROM [Inspector].[Modules] WHERE [Modulename] = 'BlitzWaits')
+IF NOT EXISTS(SELECT 1 FROM [Inspector].[Modules] WHERE [Modulename] = 'BlitzWaits' AND [ModuleConfig_Desc] = @ModuleConfig)
 BEGIN 
 	INSERT INTO [Inspector].[Modules] ([ModuleConfig_Desc], [Modulename], [CollectionProcedurename], [ReportProcedurename], [ReportOrder], [WarningLevel], [ServerSpecific], [Debug], [IsActive], [HeaderText], [Frequency], [StartTime], [EndTime])
-	VALUES('BlitzWaits','BlitzWaits',NULL,'BlitzWaitsReport',1,2,1,0,1,'Top wait stats with wait types from your watched list present',@ReportFrequencyMins,@ReportStartTime,@ReportEndTime);
+	VALUES(@ModuleConfig,'BlitzWaits',NULL,'BlitzWaitsReport',1,2,1,0,@EnableModule,'Top wait stats with wait types from your watched list present',@ReportFrequencyMins,@ReportStartTime,@ReportEndTime);
 END
 
 
-IF NOT EXISTS(SELECT 1 FROM [Inspector].[MultiWarningModules] WHERE [Modulename] IN ('BlitzWaits'))
+IF NOT EXISTS(SELECT 1 FROM [Inspector].[MultiWarningModules] WHERE [Modulename] = 'BlitzWaits')
 BEGIN 
 	INSERT INTO [Inspector].[MultiWarningModules] ([Modulename])
 	VALUES('BlitzWaits');
 END
 
 PRINT '
-Thank you for installing the BlitzWaits Modules for Inspector V2.
+Thank you for installing the BlitzWaits Module for Inspector V2.
 
 /** CHECK SETTINGS **/
 Check the following settings in [Inspector].[Settings]
@@ -484,7 +533,7 @@ WHERE [Description] IN ('BlitzWaitsTopXRows','BlitzWaitsHourlyBucketSize');
 
 SELECT * 
 FROM [Inspector].[ModuleConfig] 
-WHERE [ModuleConfig_Desc] = 'BlitzWaits';
+WHERE [ModuleConfig_Desc] = @ModuleConfig;
 
 END
 ELSE 
