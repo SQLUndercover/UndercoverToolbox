@@ -10,7 +10,7 @@ Description: BlitzWaits Custom module for the Inspector
 			 it is up to you how much you want to see.
 
 Author: Adrian Buckman
-Revision date: 03/01/2020
+Revision date: 06/01/2020
 Credit: Brent Ozar unlimited and its contributors, part of the code used in [Inspector].[BlitzWaitsReport] is a revision of the view [dbo].[BlitzFirst_WaitStats_Deltas].
 
 © www.sqlundercover.com 
@@ -77,6 +77,11 @@ RESOURCE_SEMAPHORE
 RESOURCE_SEMAPHORE_QUERY_COMPILE 
 THREADPOOL
 */
+
+
+
+DECLARE @Revisiondate DATETIME = '20200106';
+DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 
 --Ensure that Blitz tables exist
@@ -583,6 +588,21 @@ BEGIN
 	INSERT INTO [Inspector].[MultiWarningModules] ([Modulename])
 	VALUES('BlitzWaits');
 END
+
+
+IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID(N'Inspector.InspectorUpgradeHistory') AND name = 'RevisionDate')
+BEGIN 
+	ALTER TABLE [Inspector].[InspectorUpgradeHistory] ADD RevisionDate DATE NULL;
+END
+
+EXEC sp_executesql N'
+INSERT INTO [Inspector].[InspectorUpgradeHistory] ([Log_Date], [PreserveData], [CurrentBuild], [TargetBuild], [SetupCommand], [RevisionDate])
+VALUES(GETDATE(),1,@InspectorBuild,@InspectorBuild,''Inspector_BlitzWaits_CustomModule.sql'',@Revisiondate);',
+N'@InspectorBuild DECIMAL(4,2),
+@Revisiondate DATE',
+@InspectorBuild = @InspectorBuild,
+@Revisiondate = @Revisiondate;
+
 
 PRINT '
 Thank you for installing the BlitzWaits Module for Inspector V2.
