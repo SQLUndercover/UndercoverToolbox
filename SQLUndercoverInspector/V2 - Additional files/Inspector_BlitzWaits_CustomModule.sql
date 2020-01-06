@@ -38,9 +38,13 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 
 
---These Parameters control the report size TOP X wait stats and the size of the buckets for summing of waits deltas.
+--These Parameters control the report size TOP X wait stats and the size of the buckets for summing of waits deltas. Can be changed in the Settings table at any time
 DECLARE @BlitzWaitsTopXRows TINYINT = 3;
 DECLARE @BlitzWaitsHourlyBucketSize TINYINT = 2;
+
+--Alternating bucket colours specify a html color as hex, can be changed later in the settings table
+DECLARE @BlitzWaitsBucketColourOdd VARCHAR(7) = '#E6F5FF'
+DECLARE @BlitzWaitsBucketColourEven VARCHAR(7) = '#CCEBFF'
 
 --Set the ModuleConfig to use, specify an existing one or a new one to if you want this to report independently
 DECLARE @ModuleConfig VARCHAR(20) = 'Default'; -- Append to the Default ModuleConfig or specify a new ModuleConfig i.e 'BlitzWaits'
@@ -53,8 +57,12 @@ DECLARE @ReportEndTime TIME(0) = '18:00';
 --Enable or Disable the module following installation
 DECLARE @EnableModule BIT = 1;
 
+--see waits from your watched list IF the threshold was breached (this will increase rows returned in the bucket if breaches are present), can be changed in the Settings table at any time
+DECLARE @BlitzWaitsAlwaysShowBreached BIT = 0;
+
 --Highlight Poison wait types? only works when the watched waits table is empty i.e first install
 DECLARE @HighlightPoisonWaitTypes BIT = 1;
+
 
 /*
 Poison waits included:
@@ -88,7 +96,9 @@ BEGIN
 		[Servername] [NVARCHAR](128) NOT NULL,
 		[Wait_type] [NVARCHAR](60) NOT NULL,
 		[WarningLevel] [TINYINT] NOT NULL,
-		[IsActive] BIT NOT NULL
+		[IsActive] BIT NOT NULL,
+		[Threshold] DECIMAL(8,2) NULL,
+	    [ThresholdDirection] CHAR(1)
 	);
 END
 
@@ -147,6 +157,27 @@ BEGIN
 	WHERE [Description] = 'BlitzWaitsHourlyBucketSize';
 END 
 
+
+IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'BlitzWaitsAlwaysShowBreached')
+BEGIN 
+	INSERT INTO [Inspector].[Settings] ([Description],[Value])
+	VALUES('BlitzWaitsAlwaysShowBreached',@BlitzWaitsAlwaysShowBreached);
+END
+
+
+IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'BlitzWaitsBucketColourOdd')
+BEGIN 
+	INSERT INTO [Inspector].[Settings] ([Description],[Value])
+	VALUES('BlitzWaitsBucketColourOdd',@BlitzWaitsBucketColourOdd);
+END
+
+IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'BlitzWaitsBucketColourEven')
+BEGIN 
+	INSERT INTO [Inspector].[Settings] ([Description],[Value])
+	VALUES('BlitzWaitsBucketColourEven',@BlitzWaitsBucketColourEven);
+END
+
+
 IF OBJECT_ID('Inspector.BlitzWaitsReport',N'P') IS NULL 
 BEGIN 
 	EXEC('CREATE PROCEDURE [Inspector].[BlitzWaitsReport] AS');
@@ -173,8 +204,8 @@ ALTER PROCEDURE [Inspector].[BlitzWaitsReport] (
 @Debug BIT = 0
 )
 AS
-
---Revision date: 04/01/2020
+BEGIN
+--Revision date: 06/01/2020
 /*
 Explanation of the logic used here:
 DATEADD(HOUR,(DATEPART(HOUR,CheckDate)%@HourlyBucketSize)/-1,DATEADD(HOUR, DATEDIFF(HOUR, 0, CheckDate), 0))
@@ -184,22 +215,25 @@ Round the CheckDate down to the Hour it occured within then use Mod to work out 
 DATEADD(HOUR,(DATEPART(HOUR,CheckDate)%@HourlyBucketSize)/-1,DATEADD(HOUR, DATEDIFF(HOUR, 0, CheckDate), 0))
 */
 
-BEGIN
+
 	DECLARE @HtmlTableHead VARCHAR(4000);
 	DECLARE @Columnnames VARCHAR(2000);
 	DECLARE @SQLtext NVARCHAR(4000);
-	DECLARE @Frequency INT = (SELECT Frequency FROM Inspector.ModuleConfig WHERE ModuleConfig_Desc = @ModuleConfig);
+	DECLARE @Frequency INT = (SELECT Frequency FROM Inspector.ModuleConfig WHERE ModuleConfig_Desc = ''Default'');
 	DECLARE @Top INT = (SELECT ISNULL(TRY_CAST([Value] AS INT),3) FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsTopXRows''); 
 	DECLARE @HourlyBucketSize INT = (SELECT ISNULL(TRY_CAST([Value] AS INT),3) FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsHourlyBucketSize''); 
+	DECLARE @AlwaysShowBreached BIT = (SELECT ISNULL(TRY_CAST([Value] AS BIT),0) FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsAlwaysShowBreached'');
+	DECLARE @BlitzWaitsBucketColourOdd VARCHAR(7) = (SELECT ISNULL(TRY_CAST([Value] AS VARCHAR(7)),''#FFFFFF'') FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsBucketColourOdd'');
+	DECLARE @BlitzWaitsBucketColourEven VARCHAR(7) = (SELECT ISNULL(TRY_CAST([Value] AS VARCHAR(7)),''#FFFFFF'') FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsBucketColourEven'');
 	DECLARE @CheckDate DATETIMEOFFSET(7) = DATEADD(MINUTE,-@Frequency,SYSDATETIMEOFFSET());
-	DECLARE @DistinctBuckets INT;
 
 
-	IF @Top IS NULL BEGIN SET @Top = 3 END;
-	IF @HourlyBucketSize IS NULL BEGIN SET @HourlyBucketSize = 1 END;
+	IF (@Top IS NULL) BEGIN SET @Top = 3 END;
+	IF (@HourlyBucketSize IS NULL) BEGIN SET @HourlyBucketSize = 1 END;
 	IF ((@HourlyBucketSize*60) > @Frequency) BEGIN SET @HourlyBucketSize = @Frequency/60 END
-
-	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
+	IF (@AlwaysShowBreached IS NULL) BEGIN SET @AlwaysShowBreached = 0 END
+	IF (@BlitzWaitsBucketColourOdd IS NULL) BEGIN SET @BlitzWaitsBucketColourOdd = ''#bffffc'' END
+	IF (@BlitzWaitsBucketColourEven IS NULL) BEGIN SET @BlitzWaitsBucketColourEven = ''#bfe8ff'' END
 
 
 /********************************************************/
@@ -249,10 +283,8 @@ SELECT
 	DATEADD(HOUR,(DATEPART(HOUR,CheckDate)%@HourlyBucketSize)/-1,DATEADD(HOUR, DATEDIFF(HOUR, 0, CheckDate), 0)) AS CheckDateBucket
 FROM [dbo].[BlitzFirst_WaitStats]
 WHERE CheckDate >= @CheckDate
-AND ServerName = @Servername
+AND ServerName = @@servername
 GROUP BY [ServerName], [CheckDate];
-
-SET @DistinctBuckets = (SELECT DISTINCT COUNT([CheckDateBucket]) FROM #RowDates);
 
 WITH CheckDates as
 (
@@ -279,7 +311,7 @@ Deltas as (
 	LEFT OUTER JOIN [dbo].[BlitzFirst_WaitStats_Categories] wc ON w.wait_type = wc.WaitType
 	WHERE DATEDIFF(MI, wPrior.CheckDate, w.CheckDate) BETWEEN 1 AND 60
 	AND [w].[wait_time_ms] >= [wPrior].[wait_time_ms]
-	AND w.ServerName = @Servername
+	AND w.ServerName = @@servername
 )
 INSERT INTO #Deltas (
 	[ServerName],
@@ -315,6 +347,7 @@ WITH Buckets as (
 	ServerName,
 	wait_type,
 	CheckDateBucket,
+	DENSE_RANK() OVER(ORDER BY CheckDateBucket ASC) AS BucketNumber,
 	SUM(wait_time_ms_delta) AS wait_time_ms_delta,
 	SUM(wait_time_minutes_delta) AS wait_time_minutes_delta,
 	SUM(wait_time_minutes_per_minute) AS wait_time_minutes_per_minute,
@@ -327,59 +360,117 @@ WITH Buckets as (
 	CheckDateBucket
 )
 SELECT 
-CASE 
-	WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 1 THEN @WarningHighlight
-	WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 2 THEN @AdvisoryHighlight
-	WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 3 THEN @InfoHighlight
-	WHEN @DistinctBuckets > 1 AND BucketWaits.Rownum = 1 THEN @TableHeaderColour
-	ELSE ''#FFFFFF''
+CASE WHEN [@bgcolor] = ''#FFFFFF'' THEN CASE
+											WHEN [BucketNumber]%2 = 0 THEN @BlitzWaitsBucketColourEven
+											WHEN [BucketNumber]%2 != 0 THEN @BlitzWaitsBucketColourOdd
+											ELSE ''#FFFFFF''
+										END
+	ELSE [@bgcolor]
 END AS [@bgcolor],
-[BucketWaits].[ServerName],
-CONVERT(VARCHAR(17),[HourlyBucket],113) AS [HourlyBucket],
-[BucketWaits].[wait_type],
+[ServerName],
+[Watched],
+[HourlyBucket],
+[wait_type],
 [wait_time_ms_delta],
-CAST([wait_time_minutes_delta] AS DECIMAL(8,2)) AS [wait_time_minutes_delta],
-CAST([wait_time_minutes_per_minute] AS DECIMAL(8,2)) AS [wait_time_minutes_per_minute],
+[wait_time_minutes_delta],
+[wait_time_minutes_per_minute],
 [signal_wait_time_ms_delta],
 [waiting_tasks_count_delta],
-CAST([wait_time_ms_per_wait] AS DECIMAL(8,2)) AS [wait_time_ms_per_wait]
+[wait_time_ms_per_wait],
+[Threshold],
+[ThresholdType]
 INTO #InspectorModuleReport
-FROM 
+FROM
 (
+	SELECT
+	CASE 
+		WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 1 AND [IsActive] = 1 THEN @WarningHighlight
+		WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 2 AND [IsActive] = 1 THEN @AdvisoryHighlight
+		WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 3 AND [IsActive] = 1 THEN @InfoHighlight
+		ELSE ''#FFFFFF''
+	END AS [@bgcolor],
+	[BucketWaits].[ServerName],
+	ISNULL([BlitzWaits_WatchedWaitTypes].[IsActive],0) AS Watched,
+	CONVERT(VARCHAR(17),[HourlyBucket],113) AS [HourlyBucket],
+	[BucketWaits].[wait_type],
+	[wait_time_ms_delta],
+	CAST([wait_time_minutes_delta] AS DECIMAL(8,2)) AS [wait_time_minutes_delta],
+	CAST([wait_time_minutes_per_minute] AS DECIMAL(8,2)) AS [wait_time_minutes_per_minute],
+	[signal_wait_time_ms_delta],
+	[waiting_tasks_count_delta],
+	CAST([wait_time_ms_per_wait] AS DECIMAL(8,2)) AS [wait_time_ms_per_wait],
+	ISNULL([BlitzWaits_WatchedWaitTypes].Threshold,0) AS Threshold,
+	CASE 
+		WHEN [IsActive] = 0 THEN ''None''
+		WHEN [ThresholdDirection] = ''<'' THEN ''Less Than''
+		WHEN [ThresholdDirection] = ''>'' THEN ''More Than''
+		ELSE ''None''
+	END AS ThresholdType,
+	BucketNumber
+	FROM 
+	(
+		SELECT 
+		TopBucketWaits.ServerName, 
+		TopBucketWaits.CheckDateBucket AS HourlyBucket,
+		TopBucketWaits.wait_type, 
+		TopBucketWaits.wait_time_ms_delta,
+		TopBucketWaits.wait_time_minutes_delta,
+		TopBucketWaits.wait_time_minutes_per_minute,
+		TopBucketWaits.signal_wait_time_ms_delta,
+		TopBucketWaits.waiting_tasks_count_delta,
+		TopBucketWaits.wait_time_ms_per_wait,
+		BucketNumber
+		FROM (SELECT DISTINCT [CheckDateBucket] FROM #RowDates) AS RowDates
+		CROSS APPLY (SELECT TOP (@Top) 
+					 ServerName,
+					 CheckDateBucket,
+					 wait_type,
+					 wait_time_ms_delta,
+					 wait_time_minutes_delta,
+					 wait_time_minutes_per_minute,
+					 signal_wait_time_ms_delta,
+					 waiting_tasks_count_delta,
+					 ISNULL((CAST([wait_time_ms_delta] AS MONEY)/NULLIF(CAST([waiting_tasks_count_delta] AS MONEY),0)),0) AS wait_time_ms_per_wait,
+					 BucketNumber
+					 FROM Buckets
+					 WHERE RowDates.CheckDateBucket = Buckets.CheckDateBucket
+					 ORDER BY wait_time_ms_delta DESC
+					 ) AS TopBucketWaits
+	) BucketWaits
+	LEFT JOIN [Inspector].[BlitzWaits_WatchedWaitTypes] ON BucketWaits.[wait_type] = [BlitzWaits_WatchedWaitTypes].[Wait_type] AND BucketWaits.ServerName = [BlitzWaits_WatchedWaitTypes].[Servername]
+	UNION --Show watched wait types even if they are not in the Top X waits if @AlwaysShowBreached = 1
 	SELECT 
-	TopBucketWaits.ServerName, 
-	TopBucketWaits.CheckDateBucket AS HourlyBucket,
-	TopBucketWaits.wait_type, 
-	TopBucketWaits.wait_time_ms_delta,
-	TopBucketWaits.wait_time_minutes_delta,
-	TopBucketWaits.wait_time_minutes_per_minute,
-	TopBucketWaits.signal_wait_time_ms_delta,
-	TopBucketWaits.waiting_tasks_count_delta,
-	TopBucketWaits.wait_time_ms_per_wait,
-	TopBucketWaits.Rownum
-	FROM (SELECT DISTINCT [CheckDateBucket] FROM #RowDates) AS RowDates
-	CROSS APPLY (SELECT TOP (@Top) 
-				 ServerName,
-				 CheckDateBucket,
-				 wait_type,
-				 wait_time_ms_delta,
-				 wait_time_minutes_delta,
-				 wait_time_minutes_per_minute,
-				 signal_wait_time_ms_delta,
-				 waiting_tasks_count_delta,
-				 ISNULL((CAST([wait_time_ms_delta] AS MONEY)/NULLIF(CAST([waiting_tasks_count_delta] AS MONEY),0)),0) AS wait_time_ms_per_wait,
-				 ROW_NUMBER() OVER(PARTITION BY CheckDateBucket ORDER BY wait_time_ms_delta DESC) AS Rownum
-				 FROM Buckets
-				 WHERE RowDates.CheckDateBucket = Buckets.CheckDateBucket
-				 ORDER BY wait_time_ms_delta DESC
-				 ) AS TopBucketWaits
-) BucketWaits
-LEFT JOIN [Inspector].[BlitzWaits_WatchedWaitTypes] ON BucketWaits.[wait_type] = [BlitzWaits_WatchedWaitTypes].[Wait_type] AND BucketWaits.ServerName = [BlitzWaits_WatchedWaitTypes].[Servername]
-WHERE ([BlitzWaits_WatchedWaitTypes].[IsActive] = 1 OR [BlitzWaits_WatchedWaitTypes].[IsActive] IS NULL)
-ORDER BY 
-HourlyBucket ASC,
-wait_time_ms_delta DESC
-
+	CASE 
+		WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 1 AND [IsActive] = 1 THEN @WarningHighlight
+		WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 2 AND [IsActive] = 1 THEN @AdvisoryHighlight
+		WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 3 AND [IsActive] = 1 THEN @InfoHighlight
+		ELSE ''#FFFFFF''
+	END AS [@bgcolor],
+	ServerName, 
+	ISNULL([BlitzWaits_WatchedWaitTypes].[IsActive],0) AS Watched,
+	CONVERT(VARCHAR(17),CheckDateBucket,113) AS HourlyBucket,
+	wait_type, 
+	wait_time_ms_delta,
+	wait_time_minutes_delta,
+	wait_time_minutes_per_minute,
+	signal_wait_time_ms_delta,
+	waiting_tasks_count_delta,
+	CAST(ISNULL((CAST([wait_time_ms_delta] AS MONEY)/NULLIF(CAST([waiting_tasks_count_delta] AS MONEY),0)),0) AS DECIMAL(8,2)) AS wait_time_ms_per_wait,
+	ISNULL([BlitzWaits_WatchedWaitTypes].Threshold,0) AS Threshold,
+	CASE 
+		WHEN [IsActive] = 0 THEN ''None''
+		WHEN [ThresholdDirection] = ''<'' THEN ''Less Than''
+		WHEN [ThresholdDirection] = ''>'' THEN ''More Than''
+		ELSE ''None''
+	END AS ThresholdType,
+	BucketNumber
+	FROM Buckets BucketWaits
+	LEFT JOIN [Inspector].[BlitzWaits_WatchedWaitTypes] ON BucketWaits.[wait_type] = [BlitzWaits_WatchedWaitTypes].[Wait_type] AND BucketWaits.ServerName = [BlitzWaits_WatchedWaitTypes].[Servername]
+	WHERE (@AlwaysShowBreached = 1 AND [IsActive] = 1)
+	AND ((ThresholdDirection = ''>'' AND ISNULL((CAST([wait_time_ms_delta] AS MONEY)/NULLIF(CAST([waiting_tasks_count_delta] AS MONEY),0)),0) > Threshold)
+	OR (ThresholdDirection = ''<'' AND ISNULL((CAST([wait_time_ms_delta] AS MONEY)/NULLIF(CAST([waiting_tasks_count_delta] AS MONEY),0)),0) < Threshold))
+) AS FinalWaits
+--Purpose of final waits being derived is to get the bucket colouring consistent with the union
 
 /********************************************************/
 	
@@ -417,6 +508,7 @@ wait_time_ms_delta DESC
 	+'' FROM #InspectorModuleReport
 	ORDER BY 
 	HourlyBucket ASC,
+	--Watched ASC,
 	wait_time_ms_delta DESC
 	FOR XML PATH(''''tr''''),Elements);''
 	/**  OPTIONAL  **/ --Add an ORDER BY if required
@@ -500,10 +592,11 @@ Check the following settings in [Inspector].[Settings]
 
 	SELECT [Description],[Value]
 	FROM [Inspector].[Settings] 
-	WHERE [Description] IN (''BlitzWaitsTopXRows'',''BlitzWaitsHourlyBucketSize'');
+	WHERE [Description] IN (''BlitzWaitsTopXRows'',''BlitzWaitsHourlyBucketSize'',''BlitzWaitsAlwaysShowBreached'');
 
 BlitzWaitsTopXRows is set to 3 by default ,this will show the top 3 wait types with the highest wait delta sum for the period
 BlitzWaitsHourlyBucketSize is set to 2 by default ,this will bucket the waits in the 2 hour buckets
+BlitzWaitsAlwaysShowBreached is set to 0 by default, set to 1 to always see waits from your watched list IF the threshold was breached (this will increase rows returned in the bucket if breaches are present)
 
 You should change these accordingly as these have a huge impact on the amount of data displayed within the report i.e the higher the BlitzWaitsTopXRows value and the lower
 the BlitzWaitsHourlyBucketSize value the more rows you will see on the report.
@@ -513,7 +606,7 @@ To Check the current schedule set for the BlitzWaits module (Disabled at install
 
 	SELECT * 
 	FROM [Inspector].[ModuleConfig] 
-	WHERE [ModuleConfig_Desc] = ''BlitzWaits'';
+	WHERE [ModuleConfig_Desc] = '''+@ModuleConfig+''';
 
 Update IsActive = 1 to enable and set the StartTime, EndTime and Frequency of the report accordingly
 
@@ -529,7 +622,7 @@ Highlighted waits will hightlight the correspinding row in the html table within
 
 SELECT [Description],[Value]
 FROM [Inspector].[Settings] 
-WHERE [Description] IN ('BlitzWaitsTopXRows','BlitzWaitsHourlyBucketSize');
+WHERE [Description] IN ('BlitzWaitsTopXRows','BlitzWaitsHourlyBucketSize','BlitzWaitsAlwaysShowBreached');
 
 SELECT * 
 FROM [Inspector].[ModuleConfig] 
