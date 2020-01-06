@@ -2,7 +2,7 @@
 # SON: We'll create a .psm1 a .psd1 file and put the above into the $RequiredModules field there.
 
 #Script version 1.2
-#Revision date: 10/12/2019
+#Revision date: 18/12/2019
 #Minimum Inspector version 2.00
 
 <#
@@ -60,7 +60,7 @@ function Invoke-SQLUndercoverInspector {
         [Parameter(Position = 7, ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
         [Alias('GenerateReport')]
-        [Bool]$CreateReport = $true
+        [Bool]$CreateReport = $false
     )
     
     begin {
@@ -420,14 +420,13 @@ function Invoke-SQLUndercoverInspector {
         }
 
         $FinalReportQry = "SELECT TOP (1) ReportData FROM [$LoggingDb].[Inspector].[ReportData] WHERE [ModuleConfig] = '$ModuleConfig' ORDER BY ID DESC;"
-        $Report = $CentralConnection.Query($FinalReportQry)
-        $Report | Format-Table -Wrap -HideTableHeaders | Out-File -FilePath $FileName -Width 4000
+        IF ($CreateReport -eq $true) {
+            $Report = $CentralConnection.Query($FinalReportQry)
+            $Report | Format-Table -Wrap -HideTableHeaders | Out-File -FilePath $FileName -Width 4000
+        }
 
         IF ($CreateReport -eq $true) {
             Write-Output "The latest Inspector report has been saved to a html file here: $FileName";
-        }
-        ELSE{
-            Write-Output "Your Inspector report has been generated and saved here: $FileName";
         }
     }
 }

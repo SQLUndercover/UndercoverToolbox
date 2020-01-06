@@ -26,11 +26,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 *********************************************/
 
-SET ANSI_NULLS ON
-GO
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
 
-SET QUOTED_IDENTIFIER ON
-GO
+DECLARE @Revisiondate DATETIME = '20191217';
+DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 IF SCHEMA_ID(N'Inspector') IS NOT NULL
 BEGIN 
@@ -304,6 +304,20 @@ BEGIN
 	INSERT INTO [Inspector].[MultiWarningModules] ([Modulename])
 	VALUES('CPU');
 END
+
+
+IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID(N'Inspector.InspectorUpgradeHistory') AND name = 'RevisionDate')
+BEGIN 
+	ALTER TABLE [Inspector].[InspectorUpgradeHistory] ADD RevisionDate DATE NULL;
+END
+
+EXEC sp_executesql N'
+INSERT INTO [Inspector].[InspectorUpgradeHistory] ([Log_Date], [PreserveData], [CurrentBuild], [TargetBuild], [SetupCommand], [RevisionDate])
+VALUES(GETDATE(),1,@InspectorBuild,@InspectorBuild,''Inspector_CPU_CustomModule.sql'',@Revisiondate);',
+N'@InspectorBuild DECIMAL(4,2),
+@Revisiondate DATE',
+@InspectorBuild = @InspectorBuild,
+@Revisiondate = @Revisiondate;
 
 END
 ELSE 
