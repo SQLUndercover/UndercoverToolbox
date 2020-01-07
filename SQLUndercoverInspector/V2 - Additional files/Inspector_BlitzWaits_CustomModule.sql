@@ -112,6 +112,10 @@ BEGIN
 	ALTER TABLE [Inspector].[BlitzWaits_WatchedWaitTypes] WITH CHECK ADD CONSTRAINT [CheckBlitzWaitWarningLevel] CHECK  (([WarningLevel]<(4)));
 END
 
+IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE object_id = OBJECT_ID(N'[Inspector].[CheckBlitzThresholdDirection]') AND parent_object_id = OBJECT_ID(N'[Inspector].[BlitzWaits_WatchedWaitTypes]'))
+BEGIN
+	ALTER TABLE [Inspector].[BlitzWaits_WatchedWaitTypes] WITH CHECK ADD CONSTRAINT [CheckBlitzThresholdDirection] CHECK  (([ThresholdDirection] IN ('<','>') OR [ThresholdDirection] IS NULL));
+END
 
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[BlitzWaits_WatchedWaitTypes])
 BEGIN 
@@ -288,7 +292,7 @@ SELECT
 	DATEADD(HOUR,(DATEPART(HOUR,CheckDate)%@HourlyBucketSize)/-1,DATEADD(HOUR, DATEDIFF(HOUR, 0, CheckDate), 0)) AS CheckDateBucket
 FROM [dbo].[BlitzFirst_WaitStats]
 WHERE CheckDate >= @CheckDate
-AND ServerName = @@servername
+AND ServerName = @Servername
 GROUP BY [ServerName], [CheckDate];
 
 WITH CheckDates as
@@ -316,7 +320,7 @@ Deltas as (
 	LEFT OUTER JOIN [dbo].[BlitzFirst_WaitStats_Categories] wc ON w.wait_type = wc.WaitType
 	WHERE DATEDIFF(MI, wPrior.CheckDate, w.CheckDate) BETWEEN 1 AND 60
 	AND [w].[wait_time_ms] >= [wPrior].[wait_time_ms]
-	AND w.ServerName = @@servername
+	AND w.ServerName = @Servername
 )
 INSERT INTO #Deltas (
 	[ServerName],
