@@ -64,8 +64,8 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 18/12/2019
-Version: 2.01
+Revision date: 09/01/2020
+Version: 2.02
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
 
@@ -127,6 +127,9 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
+DECLARE @Revisiondate DATE = '20200109';
+DECLARE @Build VARCHAR(6) ='2.02'
+
 DECLARE @JobID UNIQUEIDENTIFIER;
 DECLARE @JobsWithoutSchedules VARCHAR(1000);
 --Allowing NULL values but only when @Help = 1 otherwise raise an error stating that values need to be specified.
@@ -145,8 +148,8 @@ END
 IF @Help = 1
 BEGIN 
 PRINT '
---Inspector V2.01
---Revision date: 18/12/2019
+--Inspector V2.02
+--Revision date: 09/01/2020
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -271,7 +274,6 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 
 			DECLARE @SQLStatement VARCHAR(MAX) 
 			DECLARE @DatabaseFileSizesResult INT
-			DECLARE @Build VARCHAR(6) ='2.01'
 			DECLARE @CurrentBuild VARCHAR(6)
 			 
 			
@@ -348,11 +350,18 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			PreserveData BIT NULL,
 			CurrentBuild DECIMAL(4,2) NULL,
 			TargetBuild DECIMAL(4,2) NULL,
-			SetupCommand VARCHAR(1000) NULL
+			SetupCommand VARCHAR(1000) NULL,
+			RevisionDate DATE NULL
 			);
 
 			ALTER TABLE [Inspector].[InspectorUpgradeHistory] ALTER COLUMN [CurrentBuild] DECIMAL(4,2) NULL;
 			ALTER TABLE [Inspector].[InspectorUpgradeHistory] ALTER COLUMN [TargetBuild] DECIMAL(4,2) NULL;
+
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID(N'Inspector.InspectorUpgradeHistory') AND name = 'RevisionDate')
+			BEGIN 
+				ALTER TABLE [Inspector].[InspectorUpgradeHistory] ADD [RevisionDate] DATE NULL;
+			END
+
 			
 			IF OBJECT_ID('Inspector.ReportData') IS NULL 
 			CREATE TABLE [Inspector].[ReportData](
@@ -401,6 +410,23 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				
 				ALTER TABLE [Inspector].[Settings] 
 				ADD CONSTRAINT [DF_Settings_Value]  DEFAULT (NULL) FOR [Value];
+			END
+
+			IF OBJECT_ID('Inspector.ModuleConfigReportExclusions') IS NULL 
+			BEGIN 
+				CREATE TABLE [Inspector].[ModuleConfigReportExclusions] (
+				Servername NVARCHAR(128) NOT NULL,
+				Modulename VARCHAR(50) NOT NULL,
+				IsActive BIT NOT NULL
+				);
+			END
+			
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.ModuleConfigReportExclusions') AND [name] = N'CIX_ModuleConfigReportExclusions_Servername_Modulename')
+			BEGIN 
+				CREATE UNIQUE CLUSTERED INDEX [CIX_ModuleConfigReportExclusions_Servername_Modulename] ON [Inspector].[ModuleConfigReportExclusions] (
+				Servername,
+				Modulename
+				);
 			END
 
 			IF OBJECT_ID('Inspector.Modules') IS NULL
@@ -10312,9 +10338,9 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 06/11/2019
+--Revision date: 09/01/2020
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
---V2.00
+--V2.02
 
 
 --Example Execute command
@@ -10674,6 +10700,7 @@ BEGIN
 	WHERE [Modules].[IsActive] = 1
 	AND [ServerSpecific] = 1
 	AND [Modules].[ModuleConfig_Desc] = @ModuleConfigDetermined
+	AND NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfigReportExclusions] ExcludedReports WHERE [ExcludedReports].[Servername] = [ActiveServers].[Servername] AND [ExcludedReports].[Modulename] = [Modules].[Modulename] AND [ExcludedReports].[IsActive] = 1)
 	ORDER BY 
 	[ActiveServers].[Servername] ASC,
 	[Modules].[ReportOrder] ASC;
@@ -11751,54 +11778,85 @@ WHERE [Description] = 'InspectorBuild'
 AND ([Value] != @Build OR [Value] IS NULL);
 
 --Log Upgrade/Installation in Upgrade history table 
-INSERT INTO [Inspector].[InspectorUpgradeHistory] ([Log_Date], [PreserveData], [CurrentBuild], [TargetBuild], [SetupCommand])
-VALUES (GETDATE(),CASE WHEN @InitialSetup = 0 THEN 1 ELSE 0 END,CAST(@CurrentBuild AS DECIMAL(4,1)),CAST(@Build AS DECIMAL(4,2)),
-'EXEC [Inspector].[InspectorSetup]
+EXEC sp_executesql N'
+INSERT INTO [Inspector].[InspectorUpgradeHistory] ([Log_Date], [PreserveData], [CurrentBuild], [TargetBuild], [RevisionDate], [SetupCommand])
+VALUES (GETDATE(),CASE WHEN @InitialSetup = 0 THEN 1 ELSE 0 END,CAST(@CurrentBuild AS DECIMAL(4,2)),CAST(@Build AS DECIMAL(4,2)),@Revisiondate,
+''EXEC [Inspector].[InspectorSetup]
 --Required Parameters (No defaults)							     
-@Databasename = '''+@Databasename+''',	
-@DataDrive = '''+@DataDrive+''',	
-@LogDrive = '''+@LogDrive+''',	
+@Databasename = ''''''+@Databasename+'''''',	
+@DataDrive = ''''''+@DataDrive+'''''',	
+@LogDrive = ''''''+@LogDrive+'''''',	
 --Optional Parameters (Defaults Specified), ignored when @InitialSetup = 0
-@BackupsPath = '+ISNULL(''''+@BackupsPath+'''','NULL')+',
-@LinkedServername = '+ISNULL(''''+@LinkedServernameParam+'''','NULL')+',  
-@StackNameForEmailSubject = '+ISNULL(''''+@StackNameForEmailSubject+'''','SQLUndercover')+',	
-@EmailRecipientList = '+ISNULL(''''+@EmailRecipientList+'''','NULL')+',	  
-@DriveSpaceHistoryRetentionInDays = '+CAST(ISNULL(@DriveSpaceHistoryRetentionInDays,90) AS VARCHAR(6))+', 
-@DaysUntilDriveFullThreshold = '+CAST(ISNULL(@DaysUntilDriveFullThreshold,56) AS VARCHAR(6))+', 
-@FreeSpaceRemainingPercent = '+CAST(ISNULL(@FreeSpaceRemainingPercent,10) AS VARCHAR(6))+',
-@DriveLetterExcludes = '+ISNULL(''''+@DriveLetterExcludes+'''','NULL')+', 
-@DatabaseGrowthsAllowedPerDay = '+CAST(ISNULL(@DatabaseGrowthsAllowedPerDay,1) AS VARCHAR(6))+',  
-@MAXDatabaseGrowthsAllowedPerDay = '+CAST(ISNULL(@MAXDatabaseGrowthsAllowedPerDay,10) AS VARCHAR(6))+', 
-@AgentJobOwnerExclusions = '+ISNULL(''''+@AgentJobOwnerExclusions+'''','''sa''')+', 
-@FullBackupThreshold = '+CAST(ISNULL(@FullBackupThreshold,8) AS VARCHAR(6))+',		
-@DiffBackupThreshold = '+CAST(ISNULL(@DiffBackupThreshold,2) AS VARCHAR(6))+',		
-@LogBackupThreshold = '+CAST(ISNULL(@LogBackupThreshold,20) AS VARCHAR(6))+',		
-@DatabaseOwnerExclusions = '+ISNULL(''''+@DatabaseOwnerExclusions+'''','''sa''')+',  
-@LongRunningTransactionThreshold = '+CAST(ISNULL(@LongRunningTransactionThreshold,300) AS VARCHAR(6))+',	
-@InitialSetup = '+CAST(ISNULL(@InitialSetup,0) AS VARCHAR(1))+',
-@EnableAgentJob = '+CAST(ISNULL(@EnableAgentJob,0) AS VARCHAR(1))+',
-@Help = '+CAST(ISNULL(@Help,'NULL') AS VARCHAR(1))+'; 
-'
-);
-
---SET @JobsWithoutSchedules =
---ISNULL((SELECT REPLACE(CAST(Jobname AS VARCHAR(1000)),'&#x0D','')+ '
---Set the Data Collection jobs to run a couple of minutes before the corresponding Report e.g. [SQLUndercover Inspector Data Collection] @ 8.55am , [SQLUndercover Inspector Report] @ 9:00am'
---FROM 
---(
---	SELECT 'Create schedule for Agent job: '+Jobs.name+CHAR(13)+CHAR(10)
---	FROM msdb.dbo.sysjobs Jobs
---	LEFT JOIN msdb.dbo.sysjobschedules Schedules ON Jobs.job_id = Schedules.job_id
---	WHERE name IN (
---	'SQLUndercover Inspector Data Collection',
---	'SQLUndercover Inspector Report',
---	'SQLUndercover Periodic Backups Collection',
---	'SQLUndercover Periodic Backups Report')
---	AND date_created > DATEADD(MINUTE,-5,GETDATE())
---	AND Schedules.job_id IS NULL
---	FOR XML PATH('')
---) NoSchedules (Jobname)
---),'No schedules need adding');
+@BackupsPath = ''+ISNULL(''''''''+@BackupsPath+'''''''',''NULL'')+'',
+@LinkedServername = ''+ISNULL(''''''''+@LinkedServernameParam+'''''''',''NULL'')+'',  
+@StackNameForEmailSubject = ''+ISNULL(''''''''+@StackNameForEmailSubject+'''''''',''SQLUndercover'')+'',	
+@EmailRecipientList = ''+ISNULL(''''''''+@EmailRecipientList+'''''''',''NULL'')+'',	  
+@DriveSpaceHistoryRetentionInDays = ''+CAST(ISNULL(@DriveSpaceHistoryRetentionInDays,90) AS VARCHAR(6))+'', 
+@DaysUntilDriveFullThreshold = ''+CAST(ISNULL(@DaysUntilDriveFullThreshold,56) AS VARCHAR(6))+'', 
+@FreeSpaceRemainingPercent = ''+CAST(ISNULL(@FreeSpaceRemainingPercent,10) AS VARCHAR(6))+'',
+@DriveLetterExcludes = ''+ISNULL(''''''''+@DriveLetterExcludes+'''''''',''NULL'')+'', 
+@DatabaseGrowthsAllowedPerDay = ''+CAST(ISNULL(@DatabaseGrowthsAllowedPerDay,1) AS VARCHAR(6))+'',  
+@MAXDatabaseGrowthsAllowedPerDay = ''+CAST(ISNULL(@MAXDatabaseGrowthsAllowedPerDay,10) AS VARCHAR(6))+'', 
+@AgentJobOwnerExclusions = ''+ISNULL(''''''''+@AgentJobOwnerExclusions+'''''''',''''''sa'''''')+'', 
+@FullBackupThreshold = ''+CAST(ISNULL(@FullBackupThreshold,8) AS VARCHAR(6))+'',		
+@DiffBackupThreshold = ''+CAST(ISNULL(@DiffBackupThreshold,2) AS VARCHAR(6))+'',		
+@LogBackupThreshold = ''+CAST(ISNULL(@LogBackupThreshold,20) AS VARCHAR(6))+'',		
+@DatabaseOwnerExclusions = ''+ISNULL(''''''''+@DatabaseOwnerExclusions+'''''''',''''''sa'''''')+'',  
+@LongRunningTransactionThreshold = ''+CAST(ISNULL(@LongRunningTransactionThreshold,300) AS VARCHAR(6))+'',	
+@InitialSetup = ''+CAST(ISNULL(@InitialSetup,0) AS VARCHAR(1))+'',
+@EnableAgentJob = ''+CAST(ISNULL(@EnableAgentJob,0) AS VARCHAR(1))+'',
+@Help = ''+CAST(ISNULL(@Help,''NULL'') AS VARCHAR(1))+'';''
+);',
+N'@Build DECIMAL(4,2),
+@CurrentBuild DECIMAL(4,2),
+@Databasename NVARCHAR(128),
+@DataDrive VARCHAR(50),
+@LogDrive VARCHAR(50),
+@BackupsPath VARCHAR(255),
+@LinkedServernameParam NVARCHAR(128),
+@StackNameForEmailSubject VARCHAR(255),
+@EmailRecipientList VARCHAR(1000),
+@DriveSpaceHistoryRetentionInDays INT,
+@DaysUntilDriveFullThreshold TINYINT,
+@FreeSpaceRemainingPercent TINYINT,
+@DriveLetterExcludes VARCHAR(10),
+@DatabaseGrowthsAllowedPerDay TINYINT,
+@MAXDatabaseGrowthsAllowedPerDay TINYINT,
+@AgentJobOwnerExclusions VARCHAR(255),
+@FullBackupThreshold TINYINT,
+@DiffBackupThreshold TINYINT,
+@LogBackupThreshold TINYINT,
+@DatabaseOwnerExclusions VARCHAR(255),
+@LongRunningTransactionThreshold INT,
+@InitialSetup BIT,
+@EnableAgentJob BIT,
+@Revisiondate DATE,
+@Help BIT',
+@Build = @Build,
+@CurrentBuild = @CurrentBuild,
+@Databasename = @Databasename,
+@DataDrive = @DataDrive,
+@LogDrive = @LogDrive,
+@BackupsPath = @BackupsPath,
+@LinkedServernameParam = @LinkedServernameParam,
+@StackNameForEmailSubject = @StackNameForEmailSubject,
+@EmailRecipientList = @EmailRecipientList,
+@DriveSpaceHistoryRetentionInDays = @DriveSpaceHistoryRetentionInDays,
+@DaysUntilDriveFullThreshold = @DaysUntilDriveFullThreshold,
+@FreeSpaceRemainingPercent = @FreeSpaceRemainingPercent,
+@DriveLetterExcludes = @DriveLetterExcludes,
+@DatabaseGrowthsAllowedPerDay = @DatabaseGrowthsAllowedPerDay,
+@MAXDatabaseGrowthsAllowedPerDay = @MAXDatabaseGrowthsAllowedPerDay,
+@AgentJobOwnerExclusions = @AgentJobOwnerExclusions,
+@FullBackupThreshold = @FullBackupThreshold,
+@DiffBackupThreshold = @DiffBackupThreshold,
+@LogBackupThreshold = @LogBackupThreshold,
+@DatabaseOwnerExclusions = @DatabaseOwnerExclusions,
+@LongRunningTransactionThreshold = @LongRunningTransactionThreshold,
+@InitialSetup = @InitialSetup,
+@EnableAgentJob = @EnableAgentJob,
+@Revisiondate = @Revisiondate,
+@Help = @Help;
 
 --Inspector Information
 PRINT '
