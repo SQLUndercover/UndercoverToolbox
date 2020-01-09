@@ -14,6 +14,17 @@ DECLARE @EnableModule BIT = 1;
 
 
 
+
+DECLARE @Revisiondate DATETIME = '20200103';
+DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
+
+--Ensure that Blitz tables exist
+IF (SCHEMA_ID(N'Catalogue') IS NULL)
+BEGIN 
+	RAISERROR('Catalogue not detected in this database, please double check the database name is correct - the Catalogue must be installed in the same database as the Inspector',11,0);
+	RETURN;
+END	
+
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[CatalogueDroppedDatabasesReport]') AND type in (N'P', N'PC'))
 BEGIN
 	EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [Inspector].[CatalogueDroppedDatabasesReport] AS';
@@ -446,3 +457,17 @@ BEGIN
 	INSERT INTO [Inspector].[Modules] ([ModuleConfig_Desc], [Modulename], [CollectionProcedurename], [ReportProcedurename], [ReportOrder], [WarningLevel], [ServerSpecific], [Debug], [IsActive], [HeaderText], [Frequency], [StartTime], [EndTime])
 	VALUES(@ModuleConfig,'CatalogueMissingLogins',NULL,'CatalogueMissingLoginsReport',1,2,1,0,@EnableModule,NULL,@ReportFrequencyMins,@ReportStartTime,@ReportEndTime);
 END
+
+
+IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID(N'Inspector.InspectorUpgradeHistory') AND name = 'RevisionDate')
+BEGIN 
+	ALTER TABLE [Inspector].[InspectorUpgradeHistory] ADD RevisionDate DATE NULL;
+END
+
+EXEC sp_executesql N'
+INSERT INTO [Inspector].[InspectorUpgradeHistory] ([Log_Date], [PreserveData], [CurrentBuild], [TargetBuild], [SetupCommand], [RevisionDate])
+VALUES(GETDATE(),1,@InspectorBuild,@InspectorBuild,''Inspector_Catalogue_CustomModule.sql'',@Revisiondate);',
+N'@InspectorBuild DECIMAL(4,2),
+@Revisiondate DATE',
+@InspectorBuild = @InspectorBuild,
+@Revisiondate = @Revisiondate;
