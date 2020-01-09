@@ -4,6 +4,7 @@ Written by David Fowler, 28/08/2018
 Update 0.2.0 - 28/01/2019
 Update 0.2.1 - 14/02/2019
 Update 0.3.0 - 27/08/2019
+Update 0.4.0 - 23/12/2019
 
 MIT License
 ------------
@@ -23,13 +24,14 @@ FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TOR
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  
 #>
 
+#configuration variables, change these to suit your setup
+$ConfigServer = "<servername>"
+$SQLUndercoverDatabase = "SQLUndercover"
+
+$ScriptVersion = "0.4.0"
+
 #import dbatools
 Import-Module dbatools
-
-#configuration variables
-$ConfigServer = "<config server>"
-$SQLUndercoverDatabase = "SQLUndercover"
-$ScriptVersion = "0.3.0"
 
 Clear-Host
 
@@ -72,7 +74,7 @@ Write-Host "|                                  cKkl,                            
 Write-Host "|                                  ;c.                                      |" -ForegroundColor White -BackgroundColor Black                                                                      
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "|                           Undercover Catalogue                            |" -ForegroundColor White -BackgroundColor Black
-Write-Host "|                              version 0.3.0                                |" -ForegroundColor White -BackgroundColor Black
+Write-Host "|                              version 0.4.0                                |" -ForegroundColor White -BackgroundColor Black
 Write-Host "|                          ©2019 sqlundercover.com                          |" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
@@ -85,6 +87,7 @@ $CatalogueVersion = $Config.Tables[0].Select("ParameterName = 'CatalogueVersion'
 $AutoDiscoverInstances = $Config.Tables[0].Select("ParameterName = 'AutoDiscoverInstances'").ItemArray[1].ToString()
 $AutoUpdate = $Config.Tables[0].Select("ParameterName = 'AutoUpdate'").ItemArray[1].ToString()
 $AutoInstall= $Config.Tables[0].Select("ParameterName = 'AutoInstall'").ItemArray[1].ToString()
+$InstallLocation= $Config.Tables[0].Select("ParameterName = 'InstallationScriptPath'").ItemArray[1].ToString()
 
 ####################     Display congif info    #########################################################################
 
@@ -100,12 +103,6 @@ $module =Get-Module dbatools
 If ($module.Version -lt $dbatoolsRequiredVersion) {Throw "Your either don't have dbatools installed or your installed module doesn't meet the required version.  Check out dbatools.io for full details."}
 ELSE
 {Write-Host "dbatools, installed version: "$module.Version ", required version: "$dbatoolsRequiredVersion -ForegroundColor Green}
-
-####################    Check Script Version Matches Config Database Version     ########################################
-
-If ($ScriptVersion -eq $CatalogueVersion) {Write-Host "Config Version Check - OK" -ForegroundColor Green}
-ELSE
-{Throw "There is a version mismatch between the Powershell collector and the version of the Catalogue config database"}
 
 ###################    auto discover SQL instances     ##################################################################
 
@@ -145,6 +142,64 @@ Else
 Write-Host "Auto Discover Instances: Disabled" -ForegroundColor Yellow
 }
 
+
+####################  Auto Update  #####################################################################################
+
+
+if ($AutoUpdate -eq 1)
+{
+    Write-Host "Auto Update: Enabled" -ForegroundColor Yellow
+
+    $Manifest = Invoke-WebRequest "$($InstallLocation)Manifest.csv"
+    $ManifestArray = $Manifest.Content.Split([Environment]::NewLine)
+
+    #check for main version updates
+    if ($ManifestArray[0].Split(",")[1] -ne $CatalogueVersion)
+    {
+        Write-Host "Updates are available" -ForegroundColor Yellow
+
+        #get required updates from the manifest
+        foreach ($Update in $ManifestArray)
+        {
+            $UpdateDetails = $Update.Split(",")
+            if ($UpdateDetails[0] -eq "Update")
+            {
+                if ($UpdateDetails[1] -gt $CatalogueVersion) #if update is for a later version than currently installed then run it in
+                {
+                    Write-Host "Installing update $($UpdateDetails[1])" -ForegroundColor Yellow
+                    $UpdateStmt = Invoke-WebRequest "$InstallLocation$($UpdateDetails[2])"
+
+                    Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateStmt 
+                    Start-Sleep -s 10
+                }
+            }
+        }
+    }
+    else
+    {
+        Write-Host "You're running on the most recent version" -ForegroundColor Green
+    }
+}
+else
+{
+    Write-Host "Auto Update: Disabled" -ForegroundColor Yellow
+}
+
+#check minimum PoSH script version
+if ($ManifestArray[1].Split(",")[1] -gt $ScriptVersion)
+{
+    Throw "You're running an incompatible version of the PowerShell script, this should be updated.  Please visit SQL Undercover for the latest version"
+}
+else
+{
+    Write-Host "You're running a compatible version of the PowerShell script" -ForegroundColor Green
+}
+
+######################################################################################################################
+
+
+
+
 #Update Execution Audit
 Write-Host "Updating Execution Audit" -ForegroundColor Yellow
 Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "INSERT INTO Catalogue.ExecutionLog(ExecutionDate) VALUES(GETDATE())"
@@ -155,8 +210,6 @@ Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Que
 #get all instances
 $Instances = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT [ServerName] FROM Catalogue.ConfigInstances WHERE Active = 1" -As DataSet
 
-#get all active modules
-$Modules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT [ModuleName], [GetProcName], [UpdateProcName], [StageTableName], [MainTableName] FROM Catalogue.ConfigModules WHERE Active = 1" -As DataSet
 
 #for every instance in the ConfigInstances table
 ForEach ($instance in $Instances.Tables[0].Rows)
@@ -165,38 +218,91 @@ ForEach ($instance in $Instances.Tables[0].Rows)
     {
         Write-Host "Interrogating Instance: "$instance.ItemArray[0].ToString() "..." -ForegroundColor Yellow
 
-        Write-Host "Checking Local Catalogue Version..." -ForegroundColor Yellow
-        #check local catalogue version
-        $LocalConfig = Invoke-DbaQuery -SQLInstance $instance.ItemArray[0].ToString() -Database $SQLUndercoverDatabase -Query "SELECT ParameterName, ParameterValue FROM Catalogue.ConfigPoSH" -As DataSet -WarningVariable WarningMessage
-        $LocalCatalogueVersion = $LocalConfig.Tables[0].Select("ParameterName = 'CatalogueVersion'").ItemArray[1].ToString()
-        If ($LocalCatalogueVersion -eq $CatalogueVersion) #if catalogue version ok, carry on with interrogation
-        {Write-Host "Version Check OK" -ForegroundColor Green
+        #get all active modules
+        $Modules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "EXEC Catalogue.GetModuleDetails '$($instance.ItemArray[0].ToString())'" -As DataSet
+       
         #for every active module in the ConfigModules table
         ForEach ($row in $Modules.Tables[0].Rows)
         {
             Write-Host "   Processing Module: "$row.ItemArray[0].ToString() "..." -ForegroundColor Yellow
 
-            #set execution variables
-            $GetProcName = "EXEC Catalogue." + $row.ItemArray[1].ToString()
-            $UpdateProcName = "EXEC Catalogue." + $row.ItemArray[2]
+            #load in module definitions
+            if ($row.ItemArray[9] -eq 1) #if module definition online, attempt to get definitions from URL
+            {
+                try
+                {
+                    $GetModuleCode = Invoke-WebRequest $row.ItemArray[7];
+
+                    #check for differences between git and local definitions
+                    if ($($GetModuleCode -replace "`n|`r") -ne $($row.ItemArray[5].ToString() -replace "`n|`r"))
+                    {
+                        Write-Host "A difference has been detected between the online and local definitions" -ForegroundColor Red
+                        if ($AutoUpdate -eq 0)
+                        {
+                            Write-Host "Autoupdate is disabled, you may need to manually update the module definition" -ForegroundColor Yellow
+                        }
+                        elseif ($AutoUpdate -eq 1)
+                        {
+                            Write-Host "Local definition will be automatically updated to match online definition" -ForegroundColor Yellow
+                            Invoke-DbaQuery  -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "UPDATE [Catalogue].[ConfigModulesDefinitions] SET GetDefinition = '$($GetModuleCode  -replace "'", "''")' WHERE ModuleID = $($row.ItemArray[10].ToString())"
+                            Write-Host "Module Definition Updated" -ForegroundColor Green
+                        }
+                    }
+                }
+                catch
+                {
+                    Write-Host "Failed to retrieve online 'Get' module definition, loading definition from database" -ForegroundColor Red
+                    $GetModuleCode = $row.ItemArray[5].ToString()
+                }
+
+                try
+                {
+                    $UpdateModuleCode = Invoke-WebRequest $row.ItemArray[8];
+
+                    #check for differences between git and local definitions
+                    if ($($UpdateModuleCode -replace "`n|`r") -ne $($row.ItemArray[6].ToString() -replace "`n|`r"))
+                    {
+                        Write-Host "A difference has been detected between the online and local definitions" -ForegroundColor Red
+                        if ($AutoUpdate -eq 0)
+                        {
+                            Write-Host "Autoupdate is disabled, you may need to manually update the module definition" -ForegroundColor Yellow
+                        }
+                        elseif ($AutoUpdate -eq 1)
+                        {
+                            Write-Host "Local definition will be automatically updated to match online definition" -ForegroundColor Yellow
+                            Invoke-DbaQuery  -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "UPDATE [Catalogue].[ConfigModulesDefinitions] SET UpdateDefinition = '$($UpdateModuleCode  -replace "'", "''")' WHERE ModuleID = $($row.ItemArray[10].ToString())"
+                            Write-Host "Module Definition Updated" -ForegroundColor Green
+                        }
+                    }
+                }
+                catch
+                {
+                    Write-Host "Failed to retrieve online 'Update' module definition, loading definition from database" -ForegroundColor Red
+                    $UpdateModuleCode = $row.ItemArray[6].ToString()
+                }
+            }
+            else
+            {
+                #set execution variables
+                $GetModuleCode = $row.ItemArray[5].ToString()
+                $UpdateModuleCode = $row.ItemArray[6].ToString()
+            }
+
             $StageTableName = $row.ItemArray[3].ToString()
 
             #process module
             #Run the get procedure against remote instance
-            $DataSet = Invoke-DbaQuery -SQLInstance $instance.ItemArray[0].ToString() -Database $SQLUndercoverDatabase -Query $GetProcName -As DataSet
+            $DataSet = Invoke-DbaQuery -SQLInstance $instance.ItemArray[0].ToString() -Query $GetModuleCode -As DataSet
             #insert data from get procedure into staging table on central server
             Write-DbaDataTable -SqlInstance $ConfigServer -InputObject $DataSet.Tables[0] -Database $SQLUndercoverDatabase -Schema "Catalogue" -Table $StageTableName -Truncate -confirm:$false
             #run the update procedure on the central server
-            Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateProcName
-            }
+            Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateModuleCode
         }
-        Else {
-        $ErrorMessage = "The Catalogue version on " + $instance.ItemArray[0].ToString() + " does not match the configuration database.  Interrogation cannot continue."
-    Throw $ErrorMessage}
     }
     catch
     {
         Write-Host "Interrogation encountered an error and could not continue." -ForegroundColor Red
+        Write-Host $Error[0].Exception.Message
         #Write-Host $WarningMessage -ForegroundColor Red
         #if version mismatch
         If ($Error[0].Exception.Message -like "*The Catalogue version*") 

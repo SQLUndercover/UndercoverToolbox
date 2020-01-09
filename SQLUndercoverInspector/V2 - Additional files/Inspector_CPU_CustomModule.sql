@@ -1,11 +1,11 @@
-/*********************************************
+ï»¿/*********************************************
 Description: CPU Custom module for the Inspector
 			 Collect CPU % and report when % over CPU Thresholds which can be configured by changing the values for CPUThreshold in [Inspector].[Settings]
 Author: Adrian Buckman
-Revision date: 17/12/2019
+Revision date: 02/01/2020
 Credit: David Fowler for the CPU collection query body as this was a snippt taken from a stored procedure he had called sp_CPU_Time
 
-© www.sqlundercover.com 
+ï¿½ www.sqlundercover.com 
 
 MIT License
 ------------
@@ -26,11 +26,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 *********************************************/
 
-SET ANSI_NULLS ON
-GO
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
 
-SET QUOTED_IDENTIFIER ON
-GO
+DECLARE @Revisiondate DATETIME = '20191217';
+DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 IF SCHEMA_ID(N'Inspector') IS NOT NULL
 BEGIN 
@@ -131,11 +131,10 @@ END
 
 
 
-
 IF OBJECT_ID('Inspector.CPUReport',N'P') IS NULL 
 BEGIN 
 	EXEC('CREATE PROCEDURE [Inspector].[CPUReport] AS');
-END 
+END
 
 IF OBJECT_ID('Inspector.CPUReport',N'P') IS NOT NULL 
 BEGIN 
@@ -158,7 +157,7 @@ EXEC('ALTER PROCEDURE [Inspector].[CPUReport] (
 )
 AS
 
---Revision date: 17/12/2019
+--Revision date: 02/01/2020
 BEGIN
 --Excluded from Warning level control
 	DECLARE @HtmlTableHead VARCHAR(4000);
@@ -202,8 +201,8 @@ OtherCPU
 INTO #InspectorModuleReport
 FROM [Inspector].[CPU]
 WHERE SystemCPUUtilization > @CPUThresholdInfoHighlight
+AND EventTime > DATEADD(HOUR,-@Frequency,GETDATE())
 AND Servername = @Servername
-AND EventTime > DATEADD(MINUTE,-@Frequency,GETDATE())
 ORDER BY EventTime ASC 
 
 /********************************************************/
@@ -305,6 +304,20 @@ BEGIN
 	INSERT INTO [Inspector].[MultiWarningModules] ([Modulename])
 	VALUES('CPU');
 END
+
+
+IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID(N'Inspector.InspectorUpgradeHistory') AND name = 'RevisionDate')
+BEGIN 
+	ALTER TABLE [Inspector].[InspectorUpgradeHistory] ADD RevisionDate DATE NULL;
+END
+
+EXEC sp_executesql N'
+INSERT INTO [Inspector].[InspectorUpgradeHistory] ([Log_Date], [PreserveData], [CurrentBuild], [TargetBuild], [SetupCommand], [RevisionDate])
+VALUES(GETDATE(),1,@InspectorBuild,@InspectorBuild,''Inspector_CPU_CustomModule.sql'',@Revisiondate);',
+N'@InspectorBuild DECIMAL(4,2),
+@Revisiondate DATE',
+@InspectorBuild = @InspectorBuild,
+@Revisiondate = @Revisiondate;
 
 END
 ELSE 

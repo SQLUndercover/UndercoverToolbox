@@ -353,7 +353,6 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 
 			ALTER TABLE [Inspector].[InspectorUpgradeHistory] ALTER COLUMN [CurrentBuild] DECIMAL(4,2) NULL;
 			ALTER TABLE [Inspector].[InspectorUpgradeHistory] ALTER COLUMN [TargetBuild] DECIMAL(4,2) NULL;
-
 			
 			IF OBJECT_ID('Inspector.ReportData') IS NULL 
 			CREATE TABLE [Inspector].[ReportData](
