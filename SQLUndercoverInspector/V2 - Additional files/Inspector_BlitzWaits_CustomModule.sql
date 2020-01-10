@@ -452,10 +452,10 @@ FROM
 		WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 3 AND [IsActive] = 1 THEN @InfoHighlight
 		ELSE ''#FFFFFF''
 	END AS [@bgcolor],
-	ServerName, 
+	BucketWaits.ServerName, 
 	ISNULL([BlitzWaits_WatchedWaitTypes].[IsActive],0) AS Watched,
 	CONVERT(VARCHAR(17),CheckDateBucket,113) AS HourlyBucket,
-	wait_type, 
+	BucketWaits.wait_type, 
 	wait_time_ms_delta,
 	wait_time_minutes_delta,
 	wait_time_minutes_per_minute,
