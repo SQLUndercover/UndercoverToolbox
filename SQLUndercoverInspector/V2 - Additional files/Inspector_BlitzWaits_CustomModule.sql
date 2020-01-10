@@ -10,7 +10,7 @@ Description: BlitzWaits Custom module for the Inspector
 			 it is up to you how much you want to see.
 
 Author: Adrian Buckman
-Revision date: 06/01/2020
+Revision date: 09/01/2020
 Credit: Brent Ozar unlimited and its contributors, part of the code used in [Inspector].[BlitzWaitsReport] is a revision of the view [dbo].[BlitzFirst_WaitStats_Deltas].
 
 © www.sqlundercover.com 
@@ -58,10 +58,7 @@ DECLARE @ReportEndTime TIME(0) = '18:00';
 DECLARE @EnableModule BIT = 1;
 
 --see waits from your watched list IF the threshold was breached (this will increase rows returned in the bucket if breaches are present), can be changed in the Settings table at any time
-DECLARE @BlitzWaitsAlwaysShowBreached BIT = 0;
-
---Highlight Poison wait types? only works when the watched waits table is empty i.e first install
-DECLARE @HighlightPoisonWaitTypes BIT = 1;
+DECLARE @BlitzWaitsAlwaysShowBreached BIT = 1;
 
 
 /*
@@ -80,7 +77,7 @@ THREADPOOL
 
 
 
-DECLARE @Revisiondate DATETIME = '20200106';
+DECLARE @Revisiondate DATE = '20200109';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 
@@ -117,29 +114,29 @@ BEGIN
 	ALTER TABLE [Inspector].[BlitzWaits_WatchedWaitTypes] WITH CHECK ADD CONSTRAINT [CheckBlitzThresholdDirection] CHECK  (([ThresholdDirection] IN ('<','>') OR [ThresholdDirection] IS NULL));
 END
 
-IF NOT EXISTS(SELECT 1 FROM [Inspector].[BlitzWaits_WatchedWaitTypes])
-BEGIN 
-	INSERT INTO [Inspector].[BlitzWaits_WatchedWaitTypes] ([Servername],[Wait_type],[WarningLevel],[IsActive])
-	SELECT 
-	[Servername],
-	[Waits].[WaitType],
-	1 AS [WarningLevel],
-	@HighlightPoisonWaitTypes
-	FROM [Inspector].[CurrentServers]
-	CROSS APPLY (
-				VALUES
-				('CMEMTHREAD'),
-				('IO_QUEUE_LIMIT'),
-				('IO_RETRY'),
-				('LOG_RATE_GOVERNOR'),
-				('POOL_LOG_RATE_GOVERNOR'),
-				('PREEMPTIVE_DEBUG'),
-				('RESMGR_THROTTLED'),
-				('RESOURCE_SEMAPHORE'),
-				('RESOURCE_SEMAPHORE_QUERY_COMPILE'), 
-				('THREADPOOL')) AS Waits (WaitType)
-
-END 
+ 
+INSERT INTO [Inspector].[BlitzWaits_WatchedWaitTypes] ([Servername],[Wait_type],[WarningLevel],[IsActive],[Threshold],[ThresholdDirection])
+SELECT 
+[Servername],
+[Waits].[WaitType],
+1 AS [WarningLevel],
+1 AS [IsActive],
+0.00 AS [Threshold],
+'>' AS [ThresholdDirection]
+FROM [Inspector].[CurrentServers]
+CROSS APPLY (
+			VALUES
+			('CMEMTHREAD'),
+			('IO_QUEUE_LIMIT'),
+			('IO_RETRY'),
+			('LOG_RATE_GOVERNOR'),
+			('POOL_LOG_RATE_GOVERNOR'),
+			('PREEMPTIVE_DEBUG'),
+			('RESMGR_THROTTLED'),
+			('RESOURCE_SEMAPHORE'),
+			('RESOURCE_SEMAPHORE_QUERY_COMPILE'), 
+			('THREADPOOL')) AS Waits (WaitType)
+WHERE NOT EXISTS (SELECT 1 FROM [Inspector].[BlitzWaits_WatchedWaitTypes] WatchedWaits WHERE [WatchedWaits].[Servername] = [CurrentServers].[Servername] AND [WatchedWaits].[Wait_type] = [Waits].[WaitType]);
 
 
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'BlitzWaitsTopXRows')
