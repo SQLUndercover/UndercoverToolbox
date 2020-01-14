@@ -15,7 +15,7 @@ DECLARE @EnableModule BIT = 1;
 
 
 
-DECLARE @Revisiondate DATETIME = '20200103';
+DECLARE @Revisiondate DATETIME = '20200113';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 --Ensure that Blitz tables exist
@@ -432,6 +432,156 @@ END
 END';
 
 
+IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[CatalogueAgentAuditReport]') AND type in (N'P', N'PC'))
+BEGIN
+EXEC dbo.sp_executesql @statement = N'ALTER PROCEDURE [Inspector].[CatalogueAgentAuditReport]
+(
+@Servername NVARCHAR(128),
+@Modulename VARCHAR(50),
+@TableHeaderColour VARCHAR(7) = ''#E6E6FA'',
+@WarningHighlight VARCHAR(7),
+@AdvisoryHighlight VARCHAR(7),
+@InfoHighlight VARCHAR(7),
+@ModuleConfig VARCHAR(20),
+@WarningLevel TINYINT,
+@ServerSpecific BIT,
+@NoClutter BIT,
+@TableTail VARCHAR(256),
+@HtmlOutput VARCHAR(MAX) OUTPUT,
+@CollectionOutOfDate BIT OUTPUT,
+@PSCollection BIT,
+@Debug BIT = 0
+)
+AS
+BEGIN
+--Revision date: 06/01/2020
+
+	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @Frequency SMALLINT = (SELECT [Frequency] FROM [Inspector].[ModuleConfig] WHERE [ModuleConfig_Desc] = @ModuleConfig);
+
+	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
+
+	--Set columns names for the Html table
+	SET @HtmlTableHead = (SELECT [Inspector].[GenerateHtmlTableheader] (
+		@Servername,
+		@Modulename,
+		@ServerSpecific,
+		''Agent jobs modified recently in the last ''+CAST(@Frequency AS VARCHAR(10))+'' mins'',
+		@TableHeaderColour,
+		''JobChangeType,ServerName,JobID,JobName,Enabled,Description,Category,ScheduleEnabled,ScheduleName,ScheduleFrequency,StepID,StepName,SubSystem,DateModified,Command,DatabaseName''
+		)
+	);
+
+		SET @HtmlOutput =(
+		SELECT 
+		CASE 
+			WHEN JobChangeType = ''Current'' THEN @TableHeaderColour
+			WHEN @WarningLevel = 1 THEN @WarningHighlight
+			WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@Bgcolor],
+		JobChangeType AS ''td'','''', +
+		[ServerName] AS ''td'','''', +
+		[JobID] AS ''td'','''', +
+		[JobName] AS ''td'','''', +
+		[Enabled] AS ''td'','''', +
+		[Description] AS ''td'','''', +
+		[Category] AS ''td'','''', +
+		[ScheduleEnabled] AS ''td'','''', +
+		[ScheduleName] AS ''td'','''', +
+		[ScheduleFrequency] AS ''td'','''', +
+		[StepID] AS ''td'','''', +
+		[StepName] AS ''td'','''', +
+		[SubSystem] AS ''td'','''', +
+		[DateModified] AS ''td'','''', +
+		[Command] AS ''td'','''', +
+		[DatabaseName]  AS ''td'',''''
+		FROM 
+		(
+		SELECT ROW_NUMBER() OVER(PARTITION BY [ServerName],[JobID],[StepID] ORDER BY [ServerName],[JobID],[StepID]) AS rn
+			  ,''Current'' AS JobChangeType
+			  ,[ServerName]
+		      ,[JobID]
+		      ,[JobName]
+		      ,[Enabled]
+		      ,[Description]
+		      ,[Category]
+		      ,[ScheduleEnabled]
+		      ,[ScheduleName]
+		      ,[ScheduleFrequency]
+		      ,[StepID]
+		      ,[StepName]
+		      ,[SubSystem]
+			  ,[DateModified]
+		      ,[Command]
+		      ,[DatabaseName]
+		  FROM [Catalogue].[AgentJobs] Jobs
+		  WHERE [ServerName] = @Servername
+		  AND EXISTS (SELECT 1 FROM [Catalogue].[AgentJobs_Audit] WHERE Jobs.[JobID] = [AgentJobs_Audit].[JobID] AND Jobs.[ServerName] = [AgentJobs_Audit].[ServerName] AND Jobs.[StepID] = [AgentJobs_Audit].[StepID] AND AuditDate > DATEADD(MINUTE,-@Frequency,GETDATE()))
+		UNION ALL
+		SELECT ROW_NUMBER() OVER(PARTITION BY [ServerName],[JobID],[StepID] ORDER BY [ServerName],[JobID],[StepID],[AuditDate]) AS rn
+			  ,''Audit'' AS JobChangeType
+			  ,[ServerName]
+		      ,[JobID]
+		      ,[JobName]
+		      ,[Enabled]
+		      ,[Description]
+		      ,[Category]
+		      ,[ScheduleEnabled]
+		      ,[ScheduleName]
+		      ,[ScheduleFrequency]
+		      ,[StepID]
+		      ,[StepName]
+		      ,[SubSystem]
+			  ,[AuditDate]
+		      ,[Command]
+		      ,[DatabaseName]
+		FROM [Catalogue].[AgentJobs_Audit]
+		WHERE [ServerName] = @Servername
+		AND AuditDate > DATEADD(MINUTE,-@Frequency,GETDATE())
+		) AS JobDetails
+		ORDER BY 
+		ServerName,
+		JobName,
+		CASE 
+			WHEN JobChangeType = ''Current'' THEN 0 
+			ELSE rn 
+		END
+		FOR XML PATH(''tr''),ELEMENTS);
+	   
+
+		SET @HtmlOutput = 
+			@HtmlTableHead
+			+ @HtmlOutput
+			+ @TableTail
+			+''<p><BR><p>''
+
+
+
+IF (@Debug = 1)
+BEGIN 
+	SELECT 
+	OBJECT_NAME(@@PROCID) AS ''Procname'',
+	@Servername AS ''@Servername'',
+	@Modulename AS ''@Modulename'',
+	@TableHeaderColour AS ''@TableHeaderColour'',
+	@WarningHighlight AS ''@WarningHighlight'',
+	@AdvisoryHighlight AS ''@AdvisoryHighlight'',
+	@InfoHighlight AS ''@InfoHighlight'',
+	@ModuleConfig AS ''@ModuleConfig'',
+	@WarningLevel AS ''@WarningLevel'',
+	@NoClutter AS ''@NoClutter'',
+	@TableTail AS ''@TableTail'',
+	@HtmlOutput AS ''@HtmlOutput'',
+	@HtmlTableHead AS ''@HtmlTableHead'',
+	@CollectionOutOfDate AS ''@CollectionOutOfDate'',
+	@PSCollection AS ''@PSCollection''
+END 
+
+END
+' 
+END
+
 
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[ModuleConfig] WHERE [ModuleConfig_Desc] = @ModuleConfig)
 BEGIN 
@@ -458,6 +608,11 @@ BEGIN
 	VALUES(@ModuleConfig,'CatalogueMissingLogins',NULL,'CatalogueMissingLoginsReport',1,2,1,0,@EnableModule,NULL,@ReportFrequencyMins,@ReportStartTime,@ReportEndTime);
 END
 
+IF NOT EXISTS(SELECT 1 FROM [Inspector].[Modules] WHERE [Modulename] = 'CatalogueAgentAudit' AND [ModuleConfig_Desc] = @ModuleConfig)
+BEGIN 
+	INSERT INTO [Inspector].[Modules] ([ModuleConfig_Desc], [Modulename], [CollectionProcedurename], [ReportProcedurename], [ReportOrder], [WarningLevel], [ServerSpecific], [Debug], [IsActive], [HeaderText], [Frequency], [StartTime], [EndTime])
+	VALUES(@ModuleConfig,'CatalogueAgentAudit',NULL,'CatalogueAgentAuditReport',1,2,1,0,@EnableModule,NULL,@ReportFrequencyMins,@ReportStartTime,@ReportEndTime);
+END
 
 IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID(N'Inspector.InspectorUpgradeHistory') AND name = 'RevisionDate')
 BEGIN 
