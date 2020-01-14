@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 09/01/2020
+Revision date: 14/01/2020
 Version: 2.02
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -127,7 +127,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200109';
+DECLARE @Revisiondate DATE = '20200114';
 DECLARE @Build VARCHAR(6) ='2.02'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -149,7 +149,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V2.02
---Revision date: 09/01/2020
+--Revision date: '+CONVERT(VARCHAR(17),@Revisiondate,113)+'
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -1000,7 +1000,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 						[LastRunDateTime] DATETIME NULL,
 						[ReportWarningsOnly] BIT NOT NULL,
 						[NoClutter] BIT NOT NULL,
-						[ShowDisabledModules] BIT NOT NULL
+						[ShowDisabledModules] BIT NOT NULL,
+						[RunDay] VARCHAR(70) NULL
 					 CONSTRAINT [PK_ModuleConfig_Desc] PRIMARY KEY CLUSTERED 
 					([ModuleConfig_Desc] ASC)
 					);
@@ -1008,6 +1009,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 					INSERT INTO [Inspector].[ModuleConfig] ([ModuleConfig_Desc],[IsActive],[Frequency],[StartTime],[EndTime],[ReportWarningsOnly],[NoClutter],[ShowDisabledModules])
 					VALUES ('Default',1,1440,'09:00','17:30',0,0,1),('PeriodicBackupCheck',1,120,'11:00','17:30',1,1,1);
 				END
+
+				--Add new RunDay column for Specific weekday schedules
+				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID('Inspector.ModuleConfig') AND [name] = 'RunDay')
+				BEGIN 
+					ALTER TABLE [Inspector].[ModuleConfig] ADD RunDay VARCHAR(70) NULL;
+				END 
 
 				IF OBJECT_ID('Inspector.CatalogueModules') IS NULL
 				BEGIN
@@ -2218,7 +2225,7 @@ END
 	EXEC dbo.sp_executesql @statement = N'
 	CREATE VIEW [Inspector].[ReportSchedulesDue] 
 	AS 
-	--Revision date: 06/11/2019
+	--Revision date: 14/01/2020
 	
 		SELECT 
 		[ModuleConfig_Desc],
@@ -2242,9 +2249,9 @@ END
 			(DATEDIFF(HOUR,CAST(StartTime AS DATETIME),CAST(EndTime AS DATETIME))*60)/Frequency AS TotalRuns,
 			DATEADD(MINUTE,DATEPART(MINUTE,StartTime),DATEADD(HOUR,DATEPART(HOUR,StartTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS StartDatetime,
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
-			LastRunDateTime
+			LastRunDateTime,RunDay
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
 				--AND ModuleConfig_Desc = ''Default''
@@ -2253,8 +2260,10 @@ END
 		) AS Schedules
 		CROSS APPLY (SELECT RowNum FROM dbo.GetIntervals(DATEDIFF(MINUTE,Schedules.StartDatetime,Schedules.EndDatetime))) AS MinuteIntervals
 		WHERE 
-		--Check the that he time now falls into a scheduled interval
-		((GETDATE() >= DATEADD(MINUTE,RowNum,Schedules.StartDatetime) AND GETDATE() <= DATEADD(MINUTE,RowNum+1,Schedules.StartDatetime)))
+		--RunDay (delimited) is like today''s day name or RunDay is not specified (Every day)
+		(RunDay LIKE ''%''+CAST(DATENAME(WEEKDAY,GETDATE()) AS VARCHAR(10))+''%'' OR RunDay IS NULL)
+		--Check the that the time now falls into a scheduled interval
+		AND	((GETDATE() >= DATEADD(MINUTE,RowNum,Schedules.StartDatetime) AND GETDATE() <= DATEADD(MINUTE,RowNum+1,Schedules.StartDatetime)))
 		----Check that the current interval (if there is one) is exactly divisible by the Frequency
 		AND ((RowNum%Frequency = 0)
 		--Check if no run has occured (NULL) OR if the last run is before the start time for today
@@ -2265,7 +2274,7 @@ END
 	EXEC dbo.sp_executesql @statement = N'
 	ALTER VIEW [Inspector].[ReportSchedulesDue] 
 	AS 
-	--Revision date: 11/10/2019
+	--Revision date: 14/01/2020
 	
 		SELECT 
 		[ModuleConfig_Desc],
@@ -2289,9 +2298,9 @@ END
 			(DATEDIFF(HOUR,CAST(StartTime AS DATETIME),CAST(EndTime AS DATETIME))*60)/Frequency AS TotalRuns,
 			DATEADD(MINUTE,DATEPART(MINUTE,StartTime),DATEADD(HOUR,DATEPART(HOUR,StartTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS StartDatetime,
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
-			LastRunDateTime
+			LastRunDateTime,RunDay
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
 				--AND ModuleConfig_Desc = ''Default''
@@ -2300,8 +2309,10 @@ END
 		) AS Schedules
 		CROSS APPLY (SELECT RowNum FROM dbo.GetIntervals(DATEDIFF(MINUTE,Schedules.StartDatetime,Schedules.EndDatetime))) AS MinuteIntervals
 		WHERE 
-		--Check the that he time now falls into a scheduled interval
-		((GETDATE() >= DATEADD(MINUTE,RowNum,Schedules.StartDatetime) AND GETDATE() <= DATEADD(MINUTE,RowNum+1,Schedules.StartDatetime)))
+		--RunDay (delimited) is like today''s day name or RunDay is not specified (Every day)
+		(RunDay LIKE ''%''+CAST(DATENAME(WEEKDAY,GETDATE()) AS VARCHAR(10))+''%'' OR RunDay IS NULL)
+		--Check the that the time now falls into a scheduled interval
+		AND	((GETDATE() >= DATEADD(MINUTE,RowNum,Schedules.StartDatetime) AND GETDATE() <= DATEADD(MINUTE,RowNum+1,Schedules.StartDatetime)))
 		----Check that the current interval (if there is one) is exactly divisible by the Frequency
 		AND ((RowNum%Frequency = 0)
 		--Check if no run has occured (NULL) OR if the last run is before the start time for today
