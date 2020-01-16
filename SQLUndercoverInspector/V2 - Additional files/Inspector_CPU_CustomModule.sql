@@ -112,7 +112,8 @@ BEGIN
 	IF @CPUHistoryRetentionInDays IS NULL BEGIN SET @CPUHistoryRetentionInDays = 7 END;
 
 	DELETE FROM [Inspector].[CPU] 
-	WHERE [EventTime] < DATEADD(DAY,-@CPUHistoryRetentionInDays,GETDATE());
+	WHERE [EventTime] < DATEADD(DAY,-@CPUHistoryRetentionInDays,GETDATE())
+	AND [Servername] = @@SERVERNAME;
 	
 	INSERT INTO [Inspector].[CPU] (Servername,Log_Date,EventTime,SystemCPUUtilization,SQLCPUUtilization)
 	SELECT 
