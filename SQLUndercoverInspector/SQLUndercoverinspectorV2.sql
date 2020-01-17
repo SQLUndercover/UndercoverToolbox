@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 18/12/2019
+Revision date: 17/01/2020
 Version: 2.01
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -146,7 +146,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 --Inspector V2.01
---Revision date: 18/12/2019
+--Revision date: 17/01/2020
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -10283,12 +10283,10 @@ DECLARE @ReportWarningsOnly BIT;
 	   RAISERROR(''@ModuleConfig supplied: ''''%s'''' is not a valid module config description, for valid options query [Inspector].[Modules]'',11,0,@ModuleConfig);
     END
 
-	IF ((@PSCollection = 1 AND @PSGenerateReport = 1) OR @PSCollection = 0)
-	BEGIN 
-		--Run InspectorReportMaster to pick up any scheduled reports
-		RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
-		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
-	END
+	--Run InspectorReportMaster to pick up any scheduled reports
+	RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
+	EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
+
 
 	--Log InspectorDataCollection proc duration to the ExecutionLog
 	SET @Duration = CAST(DATEDIFF(MILLISECOND,@ReportStart,GETDATE()) AS MONEY)/1000;
