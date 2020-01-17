@@ -10345,12 +10345,9 @@ DECLARE @ReportWarningsOnly BIT;
 	   RAISERROR(''@ModuleConfig supplied: ''''%s'''' is not a valid module config description, for valid options query [Inspector].[Modules]'',11,0,@ModuleConfig);
     END
 
-	IF ((@PSCollection = 1 AND @PSGenerateReport = 1) OR @PSCollection = 0)
-	BEGIN 
-		--Run InspectorReportMaster to pick up any scheduled reports
-		RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
-		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
-	END
+	--Run InspectorReportMaster to pick up any scheduled reports
+	RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
+	EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
 
 	--Log InspectorDataCollection proc duration to the ExecutionLog
 	SET @Duration = CAST(DATEDIFF(MILLISECOND,@ReportStart,GETDATE()) AS MONEY)/1000;
