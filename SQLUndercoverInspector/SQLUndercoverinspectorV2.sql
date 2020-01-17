@@ -64,8 +64,8 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 14/01/2020
-Version: 2.02
+Revision date: 17/01/2020
+Version: 2.1
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
 
@@ -127,8 +127,8 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200114';
-DECLARE @Build VARCHAR(6) ='2.02'
+DECLARE @Revisiondate DATE = '20200117';
+DECLARE @Build VARCHAR(6) ='2.1'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
 DECLARE @JobsWithoutSchedules VARCHAR(1000);
@@ -148,7 +148,7 @@ END
 IF @Help = 1
 BEGIN 
 PRINT '
---Inspector V2.02
+--Inspector V2.1
 --Revision date: '+CONVERT(VARCHAR(17),@Revisiondate,113)+'
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
@@ -1881,6 +1881,19 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				VALUES('BackupSpaceWeekdayOffset','1');
 			END 
 
+			--New settings for V2.1
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'PSAutoUpdateModules')
+			BEGIN 
+				INSERT INTO [Inspector].[Settings] ([Description],[Value])
+				VALUES('PSAutoUpdateModules','1');
+			END 
+			
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'PSAutoUpdateModulesFrequencyMins')
+			BEGIN 
+				INSERT INTO [Inspector].[Settings] ([Description],[Value])
+				VALUES('PSAutoUpdateModulesFrequencyMins','1440');
+			END 
+
 			--Update email banner for V2
 			IF (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = 'EmailBannerURL') = 'http://bit.ly/InspectorEmailBanner'
 			BEGIN
@@ -2881,6 +2894,18 @@ END
 			[Databasename] [nvarchar](128) NULL,
 			[Suppress] [bit] NULL
 			);
+
+			IF OBJECT_ID('Inspector.PSAutoUpdate') IS NULL
+			CREATE TABLE [Inspector].[PSAutoUpdate](
+			[Updatename] [nvarchar](128) NOT NULL,
+			[LastUpdated] [datetime] NULL
+			);
+
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[PSAutoUpdate] WHERE [Updatename] = 'PSAutoUpdate')
+			BEGIN 
+				INSERT INTO [Inspector].[PSAutoUpdate] ([Updatename],[LastUpdated])
+				VALUES('PSAutoUpdate',NULL);
+			END
 			
 			IF OBJECT_ID('Inspector.PSAGDatabasesStage') IS NULL
 			CREATE TABLE [Inspector].[PSAGDatabasesStage](
@@ -10351,7 +10376,7 @@ SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+
 --Author: Adrian Buckman
 --Revision date: 09/01/2020
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
---V2.02
+--V2.1
 
 
 --Example Execute command
