@@ -5641,12 +5641,17 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[PSGetServers]
 AS 
 BEGIN 
---Revision date: 14/09/2018
+--Revision date: 20/01/2020
 
 	SELECT 
 	[Servername]
 	FROM [Inspector].[CurrentServers]
 	WHERE [IsActive] = 1
+	ORDER BY 
+	CASE 
+		WHEN [Servername] = @@SERVERNAME THEN 1 
+		ELSE 2 
+	END
 END'
 
 EXEC(@SQLStatement);
@@ -10190,12 +10195,13 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 @PSCollection BIT = 0,
 @PSExecModules BIT = 0,
 @PSGenerateReport BIT = 0,
+@PSCentralServer NVARCHAR(128) = @@SERVERNAME,
 @IgnoreSchedules BIT = 0
 )
 AS 
 BEGIN 
 
---Revision date: 27/11/2019
+--Revision date: 20/01/2020
 
 SET NOCOUNT ON;
 
@@ -10245,8 +10251,7 @@ DECLARE @ReportWarningsOnly BIT;
 
 	   RAISERROR(''ModuleConfig selected for server: %s'',0,0,@ModuleConfig) WITH NOWAIT;
 	    
-		IF ((@PSCollection = 1 AND @PSExecModules = 1) OR @PSCollection = 0)
-		BEGIN
+
 			DECLARE InspectorCollection_cur CURSOR LOCAL STATIC
 			FOR
 			--Get enabled module list for @ModuleConfig
@@ -10327,7 +10332,7 @@ DECLARE @ReportWarningsOnly BIT;
 
 			RAISERROR(''Running [Inspector].[InstanceVersionInsert]'',0,0) WITH NOWAIT;
 			EXEC [Inspector].[InstanceVersionInsert]; 	
-		END
+		
 
 		IF @PSCollection = 1 
 		BEGIN 
@@ -10345,9 +10350,12 @@ DECLARE @ReportWarningsOnly BIT;
 	   RAISERROR(''@ModuleConfig supplied: ''''%s'''' is not a valid module config description, for valid options query [Inspector].[Modules]'',11,0,@ModuleConfig);
     END
 
-	--Run InspectorReportMaster to pick up any scheduled reports
-	RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
-	EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
+	IF @PSCentralServer = @@SERVERNAME
+	BEGIN 
+		--Run InspectorReportMaster to pick up any scheduled reports
+		RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
+		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
+	END
 
 	--Log InspectorDataCollection proc duration to the ExecutionLog
 	SET @Duration = CAST(DATEDIFF(MILLISECOND,@ReportStart,GETDATE()) AS MONEY)/1000;
