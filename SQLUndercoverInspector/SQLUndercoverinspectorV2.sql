@@ -5649,8 +5649,8 @@ BEGIN
 	WHERE [IsActive] = 1
 	ORDER BY 
 	CASE 
-		WHEN [Servername] = @@SERVERNAME THEN 1 
-		ELSE 2 
+		WHEN [Servername] = @@SERVERNAME THEN 2 
+		ELSE 1
 	END
 END'
 
