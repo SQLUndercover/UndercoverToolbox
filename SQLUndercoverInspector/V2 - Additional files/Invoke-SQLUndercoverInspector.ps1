@@ -1,9 +1,9 @@
-#requires -Modules dbatools
+#requires -Modules dbatools,InspectorAutoUpdate
 # SON: We'll create a .psm1 a .psd1 file and put the above into the $RequiredModules field there.
 
-#Script version 1.2
-#Revision date: 18/12/2019
-#Minimum Inspector version 2.00
+#Script version 1.3
+#Revision date: 20/01/2020
+#Minimum Inspector version 2.1
 
 <#
 If you are running the ps1 from an agent job in SQL server (cmdexec) then you can use the following samples to help you get started
@@ -55,7 +55,7 @@ function Invoke-SQLUndercoverInspector {
         [Parameter(Position = 6, ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
         [Alias('ExecModules')]
-        [Bool]$RunCollection = $false,
+        [Bool]$RunCollection = $false, 
 
         [Parameter(Position = 7, ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
@@ -64,14 +64,21 @@ function Invoke-SQLUndercoverInspector {
     )
     
     begin {
-        
+        #Import Inspector update function from the same directory as Invoke-SQLundercoverInspector
+        try {
+            import-module -Name ($(Get-location).ToString()+"\InspectorAutoUpdate.psm1") -Force;
+        } Catch {
+            write-host "There was an issue importing InspectorAutoUpdate.psm1 from ($(Get-location).ToString()), the psm1 must be in the same folder as Invoke-SQLUndercoverInspector" -ForegroundColor Red
+            write-host "$_.Exception.Message" -ForegroundColor Red;
+        }
+
         Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] Initialising default values and parameters..." 
         [int]$Pos = 0
         $InstallStatus = New-Object -TypeName System.Collections.Generic.List[int]
         $InvalidServers = New-Object -TypeName System.Collections.Generic.List[int]
         $ActiveServers = New-Object -TypeName System.Collections.Generic.List[string]
         $Builds = New-Object -TypeName System.Collections.Generic.List[psobject]
-        $RequiredInspectorBuild = "2.00"
+        $RequiredInspectorBuild = "2.1"
         [string]$Path = split-path $FileName;
         
 
@@ -111,6 +118,9 @@ function Invoke-SQLUndercoverInspector {
         Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] Getting a list of active servers from the Inspector Currentservers table..."
         $ActiveServersQry = "EXEC [$LoggingDb].[Inspector].[PSGetServers];"
         $ActiveServers = $CentralConnection.Query($ActiveServersQry)
+
+        #AutoUpdate
+        InspectorAutoUpdate -CentralServer $CentralServer -LoggingDb $LoggingDb -Scriptfilepath $(split-path $FileName);
     }
     
     process {
@@ -141,6 +151,7 @@ function Invoke-SQLUndercoverInspector {
                  Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Database: $LoggingDb exists, validating Inspector installation OK"
                  }
 
+
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Setting $InspectorBuildQry variable."
                 $InspectorBuildQry = "EXEC [$LoggingDb].[Inspector].[PSGetInspectorBuild];"                
 
@@ -161,6 +172,8 @@ function Invoke-SQLUndercoverInspector {
                     $CentralInspectorBuild = $Builds[-1] | Select-Object Build
                     }
                 }
+
+
             }
 
         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Removing invalid servers from ActiveServers array..."
@@ -297,8 +310,8 @@ function Invoke-SQLUndercoverInspector {
             }   
 
             write-output "    Executing Inspector data collection stored proc";
-            Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Executing [Inspector].[InspectorDataCollection] @ModuleConfig = $($ModuleConfig). @PSCollection = 1,@PSExecModules = $(IF($RunCollection -eq $false){0} ELSE{1})"
-            $DataCollectionQry = "EXEC [$LoggingDb].[Inspector].[InspectorDataCollection] @ModuleConfig = $ModuleConfig, @PSCollection = 1,@PSExecModules = $(IF($RunCollection -eq $false){0} ELSE{1}),@PSGenerateReport = $(IF($CreateReport -eq $false){0} ELSE{1});"
+            Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Executing [Inspector].[InspectorDataCollection] @ModuleConfig = $($ModuleConfig),@PSCentralServer = '$Centralserver', @PSCollection = 1,@PSExecModules = $(IF($RunCollection -eq $false){0} ELSE{1})"
+            $DataCollectionQry = "EXEC [$LoggingDb].[Inspector].[InspectorDataCollection] @ModuleConfig = $ModuleConfig,@PSCentralServer = '$Centralserver', @PSCollection = 1,@PSExecModules = $(IF($RunCollection -eq $false){0} ELSE{1}),@PSGenerateReport = $(IF($CreateReport -eq $false){0} ELSE{1});"
             $ExecutedModules = $ConnectionCurrent.Query($DataCollectionQry)
 
             $ExecutedModules = $ExecutedModules |
@@ -352,8 +365,9 @@ function Invoke-SQLUndercoverInspector {
                         }
                     }
                     Write-Verbose $DeleteQry
+                   
                     $CentralConnection.Query($DeleteQry)
-
+ 
 
                     [int]$InsertActionPos = $InsertAction[$Pos]
                         #Retrieve data from local server table
