@@ -126,7 +126,7 @@ function InspectorAutoUpdate {
         }
         
         #Set some defaults if these do not exist (earlier V2 versions)
-        IF ($CentralInspectorVersion -lt $RequiredInspectorBuild) {
+        IF ($($CentralInspectorVersion.Build) -lt $RequiredInspectorBuild) {
             $AutoUpdate = 1;
             $PSAutoUpdateModulesFrequencyMins = 1440;
             [datetime]$PSAutoUpdateLastUpdated = (get-date "01/01/1900" -Format "dd/MM/yyyy");
