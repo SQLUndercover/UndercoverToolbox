@@ -160,17 +160,30 @@ function InspectorAutoUpdate {
  
             #Download Manifest
             write-host "Retrieving the manifest file from $ScriptSource..." -ForegroundColor Yellow;
-            $ManifestPath = $($Scriptfilepath)+"Manifest.csv";
-            Try {
-                Invoke-WebRequest "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Inspector-Dev/SQLUndercoverInspector/V2%20-%20Additional%20files/Manifest.csv" -OutFile $ManifestPath;       
-            } Catch{
-                write-host "Error retrieving the manifest file" -ForegroundColor Red;
-                write-host "$_.Exception.Message" -ForegroundColor Red;
-                remove-item -LiteralPath $ManifestPath;
-                Return;
+
+            IF ($ScriptSource -eq "URL") {
+                $ManifestPath = $($Scriptfilepath)+"Manifest.csv";
+                Try {
+                    Invoke-WebRequest "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Inspector-Dev/SQLUndercoverInspector/V2%20-%20Additional%20files/Manifest.csv" -OutFile $ManifestPath;       
+                    $Manifest = import-csv -Path $ManifestPath;
+                } Catch{
+                    write-host "Error retrieving the manifest file" -ForegroundColor Red;
+                    write-host "$_.Exception.Message" -ForegroundColor Red;
+                    remove-item -LiteralPath $ManifestPath;
+                    Return;
+                }
+            } ELSE {
+                $ManifestPath = $($Offlinefilepath)+"Manifest.csv";
+                Try {
+                    $Manifest = import-csv -Path $ManifestPath;
+                } Catch{
+                    write-host "$_.Exception.Message" -ForegroundColor Red;
+                    write-host "Quitting AutoUpdate" -ForegroundColor Red;
+                    Return;
+                }
             }
 
-            $Manifest = import-csv -Path $ManifestPath
+            
 
             #For each server check the current build an update accordingly
             $Serverlist | ForEach-Object{
