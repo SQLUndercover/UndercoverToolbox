@@ -1,8 +1,8 @@
-#requires -Modules dbatools,InspectorAutoUpdate
+#requires -Modules dbatools
 # SON: We'll create a .psm1 a .psd1 file and put the above into the $RequiredModules field there.
 
 #Script version 1.3
-#Revision date: 20/01/2020
+#Revision date: 21/01/2020
 #Minimum Inspector version 2.1
 
 <#
@@ -60,10 +60,19 @@ function Invoke-SQLUndercoverInspector {
         [Parameter(Position = 7, ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
         [Alias('GenerateReport')]
-        [Bool]$CreateReport = $false
-    )
+        [Bool]$CreateReport = $false,
+
+        [Parameter(Position = 8, ValueFromPipelineByPropertyName)]
+        #[ValidateNotNullOrEmpty()]
+        [Alias('OfflineUpdatetPath')]
+        [String]$Offlinefilepath
+        )
     
     begin {
+        IF (($Offlinefilepath.Length) -eq 0) {
+            $Offlinefilepath = "URL";
+        }
+
         #Import Inspector update function from the same directory as Invoke-SQLundercoverInspector
         try {
             import-module -Name ($(Get-location).ToString()+"\InspectorAutoUpdate.psm1") -Force;
@@ -120,7 +129,7 @@ function Invoke-SQLUndercoverInspector {
         $ActiveServers = $CentralConnection.Query($ActiveServersQry)
 
         #AutoUpdate
-        InspectorAutoUpdate -CentralServer $CentralServer -LoggingDb $LoggingDb -Scriptfilepath $(split-path $FileName);
+        InspectorAutoUpdate -CentralServer $CentralServer -LoggingDb $LoggingDb -Scriptfilepath $(split-path $FileName) -Offlinefilepath $Offlinefilepath;
     }
     
     process {
