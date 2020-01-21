@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 17/01/2020
+Revision date: 20/01/2020
 Version: 2.1
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -127,7 +127,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200117';
+DECLARE @Revisiondate DATE = '20200120';
 DECLARE @Build VARCHAR(6) ='2.1'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
