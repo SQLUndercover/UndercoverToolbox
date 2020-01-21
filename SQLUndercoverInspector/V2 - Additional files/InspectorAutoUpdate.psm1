@@ -253,7 +253,7 @@ function InspectorAutoUpdate {
                             write-host "    Updates found for $Modulename, installing update..." -ForegroundColor Cyan
                             
                         switch ($ScriptSource) {
-                        {"URL"} {
+                        {$_ -eq "URL"} {
                             #Get the SQL update script from URL
                             Try{
                                 write-host "        Retrieving file contents from URL" -ForegroundColor White
@@ -284,7 +284,7 @@ function InspectorAutoUpdate {
                             }
                         }
 
-                        {"File"} {
+                        {$_ -eq "File"} {
                             #Execute the SQL retreived from file
                             Try{
                                 write-host "        Executing $Filename" -ForegroundColor White
