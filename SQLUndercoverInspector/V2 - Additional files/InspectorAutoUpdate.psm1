@@ -88,15 +88,32 @@
         #Get Active server list
         $Serverlist = Invoke-sqlcmd -ServerInstance $CentralServer -Database $LoggingDb -Query "SELECT [Servername] FROM [Inspector].[CurrentServers] WHERE [IsActive] = 1 ORDER BY CASE WHEN [Servername] = @@SERVERNAME THEN 1 ELSE 2 END ASC;"
 
-        #Get config from the central server
-        $Config = Invoke-sqlcmd -ServerInstance $CentralServer -Database $LoggingDb -Query $ConfigQuery;
-                    
-        #Assign values to config variables.
-        $CentralInspectorVersion = ($Config | ?{$_.Description -eq "InspectorBuild"}).Value
-        $AutoUpdate = ($Config | ?{$_.Description -eq "PSAutoUpdateModules"}).Value
-        [int]$PSAutoUpdateModulesFrequencyMins = ($Config | ?{$_.Description -eq "PSAutoUpdateModulesFrequencyMins"}).Value
-        [datetime]$PSAutoUpdateLastUpdated = ($Config | ?{$_.Description -eq "PSAutoUpdate"}).Value           
+        #Get Inspector build to ensure that the version installed has the PSUpdate table - if not then skip the config query
+        $CentralInspectorVersion = Invoke-sqlcmd -ServerInstance $CentralServer -Database $LoggingDb -Query "EXEC [Inspector].[PSGetInspectorBuild];"
 
+        IF ($($CentralInspectorVersion.Build) -ge $RequiredInspectorBuild) {
+            #Get config from the central server
+            $Config = Invoke-sqlcmd -ServerInstance $CentralServer -Database $LoggingDb -Query $ConfigQuery;
+                
+            #Assign values to config variables.
+            $CentralInspectorVersion = ($Config | ?{$_.Description -eq "InspectorBuild"}).Value
+            $AutoUpdate = ($Config | ?{$_.Description -eq "PSAutoUpdateModules"}).Value
+            [int]$PSAutoUpdateModulesFrequencyMins = ($Config | ?{$_.Description -eq "PSAutoUpdateModulesFrequencyMins"}).Value
+            [datetime]$PSAutoUpdateLastUpdated = ($Config | ?{$_.Description -eq "PSAutoUpdate"}).Value           
+        }
+
+        #Set some defaults if these do not exist (earlier V2 versions)
+        IF (!$AutoUpdate) {
+            $AutoUpdate = 1;
+        }
+
+        IF (!$PSAutoUpdateModulesFrequencyMins) {
+            $PSAutoUpdateModulesFrequencyMins = 1440;
+        }
+
+        IF (!$PSAutoUpdateLastUpdated) {
+            [datetime]$PSAutoUpdateLastUpdated = (get-date "01/01/1900" -Format "dd/MM/yyyy");
+        }
 
         #If auto update is enabled and the last updated datetime is NULL or less than the current time run through the update check and apply updates
         if (($AutoUpdate -eq 1) -and ((get-date -Format yyyyMMddHHmmss)) -ge (get-date $($PSAutoUpdateLastUpdated.AddMinutes($PSAutoUpdateModulesFrequencyMins)) -Format yyyyMMddHHmmss)) {
@@ -146,9 +163,9 @@
                 $InspectorVersion = Invoke-sqlcmd -ServerInstance $($_.Servername) -Database $LoggingDb -Query "EXEC [Inspector].[PSGetInspectorBuild];"
                 
                 #if the local version is less than $RequiredInspectorBuild then set the MinVersionUpdateRequired flag to install the latest Inspector version
-                IF($InspectorVersion.Build -lt $RequiredInspectorBuild) {
-                    write-host "    Local server Inspector build does not meet the minumum required version ($MinimumVersion), Manual update required" -ForegroundColor Red
-                    Continue;
+                IF($($InspectorVersion.Build) -lt $RequiredInspectorBuild) {
+                    write-host "    Local server Inspector build does not meet the minumum required version ($RequiredInspectorBuild), this server will be updated." -ForegroundColor Red
+                    #Continue;
                 }
             
             
@@ -162,17 +179,16 @@
                         $InstalledVersion = @();
                         $UpdateStmt = "";
                         $Scriptfile = ($Scriptfilepath+$Modulename.Replace(".sql",""))+".sql";
-        
-                        IF($LocalRevisionDate) {
-                            Clear-Variable LocalRevisionDate
-                        }
+                        [string]$LocalRevisionDate = (get-date "01/01/1900" -Format "dd/MM/yyyy");
         
                         IF($LocalModule) {
                             Clear-Variable LocalModule
                         }
-        
-                        #Get Modules i.e Inspector and any custom modules and revision dates locally installed
-                        $InstalledVersion = Invoke-sqlcmd -ServerInstance $Servername -Database $LoggingDb -Query $InstalledVersioncmd;
+                        
+                        IF ($($InspectorVersion.Build) -ge $RequiredInspectorBuild) {
+                            #Get Modules i.e Inspector and any custom modules and revision dates locally installed
+                            $InstalledVersion = Invoke-sqlcmd -ServerInstance $Servername -Database $LoggingDb -Query $InstalledVersioncmd;
+                        }
 
                         #Is Module installed locally
                         $LocalModule = ($InstalledVersion | ?{$_.Modulename -eq $Modulename}).Modulename
@@ -180,9 +196,13 @@
                         #Get the local Module revision date
                         $LocalRevisionDate = ($InstalledVersion | ?{$_.Modulename -eq $Modulename}).RevisionDate
 
+                        #If no local revisio found then assume its not up to date
+                        IF (!$LocalRevisionDate) {
+                            [datetime]$LocalRevisionDate = (get-date "01/01/1900" -Format "dd/MM/yyyy");
+                        }
 
-                        #If the module cannot be found then skip it
-                        IF($LocalModule -eq $null) {
+                        #If the module cannot be found then skip it, excludes Inspector setup
+                        IF(($LocalModule -eq $null) -and $Modulename -ne "InspectorSetup") {
                             write-host "    No history of $Modulename installed, skipping this module" -ForegroundColor DarkYellow
                             Continue;
                         }
@@ -231,7 +251,10 @@
             }
 
         #Update LastUpdated in the AutoUpdate table
-        Invoke-sqlcmd -ServerInstance $CentralServer -Database $LoggingDb -Query "UPDATE [Inspector].[PSAutoUpdate]  SET [LastUpdated] = GETDATE() WHERE [Updatename] = 'PSAutoUpdate';"
+        #IF($($CentralInspectorVersion.Build) -ge $RequiredInspectorBuild) {
+            Invoke-sqlcmd -ServerInstance $CentralServer -Database $LoggingDb -Query "UPDATE [Inspector].[PSAutoUpdate]  SET [LastUpdated] = GETDATE() WHERE [Updatename] = 'PSAutoUpdate';"
+        #}
+
         } ELSE {
             IF($AutoUpdate -eq 0) {
                 Write-Host "Auto Update: Disabled" -ForegroundColor Yellow;
