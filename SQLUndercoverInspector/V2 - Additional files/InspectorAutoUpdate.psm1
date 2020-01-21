@@ -1,4 +1,8 @@
-﻿function InspectorAutoUpdate {
+﻿#Script version 1
+#Revision date: 21/01/2020
+#Minimum Inspector version 2.1
+
+function InspectorAutoUpdate {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory, Position = 0, ValueFromPipelineByPropertyName)]
@@ -12,15 +16,34 @@
         [Parameter(Position = 2, ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
         [Alias('ScriptPath')]
-        [String]$Scriptfilepath = 'C:\Temp\'
+        [String]$Scriptfilepath = 'C:\Temp\',
+
+        [Parameter(Position = 3, ValueFromPipelineByPropertyName)]
+        [ValidateNotNullOrEmpty()]
+        [Alias('OfflineUpdatetPath')]
+        [String]$Offlinefilepath
         )
 
         [double]$RequiredInspectorBuild = 2.1
 
-
-        
         $Serverlist = @();
-  
+
+        IF($Offlinefilepath -ne "URL") {
+            $ScriptSource = "File";
+        }
+
+        #Verify the Sctipt source type, if its a file check the files exist
+        IF($Offlinefilepath -eq "URL") {
+            $ScriptSource = "URL";
+        } ELSE {
+            $ScriptSource = "File";
+
+            IF ($Offlinefilepath.EndsWith("\") -eq $false) {
+                $Offlinefilepath = $Offlinefilepath+"\";
+            }
+
+        }
+        
         #region Set SQL Statement text 
 
         #Set config query
@@ -44,14 +67,14 @@
         #Set Installed build query
         $InstalledVersioncmd = "SELECT 
         CASE 
-        	WHEN [SetupCommand] LIKE 'EXEC \[Inspector\].\[InspectorSetup\]%' ESCAPE '\' THEN 'InspectorSetup'
+        	WHEN [SetupCommand] LIKE 'EXEC \[Inspector\].\[InspectorSetup\]%' ESCAPE '\' THEN 'SQLUndercoverinspectorV2.sql'
         	ELSE [SetupCommand]
         END AS Modulename,
         ISNULL(CONVERT(VARCHAR(20),MAX([RevisionDate]),113),'01/01/1900 00:00:00') AS RevisionDate
         FROM [Inspector].[InspectorUpgradeHistory] 
         GROUP BY 
         CASE 
-        	WHEN [SetupCommand] LIKE 'EXEC \[Inspector\].\[InspectorSetup\]%' ESCAPE '\' THEN 'InspectorSetup'
+        	WHEN [SetupCommand] LIKE 'EXEC \[Inspector\].\[InspectorSetup\]%' ESCAPE '\' THEN 'SQLUndercoverinspectorV2.sql'
         	ELSE [SetupCommand]
         END;"
 
@@ -101,17 +124,11 @@
             [int]$PSAutoUpdateModulesFrequencyMins = ($Config | ?{$_.Description -eq "PSAutoUpdateModulesFrequencyMins"}).Value
             [datetime]$PSAutoUpdateLastUpdated = ($Config | ?{$_.Description -eq "PSAutoUpdate"}).Value           
         }
-
+        
         #Set some defaults if these do not exist (earlier V2 versions)
-        IF (!$AutoUpdate) {
+        IF ($CentralInspectorVersion -lt $RequiredInspectorBuild) {
             $AutoUpdate = 1;
-        }
-
-        IF (!$PSAutoUpdateModulesFrequencyMins) {
             $PSAutoUpdateModulesFrequencyMins = 1440;
-        }
-
-        IF (!$PSAutoUpdateLastUpdated) {
             [datetime]$PSAutoUpdateLastUpdated = (get-date "01/01/1900" -Format "dd/MM/yyyy");
         }
 
@@ -138,10 +155,11 @@
                 write-host "Next Update: $(get-date $($PSAutoUpdateLastUpdated.AddMinutes($PSAutoUpdateModulesFrequencyMins)) -Format "dd/MM/yyyy HH:mm:ss")" -ForegroundColor Yellow;
             }
 
-            Write-Host "Checking for updates..." -ForegroundColor Yellow;
+            Write-Host "Checking for updates from $ScriptSource..." -ForegroundColor Yellow;
             write-host "" -ForegroundColor Yellow
  
             #Download Manifest
+            write-host "Retrieving the manifest file from $ScriptSource..." -ForegroundColor Yellow;
             $ManifestPath = $($Scriptfilepath)+"Manifest.csv";
             Try {
                 Invoke-WebRequest "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Inspector-Dev/SQLUndercoverInspector/V2%20-%20Additional%20files/Manifest.csv" -OutFile $ManifestPath;       
@@ -180,6 +198,16 @@
                         $UpdateStmt = "";
                         $Scriptfile = ($Scriptfilepath+$Modulename.Replace(".sql",""))+".sql";
                         [string]$LocalRevisionDate = (get-date "01/01/1900" -Format "dd/MM/yyyy");
+
+                        #If this is an offline install use the offline path and check the file exists.
+                        IF ($ScriptSource -eq "File") {
+                            $Filename = $Offlinefilepath+$($Manifestitem.Modulename);
+
+                            IF((test-path $Filename) -eq $false) {
+                                write-host "Unable to find the file $Filename" -ForegroundColor Red
+                                Continue;
+                            }
+                        }
         
                         IF($LocalModule) {
                             Clear-Variable LocalModule
@@ -202,7 +230,7 @@
                         }
 
                         #If the module cannot be found then skip it, excludes Inspector setup
-                        IF(($LocalModule -eq $null) -and $Modulename -ne "InspectorSetup") {
+                        IF(($LocalModule -eq $null) -and $Modulename -ne "SQLUndercoverinspectorV2.sql") {
                             write-host "    No history of $Modulename installed, skipping this module" -ForegroundColor DarkYellow
                             Continue;
                         }
@@ -210,7 +238,9 @@
                         #If the module is found check the revision date and if it is older than the latest or it is null (01/01/1900) then update it
                         IF((get-date $LocalRevisionDate -Format yyyyMMddHHmmss) -lt (get-date $LastUpdated -Format yyyyMMddHHmmss)) {
                             write-host "    Updates found for $Modulename, installing update..." -ForegroundColor Cyan
-        
+                            
+                        switch ($ScriptSource) {
+                        {"URL"} {
                             #Get the SQL update script from URL
                             Try{
                                 write-host "        Retrieving file contents from URL" -ForegroundColor White
@@ -229,7 +259,7 @@
                                 remove-item -LiteralPath $Scriptfile;
         
                                 #If the Inspector build needs updating then the Setup proc needs to be executed following the above revision to the setup proc.
-                                IF($Modulename -eq "InspectorSetup"){
+                                IF($Modulename -eq "SQLUndercoverinspectorV2.sql"){
                                     write-host "        Executing [Inspector].[InspectorSetup] stored procedure" -ForegroundColor White
                                             
                                     Invoke-sqlcmd -ServerInstance $Servername -Database $LoggingDb -Query $ExecInspectorSetupProc -ConnectionTimeout 15;
@@ -239,6 +269,25 @@
                                 remove-item -LiteralPath $Scriptfile;
                                 Return;
                             }
+                        }
+
+                        {"File"} {
+                            #Execute the SQL retreived from file
+                            Try{
+                                write-host "        Executing $Filename" -ForegroundColor White
+                                Invoke-sqlcmd -ServerInstance $Servername -Database $LoggingDb -InputFile $Filename -ConnectionTimeout 15         
+                                
+                            } Catch{
+                                write-host "$_.Exception.Message" -ForegroundColor Red;
+                                #remove-item -LiteralPath $Filename;
+                                Return;
+                            }
+        
+                           
+                        }
+
+                        }
+
         
                         } ELSE {
                             write-host "    $Modulename up to date" -ForegroundColor Green    
