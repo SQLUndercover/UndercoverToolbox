@@ -1,5 +1,5 @@
 ﻿#Script version 1
-#Revision date: 21/01/2020
+#Revision date: 22/01/2020
 #Minimum Inspector version 2.1
 
 function InspectorAutoUpdate {
@@ -164,7 +164,7 @@ function InspectorAutoUpdate {
             IF ($ScriptSource -eq "URL") {
                 $ManifestPath = $($Scriptfilepath)+"Manifest.csv";
                 Try {
-                    Invoke-WebRequest "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Inspector-Dev/SQLUndercoverInspector/V2%20-%20Additional%20files/Manifest.csv" -OutFile $ManifestPath;       
+                    Invoke-WebRequest "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverInspector/V2%20-%20Additional%20files/Manifest.csv" -OutFile $ManifestPath;       
                     $Manifest = import-csv -Path $ManifestPath;
                 } Catch{
                     write-host "Error retrieving the manifest file" -ForegroundColor Red;
