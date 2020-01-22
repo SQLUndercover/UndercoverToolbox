@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 20/01/2020
+Revision date: 22/01/2020
 Version: 2.1
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -127,7 +127,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200120';
+DECLARE @Revisiondate DATE = '20200122';
 DECLARE @Build VARCHAR(6) ='2.1'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1006,15 +1006,21 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 					([ModuleConfig_Desc] ASC)
 					);
 
-					INSERT INTO [Inspector].[ModuleConfig] ([ModuleConfig_Desc],[IsActive],[Frequency],[StartTime],[EndTime],[ReportWarningsOnly],[NoClutter],[ShowDisabledModules])
-					VALUES ('Default',1,1440,'09:00','17:30',0,0,1),('PeriodicBackupCheck',1,120,'11:00','17:30',1,1,1);
+					EXEC sp_executesql N'INSERT INTO [Inspector].[ModuleConfig] ([ModuleConfig_Desc],[IsActive],[Frequency],[StartTime],[EndTime],[ReportWarningsOnly],[NoClutter],[ShowDisabledModules],[RunDay])
+					VALUES (''Default'',1,1440,''09:00'',''17:30'',0,0,1,''Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday''),(''PeriodicBackupCheck'',1,120,''11:00'',''17:30'',1,1,1,''Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'');';
 				END
 
 				--Add new RunDay column for Specific weekday schedules
 				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID('Inspector.ModuleConfig') AND [name] = 'RunDay')
 				BEGIN 
-					ALTER TABLE [Inspector].[ModuleConfig] ADD RunDay VARCHAR(70) NULL;
+					ALTER TABLE [Inspector].[ModuleConfig] ADD [RunDay] VARCHAR(70) NULL;
 				END 
+
+				--Update RunDay column if it is NULL , its the same behaviour as the update but it just shows users the supported format
+				EXEC sp_executesql N'
+				UPDATE [Inspector].[ModuleConfig]
+				SET [RunDay] = ''Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday''
+				WHERE [RunDay] IS NULL;';
 
 				IF OBJECT_ID('Inspector.CatalogueModules') IS NULL
 				BEGIN
@@ -10662,7 +10668,7 @@ BEGIN
 		SET @ReportSummary += @Serverlist+''(''+@ModuleConfigDetermined+''):''+CHAR(13)+CHAR(10);
 	END
 
-	SET @ShowDisabledModules = (SELECT [ShowDisabledModules] FROM [Inspector].[ModuleConfig] WHERE ModuleConfig_Desc = @ModuleConfigDetermined);
+	SET @ShowDisabledModules = (SELECT ISNULL([ShowDisabledModules],0) FROM [Inspector].[ModuleConfig] WHERE ModuleConfig_Desc = @ModuleConfigDetermined);
 
 	IF @ModuleConfigDetermined != ''PeriodicBackupCheck''
 	BEGIN 
