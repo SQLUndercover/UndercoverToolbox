@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 22/01/2020
+Revision date: 24/01/2020
 Version: 2.1
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -127,7 +127,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200122';
+DECLARE @Revisiondate DATE = '20200124';
 DECLARE @Build VARCHAR(6) ='2.1'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -10207,7 +10207,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 20/01/2020
+--Revision date: 24/01/2020
 
 SET NOCOUNT ON;
 
@@ -10257,6 +10257,11 @@ DECLARE @ReportWarningsOnly BIT;
 
 	   RAISERROR(''ModuleConfig selected for server: %s'',0,0,@ModuleConfig) WITH NOWAIT;
 	    
+		IF @PSCollection = 1
+		BEGIN
+			RAISERROR(''Displaying executed modules list for Powershell collection'',0,0) WITH NOWAIT;
+	   		EXEC [Inspector].[PSGetConfig] @Servername = @Servername, @ModuleConfig = @ModuleConfig, @PSExecModules = @PSExecModules; 
+		END
 
 			DECLARE InspectorCollection_cur CURSOR LOCAL STATIC
 			FOR
@@ -10344,9 +10349,6 @@ DECLARE @ReportWarningsOnly BIT;
 		BEGIN 
 			RAISERROR(''Cleaning up history tables'',0,0) WITH NOWAIT;
 			EXEC [Inspector].[PSHistCleanup];
-
-			RAISERROR(''Displaying executed modules list for Powershell collection'',0,0) WITH NOWAIT;
-	   		EXEC [Inspector].[PSGetConfig] @Servername = @Servername, @ModuleConfig = @ModuleConfig, @PSExecModules = @PSExecModules; 
 		END
 
 
