@@ -2,7 +2,7 @@
 # SON: We'll create a .psm1 a .psd1 file and put the above into the $RequiredModules field there.
 
 #Script version 1.3
-#Revision date: 21/01/2020
+#Revision date: 27/01/2020
 #Minimum Inspector version 2.1
 
 <#
@@ -343,7 +343,15 @@ function Invoke-SQLUndercoverInspector {
                 $Pos = 0
                 write-output "    Centralising data for Module $Modulename"
                 #Write-Progress -id 1 -Activity "Processing Modules" -CurrentOperation $("Processing Module $Modulename") -PercentComplete $(($InnerCurrent/$InnerTotal)*100)
+
+                #If it is a report only module then skip the centralisation of data for it and move onto the next module
+                IF(!$Tablename) {
+                    Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Skipping data for: $Modulename as no data collection is in use for this module"
+                    Continue;
+                }
+
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Getting data for: $Modulename"
+
                 $Tablename | ForEach-Object -Process {
                     $BaseTable = $_
                     Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Switching destination to central server."
