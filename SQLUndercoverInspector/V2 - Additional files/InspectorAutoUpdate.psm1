@@ -1,5 +1,5 @@
 ﻿#Script version 1
-#Revision date: 22/01/2020
+#Revision date: 27/01/2020
 #Minimum Inspector version 2.1
 
 function InspectorAutoUpdate {
@@ -25,6 +25,7 @@ function InspectorAutoUpdate {
         )
 
         [double]$RequiredInspectorBuild = 2.1
+        $Branch = "Inspector-Dev"
 
         $Serverlist = @();
 
@@ -126,7 +127,7 @@ function InspectorAutoUpdate {
         }
         
         #Set some defaults if these do not exist (earlier V2 versions)
-        IF ($($CentralInspectorVersion.Build) -lt $RequiredInspectorBuild) {
+        IF ($CentralInspectorVersion -lt $RequiredInspectorBuild) {
             $AutoUpdate = 1;
             $PSAutoUpdateModulesFrequencyMins = 1440;
             [datetime]$PSAutoUpdateLastUpdated = (get-date "01/01/1900" -Format "dd/MM/yyyy");
@@ -164,7 +165,7 @@ function InspectorAutoUpdate {
             IF ($ScriptSource -eq "URL") {
                 $ManifestPath = $($Scriptfilepath)+"Manifest.csv";
                 Try {
-                    Invoke-WebRequest "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverInspector/V2%20-%20Additional%20files/Manifest.csv" -OutFile $ManifestPath;       
+                    Invoke-WebRequest "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/$Branch/SQLUndercoverInspector/V2%20-%20Additional%20files/Manifest.csv" -OutFile $ManifestPath;       
                     $Manifest = import-csv -Path $ManifestPath;
                 } Catch{
                     write-host "Error retrieving the manifest file" -ForegroundColor Red;
