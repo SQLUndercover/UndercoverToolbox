@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 24/01/2020
+Revision date: 27/01/2020
 Version: 2.1
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -127,7 +127,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200124';
+DECLARE @Revisiondate DATE = '20200127';
 DECLARE @Build VARCHAR(6) ='2.1'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -2849,9 +2849,11 @@ END
 			BEGIN
 			EXEC ('CREATE VIEW [Inspector].[PSEnabledModules]
 			AS
+			--Revision date: 27/01/2020
 			SELECT 
 			[ModuleConfig_Desc],
 			[Modulename],
+			[CollectionProcedurename],
 			IsActive AS [Enabled]
 			FROM [Inspector].[Modules] 
 			WHERE IsActive = 1;');
@@ -2860,9 +2862,11 @@ END
 			BEGIN
 			EXEC ('ALTER VIEW [Inspector].[PSEnabledModules]
 			AS
+			--Revision date: 27/01/2020
 			SELECT 
 			[ModuleConfig_Desc],
 			[Modulename],
+			[CollectionProcedurename],
 			IsActive AS [Enabled]
 			FROM [Inspector].[Modules] 
 			WHERE IsActive = 1;');
@@ -5925,7 +5929,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
 CREATE PROCEDURE [Inspector].[PopulatePSConfig]
 AS
 BEGIN
---Revision date: 20/09/2019
+--Revision date: 27/01/2020
 --TableAction: 1 delete, 2 delete with retention, 3 Stage/merge
 --InsertAction: 1 ALL, 2 Todays'' data only
 DECLARE @DriveSpaceRetentionPeriodInDays VARCHAR(6);
@@ -5952,7 +5956,7 @@ FROM
 	[ActiveServers].[Servername], 
 	[ActiveServers].[ModuleConfig_Desc], 
 	[PSEnabledModules].[Modulename], 
-	[PSEnabledModules].[Modulename]+''Insert'' AS Procedurename,
+	[CollectionProcedurename] AS Procedurename,
 	CASE
 		WHEN [PSEnabledModules].[Modulename] = ''DatabaseGrowths''
 		THEN ''DatabaseFileSizes,DatabaseFileSizeHistory''
@@ -5960,6 +5964,7 @@ FROM
 		THEN ''ADHocDatabaseCreations,ADHocDatabaseSupression''
 		WHEN [PSEnabledModules].[Modulename] = ''AGCheck''
 		THEN ''AGCheck,AGPrimaryHistory''
+		WHEN [CollectionProcedurename] IS NULL THEN NULL
 		ELSE [PSEnabledModules].[Modulename]
 	END AS Tablename,
 	CASE
@@ -11819,6 +11824,14 @@ FOR XML PATH('') ,TYPE).value('.','nvarchar(max)');
 
 EXEC(@SQLStatement);
 END
+
+--Update any Tablenames in PSConfig for Report only modules issue #204 , PopulatePSConfig proc also updated to accomodate.
+UPDATE PSConfig 
+SET [Tablename] = NULL,[Procedurename] = [CollectionProcedurename]
+FROM [Inspector].[PSConfig] 
+INNER JOIN [Inspector].[Modules] ON [PSConfig].[ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] AND [PSConfig].[Modulename] = [Modules].[Modulename]
+WHERE [Modules].[CollectionProcedurename] IS NULL 
+AND [PSConfig].[Tablename] IS NOT NULL;
 
 --Update Inspector Build 
 UPDATE [Inspector].[Settings]
