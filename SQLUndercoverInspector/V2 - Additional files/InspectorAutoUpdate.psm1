@@ -169,7 +169,11 @@ function InspectorAutoUpdate {
                 } Catch{
                     write-host "Error retrieving the manifest file" -ForegroundColor Red;
                     write-host "$_.Exception.Message" -ForegroundColor Red;
-                    remove-item -LiteralPath $ManifestPath;
+
+                    IF($(test-path $ManifestPath) -eq $true) {
+                        remove-item -LiteralPath $ManifestPath;
+                    }
+
                     Return;
                 }
             } ELSE {
@@ -261,7 +265,11 @@ function InspectorAutoUpdate {
                                 
                             } Catch{
                                 write-host "$_.Exception.Message" -ForegroundColor Red;
-                                remove-item -LiteralPath $Scriptfile;
+
+                                IF($(test-path $Scriptfile) -eq $true) {
+                                    remove-item -LiteralPath $Scriptfile;
+                                }
+                                
                                 Return;
                             }
         
@@ -269,7 +277,10 @@ function InspectorAutoUpdate {
                             Try{
                                 write-host "        Executing the SQL update script" -ForegroundColor White
                                 Invoke-sqlcmd -ServerInstance $Servername -Database $LoggingDb -InputFile $Scriptfile -ConnectionTimeout 15
-                                remove-item -LiteralPath $Scriptfile;
+
+                                IF($(test-path $Scriptfile) -eq $true) {
+                                    remove-item -LiteralPath $Scriptfile;
+                                }
         
                                 #If the Inspector build needs updating then the Setup proc needs to be executed following the above revision to the setup proc.
                                 IF($Modulename -eq "SQLUndercoverinspectorV2.sql"){
@@ -279,7 +290,11 @@ function InspectorAutoUpdate {
                                 }
                             } Catch{
                                 write-host "$_.Exception.Message" -ForegroundColor Red;
-                                remove-item -LiteralPath $Scriptfile;
+
+                                IF($(test-path $Scriptfile) -eq $true) {
+                                    remove-item -LiteralPath $Scriptfile;
+                                }
+
                                 Return;
                             }
                         }
