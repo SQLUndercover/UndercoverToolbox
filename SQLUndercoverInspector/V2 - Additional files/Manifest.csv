@@ -1,5 +1,5 @@
 Modulename,LastUpdated,URL
-SQLUndercoverinspectorV2.sql,24/01/2020 00:00,https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverInspector/SQLUndercoverinspectorV2.sql
-Inspector_CPU_CustomModule.sql,15/01/2020 00:00,https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverInspector/V2%20-%20Additional%20files/Inspector_CPU_CustomModule.sql
-Inspector_BlitzWaits_CustomModule.sql,09/01/2020 00:00,https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverInspector/V2%20-%20Additional%20files/Inspector_BlitzWaits_CustomModule.sql
-Inspector_Catalogue_CustomModule.sql,13/01/2020,https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverInspector/V2%20-%20Additional%20files/Inspector_Catalogue_CustomModule.sql
+SQLUndercoverinspectorV2.sql,27/01/2020 00:00,https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Inspector-Dev/SQLUndercoverInspector/SQLUndercoverinspectorV2.sql
+Inspector_CPU_CustomModule.sql,15/01/2020 00:00,https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Inspector-Dev/SQLUndercoverInspector/V2%20-%20Additional%20files/Inspector_CPU_CustomModule.sql
+Inspector_BlitzWaits_CustomModule.sql,09/01/2020 00:00,https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Inspector-Dev/SQLUndercoverInspector/V2%20-%20Additional%20files/Inspector_BlitzWaits_CustomModule.sql
+Inspector_Catalogue_CustomModule.sql,13/01/2020,https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Inspector-Dev/SQLUndercoverInspector/V2%20-%20Additional%20files/Inspector_Catalogue_CustomModule.sql
