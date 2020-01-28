@@ -64,7 +64,7 @@ function Invoke-SQLUndercoverInspector {
 
         [Parameter(Position = 8, ValueFromPipelineByPropertyName)]
         #[ValidateNotNullOrEmpty()]
-        [Alias('OfflineUpdatetPath')]
+        [Alias('OfflineUpdatePath')]
         [String]$Offlinefilepath
         )
     
