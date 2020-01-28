@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 27/01/2020
+Revision date: 28/01/2020
 Version: 2.1
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -127,7 +127,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200127';
+DECLARE @Revisiondate DATE = '20200128';
 DECLARE @Build VARCHAR(6) ='2.1'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1317,7 +1317,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[OriginalDateLogged] DATETIME NOT NULL,
 			[OriginalSize_MB] BIGINT NULL,
 			[Type_desc] NVARCHAR(60) NULL,
-			[File_id] TINYINT NOT NULL,
+			[File_id] INT NOT NULL,
 			[Filename] NVARCHAR(260) NULL,
 			[PostGrowthSize_MB] BIGINT NULL,
 			[GrowthRate] INT NULL,
@@ -1326,6 +1326,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[LastUpdated] DATETIME NULL	  
 			); 
 			END
+
+			--Change data type for File_id #205
+			IF EXISTS(SELECT * FROM sys.columns WHERE [object_id] = OBJECT_ID(N'Inspector.DatabaseFileSizes') AND [name] = N'File_id' AND [user_type_id] = (SELECT user_type_id FROM sys.types WHERE [name] = N'tinyint'))
+			BEGIN 
+				ALTER TABLE [Inspector].[DatabaseFileSizes] ALTER COLUMN [File_id] INT NOT NULL;	
+			END 
 
 			--New Column [LastUpdated] for 1.0.1
 			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DatabaseFileSizes') AND name ='LastUpdated')
@@ -1356,7 +1362,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[Database_name] NVARCHAR(128) NOT NULL,
 			[Log_Date] DATETIME NOT NULL,
 			[Type_Desc] NVARCHAR(60) NOT NULL,
-			[File_id] TINYINT NOT NULL,
+			[File_id] INT NOT NULL,
 			[FileName] NVARCHAR(260) NOT NULL,
 			[PreGrowthSize_MB] BIGINT NOT NULL,
 			[GrowthRate_MB] INT NOT NULL,
@@ -1366,6 +1372,13 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			);
 
 			END
+
+			--Change data type for File_id #205
+			IF EXISTS(SELECT * FROM sys.columns WHERE [object_id] = OBJECT_ID(N'Inspector.DatabaseFileSizeHistory') AND [name] = N'File_id' AND [user_type_id] = (SELECT user_type_id FROM sys.types WHERE [name] = N'tinyint'))
+			BEGIN 
+				ALTER TABLE [Inspector].[DatabaseFileSizeHistory] ALTER COLUMN [File_id] INT NOT NULL;	
+			END 
+
 
 			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.DatabaseFileSizeHistory') AND name='IX_Servername_Includes_Log_Date')
 			BEGIN
