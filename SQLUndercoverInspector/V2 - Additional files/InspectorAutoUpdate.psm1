@@ -153,7 +153,7 @@ function InspectorAutoUpdate {
                 write-host "Last Updated: Never"-ForegroundColor Yellow;
             } ELSE {
                 write-host "Update Frequency: Every $($PSAutoUpdateModulesFrequencyMins) mins" -ForegroundColor Yellow;
-                write-host "Last Updated: $PSAutoUpdateLastUpdated" -ForegroundColor Yellow;
+                write-host "Last Updated: $(get-date $PSAutoUpdateLastUpdated -Format "dd/MM/yyyy HH:mm:ss")" -ForegroundColor Yellow;
                 write-host "Next Update: $(get-date $($PSAutoUpdateLastUpdated.AddMinutes($PSAutoUpdateModulesFrequencyMins)) -Format "dd/MM/yyyy HH:mm:ss")" -ForegroundColor Yellow;
             }
 
@@ -340,7 +340,7 @@ function InspectorAutoUpdate {
             } ELSE {
                 Write-Host "Auto Update: Enabled but Not due yet" -ForegroundColor Yellow;
                 write-host "Update Frequency: Every $($PSAutoUpdateModulesFrequencyMins) mins" -ForegroundColor Yellow;
-                write-host "Last Updated: $PSAutoUpdateLastUpdated" -ForegroundColor Yellow;
+                write-host "Last Updated: $(get-date $PSAutoUpdateLastUpdated -Format "dd/MM/yyyy HH:mm:ss")" -ForegroundColor Yellow;
                 write-host "Next Update: $(get-date $($PSAutoUpdateLastUpdated.AddMinutes($PSAutoUpdateModulesFrequencyMins)) -Format "dd/MM/yyyy HH:mm:ss")" -ForegroundColor Yellow;
             }
         }
