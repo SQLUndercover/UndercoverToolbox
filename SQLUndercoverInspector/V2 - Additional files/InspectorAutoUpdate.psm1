@@ -114,13 +114,14 @@ function InspectorAutoUpdate {
 
         #Get Inspector build to ensure that the version installed has the PSUpdate table - if not then skip the config query
         $CentralInspectorVersion = Invoke-sqlcmd -ServerInstance $CentralServer -Database $LoggingDb -Query "EXEC [Inspector].[PSGetInspectorBuild];"
+        [double]$CentralInspectorVersion = $($CentralInspectorVersion.Build);
 
-        IF ($($CentralInspectorVersion.Build) -ge $RequiredInspectorBuild) {
+        IF ($CentralInspectorVersion -ge $RequiredInspectorBuild) {
             #Get config from the central server
             $Config = Invoke-sqlcmd -ServerInstance $CentralServer -Database $LoggingDb -Query $ConfigQuery;
                 
             #Assign values to config variables.
-            $CentralInspectorVersion = ($Config | ?{$_.Description -eq "InspectorBuild"}).Value
+            [double]$CentralInspectorVersion = ($Config | ?{$_.Description -eq "InspectorBuild"}).Value
             $AutoUpdate = ($Config | ?{$_.Description -eq "PSAutoUpdateModules"}).Value
             [int]$PSAutoUpdateModulesFrequencyMins = ($Config | ?{$_.Description -eq "PSAutoUpdateModulesFrequencyMins"}).Value
             [datetime]$PSAutoUpdateLastUpdated = ($Config | ?{$_.Description -eq "PSAutoUpdate"}).Value           
