@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 28/01/2020
+Revision date: 29/01/2020
 Version: 2.1
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -127,7 +127,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200128';
+DECLARE @Revisiondate DATE = '20200129';
 DECLARE @Build VARCHAR(6) ='2.1'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -4272,7 +4272,7 @@ AS
                      WHERE  [primary_replica] = @@Servername
                  ) [DatabaseList] ON [DatabaseList].[Database_ID] = [Masterfiles].[database_id]
                  WHERE [Masterfiles].[database_id] > 3
-                       AND [type_desc] = ''ROWS''
+                       AND [type_desc] != ''LOG''
                        AND NOT EXISTS
                  (
                      SELECT [Database_id]
@@ -4341,7 +4341,7 @@ AS
                         END [NextGrowth] 													
                  FROM   [sys].[master_files] [Masterfiles]
                  WHERE  [Masterfiles].[database_id] > 3
-                        AND [type_desc] = ''ROWS''
+                        AND [type_desc] != ''LOG''
                         AND NOT EXISTS
                  (
                      SELECT [Database_id]
@@ -4399,7 +4399,7 @@ AS
              FROM   [sys].[master_files] [Masterfiles]
                     INNER JOIN [sys].[databases] [DatabasesList] ON [Masterfiles].[database_id] = [DatabasesList].[database_id]
              WHERE  [Masterfiles].[database_id] > 3
-                    AND [type_desc] = ''ROWS''
+                    AND [type_desc] != ''LOG''
                     AND [DatabasesList].state = 0
          ) [GrowthCheck]
          INNER JOIN '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes] [Sizes] ON [GrowthCheck].[database_id] = [Sizes].[Database_id]
@@ -4423,7 +4423,7 @@ AS
              FROM   [sys].[master_files] [Masterfiles]
                     INNER JOIN [sys].[databases] [DatabasesList] ON [Masterfiles].[database_id] = [DatabasesList].[database_id]
              WHERE  [Masterfiles].[database_id] > 3
-                    AND [type_desc] = ''ROWS''
+                    AND [type_desc] != ''LOG''
                     AND [DatabasesList].state = 0
          ) [ShrunkDatabases]
          INNER JOIN '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes] [Sizes] ON [ShrunkDatabases].[database_id] = [Sizes].[Database_id]
