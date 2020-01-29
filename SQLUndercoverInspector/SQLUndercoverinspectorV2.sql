@@ -7534,6 +7534,7 @@ BEGIN
 		) AS [HistoricGrowths](LastFiveDaysGrowth)
 	WHERE [Log_Date] >= DATEADD(HOUR,-24,GETDATE())
 	AND [GrowthIncrements] > @DatabaseGrowthsAllowedPerDay
+	AND [Type_Desc] = ''ROWS''
 	ORDER BY [Servername],[Database_name],[File_id]
 	FOR XML PATH(''tr''),Elements);
 
