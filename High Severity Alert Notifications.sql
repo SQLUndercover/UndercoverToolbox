@@ -1,7 +1,7 @@
 /******************************************************************
 
 Your SQL Server's Screaming But Is Anyone Listening? - High Severity Alert Notifications
-
+https://sqlundercover.com/?p=6642
 
 Author: David Fowler
 Revision date: 30/01/2020
