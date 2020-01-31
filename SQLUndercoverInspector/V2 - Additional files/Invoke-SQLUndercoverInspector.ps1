@@ -2,7 +2,7 @@
 # SON: We'll create a .psm1 a .psd1 file and put the above into the $RequiredModules field there.
 
 #Script version 1.3
-#Revision date: 27/01/2020
+#Revision date: 31/01/2020
 #Minimum Inspector version 2.1
 
 <#
@@ -84,12 +84,14 @@ function Invoke-SQLUndercoverInspector {
         Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] Initialising default values and parameters..." 
         [int]$Pos = 0
         $InstallStatus = New-Object -TypeName System.Collections.Generic.List[int]
-        $InvalidServers = New-Object -TypeName System.Collections.Generic.List[int]
-        $ActiveServers = New-Object -TypeName System.Collections.Generic.List[string]
+        $InvalidServers = @()
+        $ActiveServers = @()
+        $ActiveServersFiltered = @()
         $Builds = New-Object -TypeName System.Collections.Generic.List[psobject]
         $RequiredInspectorBuild = "2.1"
         [string]$Path = split-path $FileName;
         
+        write-host "Checking central server connectivity.";
 
         Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] [$CentralServer] - Checking central server connectivity."
         $CentralConnection = Get-DbaDatabase -SqlInstance $CentralServer -Database $LoggingDb -ErrorAction Stop -WarningAction Stop
@@ -126,22 +128,37 @@ function Invoke-SQLUndercoverInspector {
 
         Write-Verbose "[$((Get-Date).TimeOfDay) BEGIN  ] Getting a list of active servers from the Inspector Currentservers table..."
         $ActiveServersQry = "EXEC [$LoggingDb].[Inspector].[PSGetServers];"
-        $ActiveServers = $CentralConnection.Query($ActiveServersQry)
+        $CurrentServers = $CentralConnection.Query($ActiveServersQry)
+
+        $CurrentServers.Servername | ForEach-Object {
+            $ActiveServers += ($_);
+        }
+
+        IF(!$CurrentServers) {
+            Write-Warning "[$CentralServer] - No servers specified in [Inspector].[CurrentServers]";
+            Return;
+        }
 
         #AutoUpdate
+        write-host "Running AutoUpdate Function";
         InspectorAutoUpdate -CentralServer $CentralServer -LoggingDb $LoggingDb -Scriptfilepath $(split-path $FileName) -Offlinefilepath $Offlinefilepath;
     }
-    
-    process {
-        Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Processing active servers..."
-        $ActiveServers.Servername |
-            ForEach-Object -Process {
 
+    process {
+        write-host "Processing active servers...";
+        Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Processing active servers..."
+        $ActiveServers |
+            ForEach-Object -Process {
+                write-host "    Confirming connection and validating install for server [$_]";
                 $InstallStatus[0] = 0  
-                     
+
                  Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Database: $LoggingDb exists, validating Inspector installation..."
                  $ValidateInstallQry = "SELECT CASE WHEN OBJECT_ID('Inspector.Settings') IS NOT NULL THEN 1 ELSE 0 END AS Outcome;"
                  $InstallStatus = $CentralConnection.Query($ValidateInstallQry)
+                 
+                 if($InstallStatus[0] -eq 0) {
+                    Continue;
+                 }
 
                  if($InstallStatus[0] -ne 1) {
                      Write-Warning "[$CentralServer] [$($_)] - Settings table does not exist in database [$LoggingDb] - please install/reinstall the Inspector."
@@ -168,10 +185,11 @@ function Invoke-SQLUndercoverInspector {
                 $ConnectionCurrent = Get-DbaDatabase -SqlInstance $_ -Database $LoggingDb -ErrorAction Continue -WarningAction Continue
 
                 if (-not $ConnectionCurrent.Name) {
-                    Write-Warning "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Logging database [$LoggingDb] does not exist."
+                    #Write-Warning "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Logging database [$LoggingDb] does not exist."
                     Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Adding server to exclusion list."
-                    $InvalidServers.Add($Pos)
-                    $Pos++
+                    #$InvalidServers += $($_).tostring();
+                    $InvalidServers += ($($_));
+                    #$Pos++
                 }
                 ELSE {
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Adding Inspector build."
@@ -186,14 +204,20 @@ function Invoke-SQLUndercoverInspector {
             }
 
         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Removing invalid servers from ActiveServers array..."
-        if ($InvalidServers) {
-            $InvalidServers.Servername |
-                ForEach-Object -Process {
-                    $BadServername = $_
-                    Write-Warning "[Validation] - Removing Invalid Server [$_] from the Active Server list."
-                    $ActiveServers = $ActiveServers | Where-Object { $_.Servername -ne $BadServername }
-                }
+
+        #Remove bad servers 
+        #For every position in the invalid server array check every position in the Active servers array and build a new array where Invalidservers are not present.
+        IF($($InvalidServers.Length) -gt 0) {
+            write-host "    Removing invalid servers";
+            for($i=0;$i -lt $($InvalidServers.Length);$i ++) {
+                    for($ii=0;$ii -lt $($ActiveServers.Length);$ii ++) {
+                            IF($ActiveServers[$ii] -ne $InvalidServers[$i]) {
+                                $ActiveServersFiltered += ($($ActiveServers[$ii]));
+                            }
+                        }
+                    }
         }
+        
         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Checking minimum build and build comparison..."
         $BuildVersions = $Builds | Measure-Object -Property Build -Maximum -Minimum
         if ($BuildVersions.Minimum -lt 2.00) {
@@ -254,10 +278,11 @@ function Invoke-SQLUndercoverInspector {
             Table = ''
             NoTableLock = $true
         }
-        $OuterTotal = $ActiveServers.Servername.Count;
-        $OuterCurrent = 0;
+        #$OuterTotal = $ActiveServers.Servername.Count;
+        #$OuterCurrent = 0;
 
-        foreach ($Servername in $ActiveServers.Servername) {
+        #Central server needs to be processed last
+        foreach ($Servername in $($ActiveServersFiltered | Sort-Object -Unique | Sort-Object -Property @{Expression = {IF($_ -eq $CentralServer) {2} ELSE {1}}; Descending = $False})) {
             Write-Output "Processing server $Servername";
             #Write-Progress -id 0 -Activity "Processing servers" -PercentComplete $(($OuterCurrent/$OuterTotal)*100) -CurrentOperation $("Processing $Servername")
             Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Initialising collection variables..."
