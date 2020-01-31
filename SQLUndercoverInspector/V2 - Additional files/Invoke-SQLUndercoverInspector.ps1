@@ -152,23 +152,27 @@ function Invoke-SQLUndercoverInspector {
                 write-host "    Confirming connection and validating install for server [$_]";
                 $InstallStatus[0] = 0  
 
+                IF($ConnectionCurrent) {
+                    clear-variable ConnectionCurrent;
+                }
+
+                 $ConnectionCurrent = Get-DbaDatabase -SqlInstance $_ -Database $LoggingDb -ErrorAction Continue -WarningAction Continue
+
+
                  Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Database: $LoggingDb exists, validating Inspector installation..."
                  $ValidateInstallQry = "SELECT CASE WHEN OBJECT_ID('Inspector.Settings') IS NOT NULL THEN 1 ELSE 0 END AS Outcome;"
-                 $InstallStatus = $CentralConnection.Query($ValidateInstallQry)
+                 $InstallStatus = $ConnectionCurrent.Query($ValidateInstallQry)
                  
+
                  if($InstallStatus[0] -eq 0) {
                     Continue;
                  }
 
-                 if($InstallStatus[0] -ne 1) {
-                     Write-Warning "[$CentralServer] [$($_)] - Settings table does not exist in database [$LoggingDb] - please install/reinstall the Inspector."
-                     break
-                 }
 
                  if($InstallStatus[0] -eq 1) {
                      $ValidateInstallQry = "SELECT CASE WHEN (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild') = 1 THEN 1 ELSE 0 END AS Outcome;"
-                     $InstallStatus = $CentralConnection.Query($ValidateInstallQry)
-                     
+                     $InstallStatus = $ConnectionCurrent.Query($ValidateInstallQry)
+  
                      if($InstallStatus[0] -ne 1) {      
                      Write-Warning "[$CentralServer] [$($_)] - Settings table exists in database [$LoggingDb] - but no config is present please install/reinstall the Inspector."
                      break
@@ -179,10 +183,8 @@ function Invoke-SQLUndercoverInspector {
 
 
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Setting $InspectorBuildQry variable."
-                $InspectorBuildQry = "EXEC [$LoggingDb].[Inspector].[PSGetInspectorBuild];"                
-
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Getting Inspector build info..."
-                $ConnectionCurrent = Get-DbaDatabase -SqlInstance $_ -Database $LoggingDb -ErrorAction Continue -WarningAction Continue
+                $InspectorBuildQry = "EXEC [$LoggingDb].[Inspector].[PSGetInspectorBuild];"                
 
                 if (-not $ConnectionCurrent.Name) {
                     #Write-Warning "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Logging database [$LoggingDb] does not exist."
@@ -216,6 +218,11 @@ function Invoke-SQLUndercoverInspector {
                             }
                         }
                     }
+        }
+
+        #If there were no invalid servers to remove the set the Filtered list to match the Active server array
+        IF($ActiveServersFiltered.Length -eq 0) {
+            $ActiveServersFiltered = $ActiveServers;
         }
         
         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Checking minimum build and build comparison..."
