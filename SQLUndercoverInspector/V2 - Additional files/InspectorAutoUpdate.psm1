@@ -1,5 +1,5 @@
 ﻿#Script version 1
-#Revision date: 27/01/2020
+#Revision date: 31/01/2020
 #Minimum Inspector version 2.1
 
 function InspectorAutoUpdate {
@@ -117,9 +117,17 @@ function InspectorAutoUpdate {
         [double]$CentralInspectorVersion = $($CentralInspectorVersion.Build);
 
         IF ($CentralInspectorVersion -ge $RequiredInspectorBuild) {
+            $Config = @();
+
             #Get config from the central server
             $Config = Invoke-sqlcmd -ServerInstance $CentralServer -Database $LoggingDb -Query $ConfigQuery;
-                
+            
+            #If there is an issue getting the config then break out
+            IF ($($Config.Length) -eq 0) {
+                write-host "There was an issue getting the config on the Central server" -ForegroundColor Red;
+                Break;
+            }
+               
             #Assign values to config variables.
             [double]$CentralInspectorVersion = ($Config | ?{$_.Description -eq "InspectorBuild"}).Value
             $AutoUpdate = ($Config | ?{$_.Description -eq "PSAutoUpdateModules"}).Value
@@ -195,9 +203,16 @@ function InspectorAutoUpdate {
             $Serverlist | ForEach-Object{
                 write-host "Checking version information for server $($_.Servername)" -ForegroundColor Yellow;
 
+                $InspectorVersion = @();
 
                 #region Check local Inspector build meets the minimum requirement
                 $InspectorVersion = Invoke-sqlcmd -ServerInstance $($_.Servername) -Database $LoggingDb -Query "EXEC [Inspector].[PSGetInspectorBuild];"
+
+                #If there is an issue getting the config then break out
+                IF ($($InspectorVersion.Length) -eq 0) {
+                    write-host "There was an issue determining the Inspector build for $($_.Servername), skiping auto updates for the server" -ForegroundColor Red;
+                    Return;
+                }
                 
                 #if the local version is less than $RequiredInspectorBuild then set the MinVersionUpdateRequired flag to install the latest Inspector version
                 IF($($InspectorVersion.Build) -lt $RequiredInspectorBuild) {
