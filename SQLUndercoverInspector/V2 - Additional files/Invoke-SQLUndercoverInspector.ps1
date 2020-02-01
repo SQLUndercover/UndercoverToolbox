@@ -360,7 +360,7 @@ function Invoke-SQLUndercoverInspector {
 
             $ExecutedModules = $ExecutedModules |
                 Where-Object { $_.Servername -ne $CentralServer } |
-                Select-Object -Property Servername, Modulename, Tablename, StageTablename, StageProcname, TableAction, InsertAction, RetentionInDays
+                Select-Object -Property Servername, Modulename, Tablename, StageTablename, StageProcname, TableAction, InsertAction, RetentionInDays, Frequency
 
             if ($Servername -ne $CentralServer) {
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Starting data retrieval loop..."
@@ -375,6 +375,11 @@ function Invoke-SQLUndercoverInspector {
                 $StageProcname = $Module.StageProcname.ToString().split(',')
                 $InsertAction = $Module.InsertAction.ToString().split(',')
                 $RetentionInDays = $Module.RetentionInDays.ToString().split(',')
+                $Frequency = $Module.Frequency
+
+                #Add a 2 minute buffer just in case the collection runs on.
+                $Frequency = $Frequency+2;
+
                 $Pos = 0
                 write-output "    Centralising data for Module $Modulename"
                 #Write-Progress -id 1 -Activity "Processing Modules" -CurrentOperation $("Processing Module $Modulename") -PercentComplete $(($InnerCurrent/$InnerTotal)*100)
@@ -427,14 +432,19 @@ function Invoke-SQLUndercoverInspector {
                         $Columnnames = $ConnectionCurrent.Query($ColumnNamesQry) 
                     switch ($InsertActionPos) {
                         { $_ -eq 1 } {
-                        #Get all data for the current server
-                        $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Servername = @Servername',N'@Servername NVARCHAR(128)',@Servername = '$Servername'"
+                            #Get all data for the current server
+                            $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Servername = @Servername',N'@Servername NVARCHAR(128)',@Servername = '$Servername'"
                         }
                         { $_ -eq 2 } {
-                        #Get data recorded for today only for the current server
-                        $InsertQuery = "EXEC sp_executesql N'DECLARE @Today DATE = CAST(GETDATE() AS DATE); SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Log_Date >= @Today AND Servername = @Servername',N'@Servername NVARCHAR(128)',@Servername = '$Servername'"
+                            #Get data recorded for today only for the current server
+                            $InsertQuery = "EXEC sp_executesql N'DECLARE @Today DATE = CAST(GETDATE() AS DATE); SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Log_Date >= @Today AND Servername = @Servername',N'@Servername NVARCHAR(128)',@Servername = '$Servername'"
+                        }
+                        { $_ -eq 3 } {
+                            #Get data recorded forModule frequency mins ago for the current server
+                            $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Log_Date >= DATEADD(MINUTE,-@Frequency,GETDATE()) AND Servername = @Servername',N'@Servername NVARCHAR(128),@Frequency INT',@Servername = '$Servername',@Frequency = $Frequency"                        
                         }
                         }
+                    Write-Verbose $InsertQuery
                     $CollectedData = $ConnectionCurrent.Query($InsertQuery)
 
                     if ($CollectedData) {

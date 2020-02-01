@@ -64,7 +64,7 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 29/01/2020
+Revision date: 01/02/2020
 Version: 2.1
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -127,7 +127,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200129';
+DECLARE @Revisiondate DATE = '20200201';
 DECLARE @Build VARCHAR(6) ='2.1'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1798,11 +1798,22 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 					[TableAction] VARCHAR(3) NOT NULL,
 					[TableAction_Desc] AS CAST(REPLACE(REPLACE(REPLACE([TableAction],'1','Delete All'),'2','Delete with retention'),'3','Stage/Merge') AS VARCHAR(50)),
 					[InsertAction] VARCHAR(3) NOT NULL,
-					[InsertAction_Desc] AS CAST(REPLACE(REPLACE([InsertAction],'1','All data'),'2','Todays data only') AS VARCHAR(50)),
+					[InsertAction_Desc] AS CAST(REPLACE(REPLACE(REPLACE([InsertAction],'1','All data'),'2','Todays data only'),'3','Frequency based') AS VARCHAR(50)),
 					[RetentionInDays] VARCHAR(7) NULL,
 					[IsActive] BIT NOT NULL
 				);
 			END
+
+			--V2.1 Change computed column definition
+			IF NOT EXISTS (SELECT * FROM sys.computed_columns WHERE [object_id] = OBJECT_ID('Inspector.PSConfig') AND [name] = N'InsertAction_Desc' AND [definition] LIKE '%Frequency based%')
+			BEGIN 
+				ALTER TABLE [Inspector].[PSConfig] DROP COLUMN [InsertAction_Desc];
+			END 
+			
+			IF NOT EXISTS (SELECT * FROM sys.computed_columns WHERE [object_id] = OBJECT_ID('Inspector.PSConfig') AND [name] = N'InsertAction_Desc')
+			BEGIN 
+				ALTER TABLE [Inspector].[PSConfig] ADD [InsertAction_Desc] AS CAST(REPLACE(REPLACE(REPLACE([InsertAction],'1','All data'),'2','Todays data only'),'3','Frequency based') AS VARCHAR(50));
+			END 
 
 			--Insert new settings for V1.2
 			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'LongRunningTransactionThreshold')
@@ -5581,9 +5592,9 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 )
 AS
 BEGIN
---Revision date: 27/11/2019
+--Revision date: 01/02/2020
 --TableAction: 1 delete, 2 delete with retention, 3 Stage/merge
---InsertAction: 1 ALL, 2 Todays'' data only
+--InsertAction: 1 ALL, 2 Todays'' data only, 3 Frequency based
 
 DECLARE @DriveSpaceRetentionPeriodInDays VARCHAR(6) = (SELECT ISNULL(NULLIF([Value],''''),''90'') FROM [Inspector].[Settings] WHERE [Description] = ''DriveSpaceRetentionPeriodInDays'')
 
@@ -5599,7 +5610,8 @@ SELECT DISTINCT
 [PSConfig].StageProcname,
 [PSConfig].TableAction,
 [PSConfig].InsertAction,
-[PSConfig].RetentionInDays
+[PSConfig].RetentionInDays,
+(SELECT [Frequency] FROM [Inspector].[Modules] WHERE [Modules].[ModuleConfig_Desc] = [PSConfig].[ModuleConfig_Desc] AND [Modules].[Modulename] = [PSConfig].[Modulename]) AS [Frequency]
 FROM
 (
 	SELECT 
@@ -5640,7 +5652,8 @@ CASE
 	WHEN [NonModuleColection].[Module] = ''InstanceVersion'' THEN ''1,1''
 	ELSE ''2'' 
 END	AS InsertAction, 
-NULL AS RetentionInDays
+NULL AS RetentionInDays,
+1 AS [Frequency]
 FROM
 (
 	SELECT 
@@ -6051,7 +6064,7 @@ CREATE PROCEDURE [Inspector].[PSGetSettingsTables]
 @PSCollection BIT = 0 --If its a powershell collection ensure that the WarningLevel table is populated
 )
 AS 
---Revision date: 17/04/2019
+--Revision date: 01/02/2020
 
 --Config for Powershell collection use only
 --TruncateTable - 0 Delete contents, 1 Truncate table
@@ -6075,14 +6088,14 @@ BEGIN
 	IF @SortOrder = 0 
 	BEGIN 
 		SELECT Tablename,TruncateTable,ReseedTable 
-		FROM (VALUES(1,''Settings'',1,1),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''Modules'',0,1),(7,''ModuleWarningLevel'',0,0),(8,''AGCheckConfig'',1,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		FROM (VALUES(1,''Settings'',1,1),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''ModuleWarningLevel'',0,0),(7,''AGCheckConfig'',1,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder ASC;
 	END
 
 	IF @SortOrder = 1 
 	BEGIN 
 		SELECT Tablename,TruncateTable,ReseedTable 
-		FROM (VALUES(1,''Settings'',1,1),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''Modules'',0,1),(7,''ModuleWarningLevel'',0,0),(8,''AGCheckConfig'',1,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		FROM (VALUES(1,''Settings'',1,1),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''ModuleWarningLevel'',0,0),(7,''AGCheckConfig'',1,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder DESC;
 	END
 
