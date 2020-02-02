@@ -1,11 +1,11 @@
-/*********************************************
+ï»¿/*********************************************
 Description: CPU Custom module for the Inspector
 			 Collect CPU % and report when % over CPU Thresholds which can be configured by changing the values for CPUThreshold in [Inspector].[Settings]
 Author: Adrian Buckman
-Revision date: 02/01/2020
+Revision date: 01/02/2020
 Credit: David Fowler for the CPU collection query body as this was a snippt taken from a stored procedure he had called sp_CPU_Time
 
-© www.sqlundercover.com 
+ï¿½ www.sqlundercover.com 
 
 MIT License
 ------------
@@ -28,9 +28,18 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
+SET NOCOUNT ON;
 
-DECLARE @Revisiondate DATETIME = '20191217';
+DECLARE @Revisiondate DATETIME = '20200201';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
+DECLARE @LinkedServername NVARCHAR(128) = (SELECT UPPER(TRY_CAST([Value] AS NVARCHAR(128))) FROM [Inspector].[Settings] WHERE [Description] = 'LinkedServername');
+DECLARE @SQLstmt NVARCHAR(4000);
+
+IF (@LinkedServername IS NOT NULL) AND NOT EXISTS(SELECT 1 FROM sys.servers WHERE [name] = @LinkedServername)
+BEGIN 
+	RAISERROR('Linked server name is incorrect',11,0,@LinkedServername);
+	RETURN;
+END 
 
 IF SCHEMA_ID(N'Inspector') IS NOT NULL
 BEGIN 
@@ -47,10 +56,29 @@ BEGIN
 	);
 END
 
+IF OBJECT_ID('Inspector.PSCPUStage',N'U') IS NULL 
+CREATE TABLE [Inspector].[PSCPUStage](
+	[Servername] [nvarchar](128) NULL,
+	[Log_Date] [datetime] NULL,
+	[EventTime] [datetime] NULL,
+	[SystemCPUUtilization] [int] NULL,
+	[SQLCPUUtilization] [int] NULL
+);
+
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.CPU',N'U') AND [name] = N'CIX_CPU_EventTime')
 BEGIN 
 	CREATE CLUSTERED INDEX [CIX_CPU_EventTime] ON [Inspector].[CPU] (EventTime ASC);
+END
+
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.CPU',N'U') AND [name] = N'IX_CPU_Servername')
+BEGIN 
+	CREATE NONCLUSTERED INDEX [IX_CPU_Servername] ON [Inspector].[CPU] (Servername ASC);
+END
+
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.PSCPUStage',N'U') AND [name] = N'CIX_PSCPUStage_EventTime')
+BEGIN 
+	CREATE CLUSTERED INDEX [CIX_PSCPUStage_EventTime] ON [Inspector].[PSCPUStage] ([EventTime] ASC);
 END
 
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'CPUHistoryRetentionInDays')
@@ -85,7 +113,10 @@ END
 
 IF OBJECT_ID('Inspector.CPUInsert',N'P') IS NOT NULL
 BEGIN 
-EXEC('ALTER PROCEDURE [Inspector].[CPUInsert]
+
+IF @LinkedServername IS NULL 
+BEGIN 
+SET @SQLstmt = N'ALTER PROCEDURE [Inspector].[CPUInsert]
 AS
 BEGIN 
 --Revision date: 07/12/2019
@@ -100,7 +131,8 @@ BEGIN
 	IF @CPUHistoryRetentionInDays IS NULL BEGIN SET @CPUHistoryRetentionInDays = 7 END;
 
 	DELETE FROM [Inspector].[CPU] 
-	WHERE [EventTime] < DATEADD(DAY,-@CPUHistoryRetentionInDays,GETDATE());
+	WHERE [EventTime] < DATEADD(DAY,-@CPUHistoryRetentionInDays,GETDATE())
+	AND [Servername] = @@SERVERNAME;
 	
 	INSERT INTO [Inspector].[CPU] (Servername,Log_Date,EventTime,SystemCPUUtilization,SQLCPUUtilization)
 	SELECT 
@@ -126,10 +158,84 @@ BEGIN
 	) AS t
 	WHERE EventTime > DATEADD(MINUTE,-@Frequency,GETDATE())
 	AND NOT EXISTS (SELECT 1 FROM Inspector.CPU WHERE CPU.EventTime  = t.EventTime AND CPU.Servername = @@SERVERNAME);
-END');
+END';
+END
+ELSE 
+BEGIN 
+SET @SQLstmt = N'ALTER PROCEDURE [Inspector].[CPUInsert]
+AS
+BEGIN 
+--Revision date: 07/12/2019
+	DECLARE @ts_now BIGINT
+	DECLARE @Frequency INT 
+	DECLARE @CPUHistoryRetentionInDays INT 
+	
+	SET @CPUHistoryRetentionInDays = (SELECT ISNULL(TRY_CAST([Value] AS INT),7) FROM [Inspector].[Settings] WHERE [Description] = ''CPUHistoryRetentionInDays'');
+	SET @Frequency = (SELECT MAX([Frequency]) FROM Inspector.Modules WHERE Modulename = ''CPU''); 
+	SET @ts_now = (SELECT cpu_ticks / (cpu_ticks/ms_ticks)  FROM sys.dm_os_sys_info);
+
+	IF @CPUHistoryRetentionInDays IS NULL BEGIN SET @CPUHistoryRetentionInDays = 7 END;
+
+	DELETE FROM [Inspector].[CPU] 
+	WHERE [EventTime] < DATEADD(DAY,-@CPUHistoryRetentionInDays,GETDATE())
+	AND [Servername] = @@SERVERNAME;
+	
+	INSERT INTO '+QUOTENAME(@LinkedServername)+N'.'+QUOTENAME(DB_NAME())+N'.[Inspector].[CPU] (Servername,Log_Date,EventTime,SystemCPUUtilization,SQLCPUUtilization)
+	SELECT 
+	@@SERVERNAME,
+	GETDATE(),
+	EventTime, 
+	ISNULL(system_cpu_utilization_post_sp2, system_cpu_utilization_pre_sp2) AS SystemCPUUtilization,
+	ISNULL(sql_cpu_utilization_post_sp2, sql_cpu_utilization_pre_sp2) AS SQLCPUUtilization
+	FROM 
+	(
+	  SELECT 
+	    record.value(''(Record/@id)[1]'', ''int'') AS record_id,
+	    DATEADD (ms, -1 * (@ts_now - [timestamp]), GETDATE()) AS EventTime,
+	    100-record.value(''(Record/SchedulerMonitorEvent/SystemHealth/SystemIdle)[1]'', ''int'') AS system_cpu_utilization_post_sp2,
+	    record.value(''(Record/SchedulerMonitorEvent/SystemHealth/ProcessUtilization)[1]'', ''int'') AS sql_cpu_utilization_post_sp2 , 
+	    100-record.value(''(Record/SchedluerMonitorEvent/SystemHealth/SystemIdle)[1]'', ''int'') AS system_cpu_utilization_pre_sp2,
+	    record.value(''(Record/SchedluerMonitorEvent/SystemHealth/ProcessUtilization)[1]'', ''int'') AS sql_cpu_utilization_pre_sp2
+	  FROM (
+	    SELECT timestamp, CONVERT (xml, record) AS record 
+	    FROM sys.dm_os_ring_buffers 
+	    WHERE ring_buffer_type = ''RING_BUFFER_SCHEDULER_MONITOR''
+	    AND record LIKE ''%<SystemHealth>%'') AS t
+	) AS t
+	WHERE EventTime > DATEADD(MINUTE,-@Frequency,GETDATE())
+	AND NOT EXISTS (SELECT 1 FROM '+QUOTENAME(@LinkedServername)+N'.'+QUOTENAME(DB_NAME())+N'.[Inspector].[CPU] WHERE CPU.EventTime  = t.EventTime AND CPU.Servername = @@SERVERNAME);
+END';
 END
 
+END 
 
+EXEC sp_executesql @SQLstmt;
+
+
+IF OBJECT_ID('Inspector.PSGetCPUStage',N'P') IS NULL 
+BEGIN 
+	EXEC('CREATE PROCEDURE [Inspector].[PSGetCPUStage] AS');
+END
+
+IF OBJECT_ID('Inspector.PSGetCPUStage',N'P') IS NOT NULL 
+BEGIN 
+EXEC('ALTER PROCEDURE [Inspector].[PSGetCPUStage] (
+@Servername NVARCHAR(128)
+)
+AS
+BEGIN 
+	--Revision Date: 01/02/2020
+
+	INSERT INTO [Inspector].[CPU] ([Servername],[Log_Date],[EventTime],[SystemCPUUtilization],[SQLCPUUtilization])
+	SELECT [Servername],[Log_Date],[EventTime],[SystemCPUUtilization],[SQLCPUUtilization]
+	FROM [Inspector].[PSCPUStage] Stage
+	WHERE [Servername] = @Servername 
+	AND NOT EXISTS (SELECT 1 
+					FROM [Inspector].[CPU] Base
+					WHERE [Base].[EventTime] = [Stage].[EventTime]
+					AND	[Base].[Servername] = [Stage].[Servername])
+END');
+END
 
 IF OBJECT_ID('Inspector.CPUReport',N'P') IS NULL 
 BEGIN 
@@ -294,9 +400,17 @@ END
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[Modules] WHERE [Modulename] = 'CPU')
 BEGIN 
 	INSERT INTO [Inspector].[Modules] ([ModuleConfig_Desc], [Modulename], [CollectionProcedurename], [ReportProcedurename], [ReportOrder], [WarningLevel], [ServerSpecific], [Debug], [IsActive], [HeaderText], [Frequency], [StartTime], [EndTime])
-	VALUES('Default','CPU','CPUInsert','CPUReport',5,2,1,0,1,'CPU has exceeded your threshold',2,'00:00','23:59');
+	VALUES('Default','CPU','CPUInsert','CPUReport',5,2,1,0,1,'CPU has exceeded your threshold',15,'00:00','23:59');
 END
 
+--Update PS Config centralisation stage information
+UPDATE [Inspector].[PSConfig]
+SET [StageTablename] = N'PSCPUStage',
+[StageProcname] = N'PSGetCPUStage',
+[TableAction] = '3',
+[InsertAction] = '3',
+[RetentionInDays] = (SELECT ISNULL([Value],5) FROM [Inspector].[Settings] WHERE [Description] = 'CPUHistoryRetentionInDays')
+WHERE [Modulename] = 'CPU';
 
 
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[MultiWarningModules] WHERE [Modulename] IN ('CPU'))

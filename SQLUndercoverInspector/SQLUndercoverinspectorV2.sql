@@ -64,8 +64,10 @@ GO
 
 Author: Adrian Buckman
 Created Date: 15/07/2017
-Revision date: 17/01/2020
-Version: 2.01
+
+Revision date: 01/02/2020
+Version: 2.1
+
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
 
@@ -127,6 +129,9 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
+DECLARE @Revisiondate DATE = '20200201';
+DECLARE @Build VARCHAR(6) ='2.1'
+
 DECLARE @JobID UNIQUEIDENTIFIER;
 DECLARE @JobsWithoutSchedules VARCHAR(1000);
 --Allowing NULL values but only when @Help = 1 otherwise raise an error stating that values need to be specified.
@@ -145,8 +150,10 @@ END
 IF @Help = 1
 BEGIN 
 PRINT '
---Inspector V2.01
---Revision date: 17/01/2020
+
+--Inspector V2.1
+--Revision date: '+CONVERT(VARCHAR(17),@Revisiondate,113)+'
+
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
 
 EXEC [Inspector].[InspectorSetup]
@@ -271,7 +278,6 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 
 			DECLARE @SQLStatement VARCHAR(MAX) 
 			DECLARE @DatabaseFileSizesResult INT
-			DECLARE @Build VARCHAR(6) ='2.01'
 			DECLARE @CurrentBuild VARCHAR(6)
 			 
 			
@@ -348,11 +354,18 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			PreserveData BIT NULL,
 			CurrentBuild DECIMAL(4,2) NULL,
 			TargetBuild DECIMAL(4,2) NULL,
-			SetupCommand VARCHAR(1000) NULL
+			SetupCommand VARCHAR(1000) NULL,
+			RevisionDate DATE NULL
 			);
 
 			ALTER TABLE [Inspector].[InspectorUpgradeHistory] ALTER COLUMN [CurrentBuild] DECIMAL(4,2) NULL;
 			ALTER TABLE [Inspector].[InspectorUpgradeHistory] ALTER COLUMN [TargetBuild] DECIMAL(4,2) NULL;
+
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID(N'Inspector.InspectorUpgradeHistory') AND name = 'RevisionDate')
+			BEGIN 
+				ALTER TABLE [Inspector].[InspectorUpgradeHistory] ADD [RevisionDate] DATE NULL;
+			END
+
 			
 			IF OBJECT_ID('Inspector.ReportData') IS NULL 
 			CREATE TABLE [Inspector].[ReportData](
@@ -401,6 +414,23 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				
 				ALTER TABLE [Inspector].[Settings] 
 				ADD CONSTRAINT [DF_Settings_Value]  DEFAULT (NULL) FOR [Value];
+			END
+
+			IF OBJECT_ID('Inspector.ModuleConfigReportExclusions') IS NULL 
+			BEGIN 
+				CREATE TABLE [Inspector].[ModuleConfigReportExclusions] (
+				Servername NVARCHAR(128) NOT NULL,
+				Modulename VARCHAR(50) NOT NULL,
+				IsActive BIT NOT NULL
+				);
+			END
+			
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.ModuleConfigReportExclusions') AND [name] = N'CIX_ModuleConfigReportExclusions_Servername_Modulename')
+			BEGIN 
+				CREATE UNIQUE CLUSTERED INDEX [CIX_ModuleConfigReportExclusions_Servername_Modulename] ON [Inspector].[ModuleConfigReportExclusions] (
+				Servername,
+				Modulename
+				);
 			END
 
 			IF OBJECT_ID('Inspector.Modules') IS NULL
@@ -974,14 +1004,27 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 						[LastRunDateTime] DATETIME NULL,
 						[ReportWarningsOnly] BIT NOT NULL,
 						[NoClutter] BIT NOT NULL,
-						[ShowDisabledModules] BIT NOT NULL
+						[ShowDisabledModules] BIT NOT NULL,
+						[RunDay] VARCHAR(70) NULL
 					 CONSTRAINT [PK_ModuleConfig_Desc] PRIMARY KEY CLUSTERED 
 					([ModuleConfig_Desc] ASC)
 					);
 
-					INSERT INTO [Inspector].[ModuleConfig] ([ModuleConfig_Desc],[IsActive],[Frequency],[StartTime],[EndTime],[ReportWarningsOnly],[NoClutter],[ShowDisabledModules])
-					VALUES ('Default',1,1440,'09:00','17:30',0,0,1),('PeriodicBackupCheck',1,120,'11:00','17:30',1,1,1);
+					EXEC sp_executesql N'INSERT INTO [Inspector].[ModuleConfig] ([ModuleConfig_Desc],[IsActive],[Frequency],[StartTime],[EndTime],[ReportWarningsOnly],[NoClutter],[ShowDisabledModules],[RunDay])
+					VALUES (''Default'',1,1440,''09:00'',''17:30'',0,0,1,''Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday''),(''PeriodicBackupCheck'',1,120,''11:00'',''17:30'',1,1,1,''Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'');';
 				END
+
+				--Add new RunDay column for Specific weekday schedules
+				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID('Inspector.ModuleConfig') AND [name] = 'RunDay')
+				BEGIN 
+					ALTER TABLE [Inspector].[ModuleConfig] ADD [RunDay] VARCHAR(70) NULL;
+				END 
+
+				--Update RunDay column if it is NULL , its the same behaviour as the update but it just shows users the supported format
+				EXEC sp_executesql N'
+				UPDATE [Inspector].[ModuleConfig]
+				SET [RunDay] = ''Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday''
+				WHERE [RunDay] IS NULL;';
 
 				IF OBJECT_ID('Inspector.CatalogueModules') IS NULL
 				BEGIN
@@ -1278,7 +1321,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[OriginalDateLogged] DATETIME NOT NULL,
 			[OriginalSize_MB] BIGINT NULL,
 			[Type_desc] NVARCHAR(60) NULL,
-			[File_id] TINYINT NOT NULL,
+			[File_id] INT NOT NULL,
 			[Filename] NVARCHAR(260) NULL,
 			[PostGrowthSize_MB] BIGINT NULL,
 			[GrowthRate] INT NULL,
@@ -1287,6 +1330,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[LastUpdated] DATETIME NULL	  
 			); 
 			END
+
+			--Change data type for File_id #205
+			IF EXISTS(SELECT * FROM sys.columns WHERE [object_id] = OBJECT_ID(N'Inspector.DatabaseFileSizes') AND [name] = N'File_id' AND [user_type_id] = (SELECT user_type_id FROM sys.types WHERE [name] = N'tinyint'))
+			BEGIN 
+				ALTER TABLE [Inspector].[DatabaseFileSizes] ALTER COLUMN [File_id] INT NOT NULL;	
+			END 
 
 			--New Column [LastUpdated] for 1.0.1
 			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DatabaseFileSizes') AND name ='LastUpdated')
@@ -1317,7 +1366,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[Database_name] NVARCHAR(128) NOT NULL,
 			[Log_Date] DATETIME NOT NULL,
 			[Type_Desc] NVARCHAR(60) NOT NULL,
-			[File_id] TINYINT NOT NULL,
+			[File_id] INT NOT NULL,
 			[FileName] NVARCHAR(260) NOT NULL,
 			[PreGrowthSize_MB] BIGINT NOT NULL,
 			[GrowthRate_MB] INT NOT NULL,
@@ -1327,6 +1376,13 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			);
 
 			END
+
+			--Change data type for File_id #205
+			IF EXISTS(SELECT * FROM sys.columns WHERE [object_id] = OBJECT_ID(N'Inspector.DatabaseFileSizeHistory') AND [name] = N'File_id' AND [user_type_id] = (SELECT user_type_id FROM sys.types WHERE [name] = N'tinyint'))
+			BEGIN 
+				ALTER TABLE [Inspector].[DatabaseFileSizeHistory] ALTER COLUMN [File_id] INT NOT NULL;	
+			END 
+
 
 			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.DatabaseFileSizeHistory') AND name='IX_Servername_Includes_Log_Date')
 			BEGIN
@@ -1746,11 +1802,22 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 					[TableAction] VARCHAR(3) NOT NULL,
 					[TableAction_Desc] AS CAST(REPLACE(REPLACE(REPLACE([TableAction],'1','Delete All'),'2','Delete with retention'),'3','Stage/Merge') AS VARCHAR(50)),
 					[InsertAction] VARCHAR(3) NOT NULL,
-					[InsertAction_Desc] AS CAST(REPLACE(REPLACE([InsertAction],'1','All data'),'2','Todays data only') AS VARCHAR(50)),
+					[InsertAction_Desc] AS CAST(REPLACE(REPLACE(REPLACE([InsertAction],'1','All data'),'2','Todays data only'),'3','Frequency based') AS VARCHAR(50)),
 					[RetentionInDays] VARCHAR(7) NULL,
 					[IsActive] BIT NOT NULL
 				);
 			END
+
+			--V2.1 Change computed column definition
+			IF NOT EXISTS (SELECT * FROM sys.computed_columns WHERE [object_id] = OBJECT_ID('Inspector.PSConfig') AND [name] = N'InsertAction_Desc' AND [definition] LIKE '%Frequency based%')
+			BEGIN 
+				ALTER TABLE [Inspector].[PSConfig] DROP COLUMN [InsertAction_Desc];
+			END 
+			
+			IF NOT EXISTS (SELECT * FROM sys.computed_columns WHERE [object_id] = OBJECT_ID('Inspector.PSConfig') AND [name] = N'InsertAction_Desc')
+			BEGIN 
+				ALTER TABLE [Inspector].[PSConfig] ADD [InsertAction_Desc] AS CAST(REPLACE(REPLACE(REPLACE([InsertAction],'1','All data'),'2','Todays data only'),'3','Frequency based') AS VARCHAR(50));
+			END 
 
 			--Insert new settings for V1.2
 			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'LongRunningTransactionThreshold')
@@ -1846,6 +1913,19 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			BEGIN 
 				INSERT INTO [Inspector].[Settings] ([Description],[Value])
 				VALUES('BackupSpaceWeekdayOffset','1');
+			END 
+
+			--New settings for V2.1
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'PSAutoUpdateModules')
+			BEGIN 
+				INSERT INTO [Inspector].[Settings] ([Description],[Value])
+				VALUES('PSAutoUpdateModules','1');
+			END 
+			
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'PSAutoUpdateModulesFrequencyMins')
+			BEGIN 
+				INSERT INTO [Inspector].[Settings] ([Description],[Value])
+				VALUES('PSAutoUpdateModulesFrequencyMins','1440');
 			END 
 
 			--Update email banner for V2
@@ -2192,7 +2272,7 @@ END
 	EXEC dbo.sp_executesql @statement = N'
 	CREATE VIEW [Inspector].[ReportSchedulesDue] 
 	AS 
-	--Revision date: 06/11/2019
+	--Revision date: 14/01/2020
 	
 		SELECT 
 		[ModuleConfig_Desc],
@@ -2216,9 +2296,9 @@ END
 			(DATEDIFF(HOUR,CAST(StartTime AS DATETIME),CAST(EndTime AS DATETIME))*60)/Frequency AS TotalRuns,
 			DATEADD(MINUTE,DATEPART(MINUTE,StartTime),DATEADD(HOUR,DATEPART(HOUR,StartTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS StartDatetime,
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
-			LastRunDateTime
+			LastRunDateTime,RunDay
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
 				--AND ModuleConfig_Desc = ''Default''
@@ -2227,8 +2307,10 @@ END
 		) AS Schedules
 		CROSS APPLY (SELECT RowNum FROM dbo.GetIntervals(DATEDIFF(MINUTE,Schedules.StartDatetime,Schedules.EndDatetime))) AS MinuteIntervals
 		WHERE 
-		--Check the that he time now falls into a scheduled interval
-		((GETDATE() >= DATEADD(MINUTE,RowNum,Schedules.StartDatetime) AND GETDATE() <= DATEADD(MINUTE,RowNum+1,Schedules.StartDatetime)))
+		--RunDay (delimited) is like today''s day name or RunDay is not specified (Every day)
+		(RunDay LIKE ''%''+CAST(DATENAME(WEEKDAY,GETDATE()) AS VARCHAR(10))+''%'' OR RunDay IS NULL)
+		--Check the that the time now falls into a scheduled interval
+		AND	((GETDATE() >= DATEADD(MINUTE,RowNum,Schedules.StartDatetime) AND GETDATE() <= DATEADD(MINUTE,RowNum+1,Schedules.StartDatetime)))
 		----Check that the current interval (if there is one) is exactly divisible by the Frequency
 		AND ((RowNum%Frequency = 0)
 		--Check if no run has occured (NULL) OR if the last run is before the start time for today
@@ -2239,7 +2321,7 @@ END
 	EXEC dbo.sp_executesql @statement = N'
 	ALTER VIEW [Inspector].[ReportSchedulesDue] 
 	AS 
-	--Revision date: 11/10/2019
+	--Revision date: 14/01/2020
 	
 		SELECT 
 		[ModuleConfig_Desc],
@@ -2263,9 +2345,9 @@ END
 			(DATEDIFF(HOUR,CAST(StartTime AS DATETIME),CAST(EndTime AS DATETIME))*60)/Frequency AS TotalRuns,
 			DATEADD(MINUTE,DATEPART(MINUTE,StartTime),DATEADD(HOUR,DATEPART(HOUR,StartTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS StartDatetime,
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
-			LastRunDateTime
+			LastRunDateTime,RunDay
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
 				--AND ModuleConfig_Desc = ''Default''
@@ -2274,8 +2356,10 @@ END
 		) AS Schedules
 		CROSS APPLY (SELECT RowNum FROM dbo.GetIntervals(DATEDIFF(MINUTE,Schedules.StartDatetime,Schedules.EndDatetime))) AS MinuteIntervals
 		WHERE 
-		--Check the that he time now falls into a scheduled interval
-		((GETDATE() >= DATEADD(MINUTE,RowNum,Schedules.StartDatetime) AND GETDATE() <= DATEADD(MINUTE,RowNum+1,Schedules.StartDatetime)))
+		--RunDay (delimited) is like today''s day name or RunDay is not specified (Every day)
+		(RunDay LIKE ''%''+CAST(DATENAME(WEEKDAY,GETDATE()) AS VARCHAR(10))+''%'' OR RunDay IS NULL)
+		--Check the that the time now falls into a scheduled interval
+		AND	((GETDATE() >= DATEADD(MINUTE,RowNum,Schedules.StartDatetime) AND GETDATE() <= DATEADD(MINUTE,RowNum+1,Schedules.StartDatetime)))
 		----Check that the current interval (if there is one) is exactly divisible by the Frequency
 		AND ((RowNum%Frequency = 0)
 		--Check if no run has occured (NULL) OR if the last run is before the start time for today
@@ -2793,9 +2877,11 @@ END
 			BEGIN
 			EXEC ('CREATE VIEW [Inspector].[PSEnabledModules]
 			AS
+			--Revision date: 27/01/2020
 			SELECT 
 			[ModuleConfig_Desc],
 			[Modulename],
+			[CollectionProcedurename],
 			IsActive AS [Enabled]
 			FROM [Inspector].[Modules] 
 			WHERE IsActive = 1;');
@@ -2804,9 +2890,11 @@ END
 			BEGIN
 			EXEC ('ALTER VIEW [Inspector].[PSEnabledModules]
 			AS
+			--Revision date: 27/01/2020
 			SELECT 
 			[ModuleConfig_Desc],
 			[Modulename],
+			[CollectionProcedurename],
 			IsActive AS [Enabled]
 			FROM [Inspector].[Modules] 
 			WHERE IsActive = 1;');
@@ -2844,6 +2932,18 @@ END
 			[Databasename] [nvarchar](128) NULL,
 			[Suppress] [bit] NULL
 			);
+
+			IF OBJECT_ID('Inspector.PSAutoUpdate') IS NULL
+			CREATE TABLE [Inspector].[PSAutoUpdate](
+			[Updatename] [nvarchar](128) NOT NULL,
+			[LastUpdated] [datetime] NULL
+			);
+
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[PSAutoUpdate] WHERE [Updatename] = 'PSAutoUpdate')
+			BEGIN 
+				INSERT INTO [Inspector].[PSAutoUpdate] ([Updatename],[LastUpdated])
+				VALUES('PSAutoUpdate',NULL);
+			END
 			
 			IF OBJECT_ID('Inspector.PSAGDatabasesStage') IS NULL
 			CREATE TABLE [Inspector].[PSAGDatabasesStage](
@@ -4187,7 +4287,7 @@ AS
                      WHERE  [primary_replica] = @@Servername
                  ) [DatabaseList] ON [DatabaseList].[Database_ID] = [Masterfiles].[database_id]
                  WHERE [Masterfiles].[database_id] > 3
-                       AND [type_desc] = ''ROWS''
+                       AND [type_desc] != ''LOG''
                        AND NOT EXISTS
                  (
                      SELECT [Database_id]
@@ -4256,7 +4356,7 @@ AS
                         END [NextGrowth] 													
                  FROM   [sys].[master_files] [Masterfiles]
                  WHERE  [Masterfiles].[database_id] > 3
-                        AND [type_desc] = ''ROWS''
+                        AND [type_desc] != ''LOG''
                         AND NOT EXISTS
                  (
                      SELECT [Database_id]
@@ -4314,7 +4414,7 @@ AS
              FROM   [sys].[master_files] [Masterfiles]
                     INNER JOIN [sys].[databases] [DatabasesList] ON [Masterfiles].[database_id] = [DatabasesList].[database_id]
              WHERE  [Masterfiles].[database_id] > 3
-                    AND [type_desc] = ''ROWS''
+                    AND [type_desc] != ''LOG''
                     AND [DatabasesList].state = 0
          ) [GrowthCheck]
          INNER JOIN '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes] [Sizes] ON [GrowthCheck].[database_id] = [Sizes].[Database_id]
@@ -4338,7 +4438,7 @@ AS
              FROM   [sys].[master_files] [Masterfiles]
                     INNER JOIN [sys].[databases] [DatabasesList] ON [Masterfiles].[database_id] = [DatabasesList].[database_id]
              WHERE  [Masterfiles].[database_id] > 3
-                    AND [type_desc] = ''ROWS''
+                    AND [type_desc] != ''LOG''
                     AND [DatabasesList].state = 0
          ) [ShrunkDatabases]
          INNER JOIN '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes] [Sizes] ON [ShrunkDatabases].[database_id] = [Sizes].[Database_id]
@@ -5496,9 +5596,9 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 )
 AS
 BEGIN
---Revision date: 27/11/2019
+--Revision date: 01/02/2020
 --TableAction: 1 delete, 2 delete with retention, 3 Stage/merge
---InsertAction: 1 ALL, 2 Todays'' data only
+--InsertAction: 1 ALL, 2 Todays'' data only, 3 Frequency based
 
 DECLARE @DriveSpaceRetentionPeriodInDays VARCHAR(6) = (SELECT ISNULL(NULLIF([Value],''''),''90'') FROM [Inspector].[Settings] WHERE [Description] = ''DriveSpaceRetentionPeriodInDays'')
 
@@ -5514,7 +5614,8 @@ SELECT DISTINCT
 [PSConfig].StageProcname,
 [PSConfig].TableAction,
 [PSConfig].InsertAction,
-[PSConfig].RetentionInDays
+[PSConfig].RetentionInDays,
+(SELECT [Frequency] FROM [Inspector].[Modules] WHERE [Modules].[ModuleConfig_Desc] = [PSConfig].[ModuleConfig_Desc] AND [Modules].[Modulename] = [PSConfig].[Modulename]) AS [Frequency]
 FROM
 (
 	SELECT 
@@ -5555,7 +5656,8 @@ CASE
 	WHEN [NonModuleColection].[Module] = ''InstanceVersion'' THEN ''1,1''
 	ELSE ''2'' 
 END	AS InsertAction, 
-NULL AS RetentionInDays
+NULL AS RetentionInDays,
+1 AS [Frequency]
 FROM
 (
 	SELECT 
@@ -5579,12 +5681,17 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 'CREATE PROCEDURE [Inspector].[PSGetServers]
 AS 
 BEGIN 
---Revision date: 14/09/2018
+--Revision date: 20/01/2020
 
 	SELECT 
 	[Servername]
 	FROM [Inspector].[CurrentServers]
 	WHERE [IsActive] = 1
+	ORDER BY 
+	CASE 
+		WHEN [Servername] = @@SERVERNAME THEN 2 
+		ELSE 1
+	END
 END'
 
 EXEC(@SQLStatement);
@@ -5852,7 +5959,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
 CREATE PROCEDURE [Inspector].[PopulatePSConfig]
 AS
 BEGIN
---Revision date: 20/09/2019
+--Revision date: 27/01/2020
 --TableAction: 1 delete, 2 delete with retention, 3 Stage/merge
 --InsertAction: 1 ALL, 2 Todays'' data only
 DECLARE @DriveSpaceRetentionPeriodInDays VARCHAR(6);
@@ -5879,7 +5986,7 @@ FROM
 	[ActiveServers].[Servername], 
 	[ActiveServers].[ModuleConfig_Desc], 
 	[PSEnabledModules].[Modulename], 
-	[PSEnabledModules].[Modulename]+''Insert'' AS Procedurename,
+	[CollectionProcedurename] AS Procedurename,
 	CASE
 		WHEN [PSEnabledModules].[Modulename] = ''DatabaseGrowths''
 		THEN ''DatabaseFileSizes,DatabaseFileSizeHistory''
@@ -5887,6 +5994,7 @@ FROM
 		THEN ''ADHocDatabaseCreations,ADHocDatabaseSupression''
 		WHEN [PSEnabledModules].[Modulename] = ''AGCheck''
 		THEN ''AGCheck,AGPrimaryHistory''
+		WHEN [CollectionProcedurename] IS NULL THEN NULL
 		ELSE [PSEnabledModules].[Modulename]
 	END AS Tablename,
 	CASE
@@ -5960,7 +6068,7 @@ CREATE PROCEDURE [Inspector].[PSGetSettingsTables]
 @PSCollection BIT = 0 --If its a powershell collection ensure that the WarningLevel table is populated
 )
 AS 
---Revision date: 17/04/2019
+--Revision date: 01/02/2020
 
 --Config for Powershell collection use only
 --TruncateTable - 0 Delete contents, 1 Truncate table
@@ -5984,14 +6092,14 @@ BEGIN
 	IF @SortOrder = 0 
 	BEGIN 
 		SELECT Tablename,TruncateTable,ReseedTable 
-		FROM (VALUES(1,''Settings'',1,1),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''Modules'',0,1),(7,''ModuleWarningLevel'',0,0),(8,''AGCheckConfig'',1,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		FROM (VALUES(1,''Settings'',1,1),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''ModuleWarningLevel'',0,0),(7,''AGCheckConfig'',1,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder ASC;
 	END
 
 	IF @SortOrder = 1 
 	BEGIN 
 		SELECT Tablename,TruncateTable,ReseedTable 
-		FROM (VALUES(1,''Settings'',1,1),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''Modules'',0,1),(7,''ModuleWarningLevel'',0,0),(8,''AGCheckConfig'',1,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		FROM (VALUES(1,''Settings'',1,1),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''ModuleWarningLevel'',0,0),(7,''AGCheckConfig'',1,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder DESC;
 	END
 
@@ -7443,6 +7551,7 @@ BEGIN
 		) AS [HistoricGrowths](LastFiveDaysGrowth)
 	WHERE [Log_Date] >= DATEADD(HOUR,-24,GETDATE())
 	AND [GrowthIncrements] > @DatabaseGrowthsAllowedPerDay
+	AND [Type_Desc] = ''ROWS''
 	ORDER BY [Servername],[Database_name],[File_id]
 	FOR XML PATH(''tr''),Elements);
 
@@ -10128,12 +10237,13 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 @PSCollection BIT = 0,
 @PSExecModules BIT = 0,
 @PSGenerateReport BIT = 0,
+@PSCentralServer NVARCHAR(128) = @@SERVERNAME,
 @IgnoreSchedules BIT = 0
 )
 AS 
 BEGIN 
 
---Revision date: 27/11/2019
+--Revision date: 24/01/2020
 
 SET NOCOUNT ON;
 
@@ -10183,8 +10293,12 @@ DECLARE @ReportWarningsOnly BIT;
 
 	   RAISERROR(''ModuleConfig selected for server: %s'',0,0,@ModuleConfig) WITH NOWAIT;
 	    
-		IF ((@PSCollection = 1 AND @PSExecModules = 1) OR @PSCollection = 0)
+		IF @PSCollection = 1
 		BEGIN
+			RAISERROR(''Displaying executed modules list for Powershell collection'',0,0) WITH NOWAIT;
+	   		EXEC [Inspector].[PSGetConfig] @Servername = @Servername, @ModuleConfig = @ModuleConfig, @PSExecModules = @PSExecModules; 
+		END
+
 			DECLARE InspectorCollection_cur CURSOR LOCAL STATIC
 			FOR
 			--Get enabled module list for @ModuleConfig
@@ -10265,15 +10379,12 @@ DECLARE @ReportWarningsOnly BIT;
 
 			RAISERROR(''Running [Inspector].[InstanceVersionInsert]'',0,0) WITH NOWAIT;
 			EXEC [Inspector].[InstanceVersionInsert]; 	
-		END
+		
 
 		IF @PSCollection = 1 
 		BEGIN 
 			RAISERROR(''Cleaning up history tables'',0,0) WITH NOWAIT;
 			EXEC [Inspector].[PSHistCleanup];
-
-			RAISERROR(''Displaying executed modules list for Powershell collection'',0,0) WITH NOWAIT;
-	   		EXEC [Inspector].[PSGetConfig] @Servername = @Servername, @ModuleConfig = @ModuleConfig, @PSExecModules = @PSExecModules; 
 		END
 
 
@@ -10283,9 +10394,13 @@ DECLARE @ReportWarningsOnly BIT;
 	   RAISERROR(''@ModuleConfig supplied: ''''%s'''' is not a valid module config description, for valid options query [Inspector].[Modules]'',11,0,@ModuleConfig);
     END
 
-	--Run InspectorReportMaster to pick up any scheduled reports
-	RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
-	EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
+
+	IF @PSCentralServer = @@SERVERNAME
+	BEGIN 
+		--Run InspectorReportMaster to pick up any scheduled reports
+		RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
+		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
+	END
 
 
 	--Log InspectorDataCollection proc duration to the ExecutionLog
@@ -10310,9 +10425,9 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 06/11/2019
+--Revision date: 09/01/2020
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
---V2.00
+--V2.1
 
 
 --Example Execute command
@@ -10593,7 +10708,7 @@ BEGIN
 		SET @ReportSummary += @Serverlist+''(''+@ModuleConfigDetermined+''):''+CHAR(13)+CHAR(10);
 	END
 
-	SET @ShowDisabledModules = (SELECT [ShowDisabledModules] FROM [Inspector].[ModuleConfig] WHERE ModuleConfig_Desc = @ModuleConfigDetermined);
+	SET @ShowDisabledModules = (SELECT ISNULL([ShowDisabledModules],0) FROM [Inspector].[ModuleConfig] WHERE ModuleConfig_Desc = @ModuleConfigDetermined);
 
 	IF @ModuleConfigDetermined != ''PeriodicBackupCheck''
 	BEGIN 
@@ -10672,6 +10787,7 @@ BEGIN
 	WHERE [Modules].[IsActive] = 1
 	AND [ServerSpecific] = 1
 	AND [Modules].[ModuleConfig_Desc] = @ModuleConfigDetermined
+	AND NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfigReportExclusions] ExcludedReports WHERE [ExcludedReports].[Servername] = [ActiveServers].[Servername] AND [ExcludedReports].[Modulename] = [Modules].[Modulename] AND [ExcludedReports].[IsActive] = 1)
 	ORDER BY 
 	[ActiveServers].[Servername] ASC,
 	[Modules].[ReportOrder] ASC;
@@ -11742,6 +11858,14 @@ FOR XML PATH('') ,TYPE).value('.','nvarchar(max)');
 EXEC(@SQLStatement);
 END
 
+--Update any Tablenames in PSConfig for Report only modules issue #204 , PopulatePSConfig proc also updated to accomodate.
+UPDATE PSConfig 
+SET [Tablename] = NULL,[Procedurename] = [CollectionProcedurename]
+FROM [Inspector].[PSConfig] 
+INNER JOIN [Inspector].[Modules] ON [PSConfig].[ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] AND [PSConfig].[Modulename] = [Modules].[Modulename]
+WHERE [Modules].[CollectionProcedurename] IS NULL 
+AND [PSConfig].[Tablename] IS NOT NULL;
+
 --Update Inspector Build 
 UPDATE [Inspector].[Settings]
 SET [Value] = @Build
@@ -11749,54 +11873,85 @@ WHERE [Description] = 'InspectorBuild'
 AND ([Value] != @Build OR [Value] IS NULL);
 
 --Log Upgrade/Installation in Upgrade history table 
-INSERT INTO [Inspector].[InspectorUpgradeHistory] ([Log_Date], [PreserveData], [CurrentBuild], [TargetBuild], [SetupCommand])
-VALUES (GETDATE(),CASE WHEN @InitialSetup = 0 THEN 1 ELSE 0 END,CAST(@CurrentBuild AS DECIMAL(4,1)),CAST(@Build AS DECIMAL(4,2)),
-'EXEC [Inspector].[InspectorSetup]
+EXEC sp_executesql N'
+INSERT INTO [Inspector].[InspectorUpgradeHistory] ([Log_Date], [PreserveData], [CurrentBuild], [TargetBuild], [RevisionDate], [SetupCommand])
+VALUES (GETDATE(),CASE WHEN @InitialSetup = 0 THEN 1 ELSE 0 END,CAST(@CurrentBuild AS DECIMAL(4,2)),CAST(@Build AS DECIMAL(4,2)),@Revisiondate,
+''EXEC [Inspector].[InspectorSetup]
 --Required Parameters (No defaults)							     
-@Databasename = '''+@Databasename+''',	
-@DataDrive = '''+@DataDrive+''',	
-@LogDrive = '''+@LogDrive+''',	
+@Databasename = ''''''+@Databasename+'''''',	
+@DataDrive = ''''''+@DataDrive+'''''',	
+@LogDrive = ''''''+@LogDrive+'''''',	
 --Optional Parameters (Defaults Specified), ignored when @InitialSetup = 0
-@BackupsPath = '+ISNULL(''''+@BackupsPath+'''','NULL')+',
-@LinkedServername = '+ISNULL(''''+@LinkedServernameParam+'''','NULL')+',  
-@StackNameForEmailSubject = '+ISNULL(''''+@StackNameForEmailSubject+'''','SQLUndercover')+',	
-@EmailRecipientList = '+ISNULL(''''+@EmailRecipientList+'''','NULL')+',	  
-@DriveSpaceHistoryRetentionInDays = '+CAST(ISNULL(@DriveSpaceHistoryRetentionInDays,90) AS VARCHAR(6))+', 
-@DaysUntilDriveFullThreshold = '+CAST(ISNULL(@DaysUntilDriveFullThreshold,56) AS VARCHAR(6))+', 
-@FreeSpaceRemainingPercent = '+CAST(ISNULL(@FreeSpaceRemainingPercent,10) AS VARCHAR(6))+',
-@DriveLetterExcludes = '+ISNULL(''''+@DriveLetterExcludes+'''','NULL')+', 
-@DatabaseGrowthsAllowedPerDay = '+CAST(ISNULL(@DatabaseGrowthsAllowedPerDay,1) AS VARCHAR(6))+',  
-@MAXDatabaseGrowthsAllowedPerDay = '+CAST(ISNULL(@MAXDatabaseGrowthsAllowedPerDay,10) AS VARCHAR(6))+', 
-@AgentJobOwnerExclusions = '+ISNULL(''''+@AgentJobOwnerExclusions+'''','''sa''')+', 
-@FullBackupThreshold = '+CAST(ISNULL(@FullBackupThreshold,8) AS VARCHAR(6))+',		
-@DiffBackupThreshold = '+CAST(ISNULL(@DiffBackupThreshold,2) AS VARCHAR(6))+',		
-@LogBackupThreshold = '+CAST(ISNULL(@LogBackupThreshold,20) AS VARCHAR(6))+',		
-@DatabaseOwnerExclusions = '+ISNULL(''''+@DatabaseOwnerExclusions+'''','''sa''')+',  
-@LongRunningTransactionThreshold = '+CAST(ISNULL(@LongRunningTransactionThreshold,300) AS VARCHAR(6))+',	
-@InitialSetup = '+CAST(ISNULL(@InitialSetup,0) AS VARCHAR(1))+',
-@EnableAgentJob = '+CAST(ISNULL(@EnableAgentJob,0) AS VARCHAR(1))+',
-@Help = '+CAST(ISNULL(@Help,'NULL') AS VARCHAR(1))+'; 
-'
-);
-
---SET @JobsWithoutSchedules =
---ISNULL((SELECT REPLACE(CAST(Jobname AS VARCHAR(1000)),'&#x0D','')+ '
---Set the Data Collection jobs to run a couple of minutes before the corresponding Report e.g. [SQLUndercover Inspector Data Collection] @ 8.55am , [SQLUndercover Inspector Report] @ 9:00am'
---FROM 
---(
---	SELECT 'Create schedule for Agent job: '+Jobs.name+CHAR(13)+CHAR(10)
---	FROM msdb.dbo.sysjobs Jobs
---	LEFT JOIN msdb.dbo.sysjobschedules Schedules ON Jobs.job_id = Schedules.job_id
---	WHERE name IN (
---	'SQLUndercover Inspector Data Collection',
---	'SQLUndercover Inspector Report',
---	'SQLUndercover Periodic Backups Collection',
---	'SQLUndercover Periodic Backups Report')
---	AND date_created > DATEADD(MINUTE,-5,GETDATE())
---	AND Schedules.job_id IS NULL
---	FOR XML PATH('')
---) NoSchedules (Jobname)
---),'No schedules need adding');
+@BackupsPath = ''+ISNULL(''''''''+@BackupsPath+'''''''',''NULL'')+'',
+@LinkedServername = ''+ISNULL(''''''''+@LinkedServernameParam+'''''''',''NULL'')+'',  
+@StackNameForEmailSubject = ''+ISNULL(''''''''+@StackNameForEmailSubject+'''''''',''SQLUndercover'')+'',	
+@EmailRecipientList = ''+ISNULL(''''''''+@EmailRecipientList+'''''''',''NULL'')+'',	  
+@DriveSpaceHistoryRetentionInDays = ''+CAST(ISNULL(@DriveSpaceHistoryRetentionInDays,90) AS VARCHAR(6))+'', 
+@DaysUntilDriveFullThreshold = ''+CAST(ISNULL(@DaysUntilDriveFullThreshold,56) AS VARCHAR(6))+'', 
+@FreeSpaceRemainingPercent = ''+CAST(ISNULL(@FreeSpaceRemainingPercent,10) AS VARCHAR(6))+'',
+@DriveLetterExcludes = ''+ISNULL(''''''''+@DriveLetterExcludes+'''''''',''NULL'')+'', 
+@DatabaseGrowthsAllowedPerDay = ''+CAST(ISNULL(@DatabaseGrowthsAllowedPerDay,1) AS VARCHAR(6))+'',  
+@MAXDatabaseGrowthsAllowedPerDay = ''+CAST(ISNULL(@MAXDatabaseGrowthsAllowedPerDay,10) AS VARCHAR(6))+'', 
+@AgentJobOwnerExclusions = ''+ISNULL(''''''''+@AgentJobOwnerExclusions+'''''''',''''''sa'''''')+'', 
+@FullBackupThreshold = ''+CAST(ISNULL(@FullBackupThreshold,8) AS VARCHAR(6))+'',		
+@DiffBackupThreshold = ''+CAST(ISNULL(@DiffBackupThreshold,2) AS VARCHAR(6))+'',		
+@LogBackupThreshold = ''+CAST(ISNULL(@LogBackupThreshold,20) AS VARCHAR(6))+'',		
+@DatabaseOwnerExclusions = ''+ISNULL(''''''''+@DatabaseOwnerExclusions+'''''''',''''''sa'''''')+'',  
+@LongRunningTransactionThreshold = ''+CAST(ISNULL(@LongRunningTransactionThreshold,300) AS VARCHAR(6))+'',	
+@InitialSetup = ''+CAST(ISNULL(@InitialSetup,0) AS VARCHAR(1))+'',
+@EnableAgentJob = ''+CAST(ISNULL(@EnableAgentJob,0) AS VARCHAR(1))+'',
+@Help = ''+CAST(ISNULL(@Help,''NULL'') AS VARCHAR(1))+'';''
+);',
+N'@Build DECIMAL(4,2),
+@CurrentBuild DECIMAL(4,2),
+@Databasename NVARCHAR(128),
+@DataDrive VARCHAR(50),
+@LogDrive VARCHAR(50),
+@BackupsPath VARCHAR(255),
+@LinkedServernameParam NVARCHAR(128),
+@StackNameForEmailSubject VARCHAR(255),
+@EmailRecipientList VARCHAR(1000),
+@DriveSpaceHistoryRetentionInDays INT,
+@DaysUntilDriveFullThreshold TINYINT,
+@FreeSpaceRemainingPercent TINYINT,
+@DriveLetterExcludes VARCHAR(10),
+@DatabaseGrowthsAllowedPerDay TINYINT,
+@MAXDatabaseGrowthsAllowedPerDay TINYINT,
+@AgentJobOwnerExclusions VARCHAR(255),
+@FullBackupThreshold TINYINT,
+@DiffBackupThreshold TINYINT,
+@LogBackupThreshold TINYINT,
+@DatabaseOwnerExclusions VARCHAR(255),
+@LongRunningTransactionThreshold INT,
+@InitialSetup BIT,
+@EnableAgentJob BIT,
+@Revisiondate DATE,
+@Help BIT',
+@Build = @Build,
+@CurrentBuild = @CurrentBuild,
+@Databasename = @Databasename,
+@DataDrive = @DataDrive,
+@LogDrive = @LogDrive,
+@BackupsPath = @BackupsPath,
+@LinkedServernameParam = @LinkedServernameParam,
+@StackNameForEmailSubject = @StackNameForEmailSubject,
+@EmailRecipientList = @EmailRecipientList,
+@DriveSpaceHistoryRetentionInDays = @DriveSpaceHistoryRetentionInDays,
+@DaysUntilDriveFullThreshold = @DaysUntilDriveFullThreshold,
+@FreeSpaceRemainingPercent = @FreeSpaceRemainingPercent,
+@DriveLetterExcludes = @DriveLetterExcludes,
+@DatabaseGrowthsAllowedPerDay = @DatabaseGrowthsAllowedPerDay,
+@MAXDatabaseGrowthsAllowedPerDay = @MAXDatabaseGrowthsAllowedPerDay,
+@AgentJobOwnerExclusions = @AgentJobOwnerExclusions,
+@FullBackupThreshold = @FullBackupThreshold,
+@DiffBackupThreshold = @DiffBackupThreshold,
+@LogBackupThreshold = @LogBackupThreshold,
+@DatabaseOwnerExclusions = @DatabaseOwnerExclusions,
+@LongRunningTransactionThreshold = @LongRunningTransactionThreshold,
+@InitialSetup = @InitialSetup,
+@EnableAgentJob = @EnableAgentJob,
+@Revisiondate = @Revisiondate,
+@Help = @Help;
 
 --Inspector Information
 PRINT '
