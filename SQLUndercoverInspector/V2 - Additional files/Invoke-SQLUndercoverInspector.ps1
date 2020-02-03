@@ -150,19 +150,14 @@ function Invoke-SQLUndercoverInspector {
         $ActiveServers |
             ForEach-Object -Process {
                 write-host "    Confirming connection and validating install for server [$_]";
-                $InstallStatus[0] = 0 
+                $InstallStatus[0] = 0  
 
                 IF($ConnectionCurrent) {
                     clear-variable ConnectionCurrent;
                 }
 
-                 $ConnectionCurrent = Get-DbaDatabase -SqlInstance $_ -Database $LoggingDb -WarningAction SilentlyContinue;
+                 $ConnectionCurrent = Get-DbaDatabase -SqlInstance $_ -Database $LoggingDb -ErrorAction Continue -WarningAction Continue
 
-                 IF (!$ConnectionCurrent) {
-                    write-host "        Unable to connect to $_, skipping the server" -ForegroundColor Red;
-                    $InvalidServers += $($_);
-                    Return;
-                 }
 
                  Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Database: $LoggingDb exists, validating Inspector installation..."
                  $ValidateInstallQry = "SELECT CASE WHEN OBJECT_ID('Inspector.Settings') IS NOT NULL THEN 1 ELSE 0 END AS Outcome;"
@@ -170,9 +165,7 @@ function Invoke-SQLUndercoverInspector {
                  
 
                  if($InstallStatus[0] -eq 0) {
-                    write-host "        Unable to validate the Inspector installation, skipping the server" -ForegroundColor Red;
-                    $InvalidServers += $($_);
-                    Return;
+                    Continue;
                  }
 
 
@@ -181,9 +174,8 @@ function Invoke-SQLUndercoverInspector {
                      $InstallStatus = $ConnectionCurrent.Query($ValidateInstallQry)
   
                      if($InstallStatus[0] -ne 1) {      
-                        Write-Warning "[$CentralServer] [$($_)] - Settings table exists in database [$LoggingDb] - but no config is present please install/reinstall the Inspector."
-                        $InvalidServers += $($_);
-                     Return
+                     Write-Warning "[$CentralServer] [$($_)] - Settings table exists in database [$LoggingDb] - but no config is present please install/reinstall the Inspector."
+                     break
                      }
 
                  Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Database: $LoggingDb exists, validating Inspector installation OK"
@@ -195,8 +187,11 @@ function Invoke-SQLUndercoverInspector {
                 $InspectorBuildQry = "EXEC [$LoggingDb].[Inspector].[PSGetInspectorBuild];"                
 
                 if (-not $ConnectionCurrent.Name) {
+                    #Write-Warning "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Logging database [$LoggingDb] does not exist."
                     Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Adding server to exclusion list."
+                    #$InvalidServers += $($_).tostring();
                     $InvalidServers += ($($_));
+                    #$Pos++
                 }
                 ELSE {
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Adding Inspector build."
@@ -215,19 +210,21 @@ function Invoke-SQLUndercoverInspector {
         #Remove bad servers 
         #For every position in the invalid server array check every position in the Active servers array and build a new array where Invalidservers are not present.
         IF($($InvalidServers.Length) -gt 0) {
-            $ActiveServersFiltered =  $ActiveServers | Where-Object -FilterScript { $_ -notin $InvalidServers }
-        }
-
-        IF ($InvalidServers.Length -gt 0) {
-            write-host "Invalid servers: $InvalidServers";
+            write-host "    Removing invalid servers";
+            for($i=0;$i -lt $($InvalidServers.Length);$i ++) {
+                    for($ii=0;$ii -lt $($ActiveServers.Length);$ii ++) {
+                            IF($ActiveServers[$ii] -ne $InvalidServers[$i]) {
+                                $ActiveServersFiltered += ($($ActiveServers[$ii]));
+                            }
+                        }
+                    }
         }
 
         #If there were no invalid servers to remove the set the Filtered list to match the Active server array
         IF($ActiveServersFiltered.Length -eq 0) {
             $ActiveServersFiltered = $ActiveServers;
         }
-        #write-host "Active Servers: $ActiveServersFiltered";
-
+        
         Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Checking minimum build and build comparison..."
         $BuildVersions = $Builds | Measure-Object -Property Build -Maximum -Minimum
         if ($BuildVersions.Minimum -lt 2.00) {
@@ -360,7 +357,7 @@ function Invoke-SQLUndercoverInspector {
 
             $ExecutedModules = $ExecutedModules |
                 Where-Object { $_.Servername -ne $CentralServer } |
-                Select-Object -Property Servername, Modulename, Tablename, StageTablename, StageProcname, TableAction, InsertAction, RetentionInDays, Frequency
+                Select-Object -Property Servername, Modulename, Tablename, StageTablename, StageProcname, TableAction, InsertAction, RetentionInDays
 
             if ($Servername -ne $CentralServer) {
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Starting data retrieval loop..."
@@ -375,11 +372,6 @@ function Invoke-SQLUndercoverInspector {
                 $StageProcname = $Module.StageProcname.ToString().split(',')
                 $InsertAction = $Module.InsertAction.ToString().split(',')
                 $RetentionInDays = $Module.RetentionInDays.ToString().split(',')
-                $Frequency = $Module.Frequency
-
-                #Add a 2 minute buffer just in case the collection runs on.
-                $Frequency = $Frequency+2;
-
                 $Pos = 0
                 write-output "    Centralising data for Module $Modulename"
                 #Write-Progress -id 1 -Activity "Processing Modules" -CurrentOperation $("Processing Module $Modulename") -PercentComplete $(($InnerCurrent/$InnerTotal)*100)
@@ -432,19 +424,14 @@ function Invoke-SQLUndercoverInspector {
                         $Columnnames = $ConnectionCurrent.Query($ColumnNamesQry) 
                     switch ($InsertActionPos) {
                         { $_ -eq 1 } {
-                            #Get all data for the current server
-                            $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Servername = @Servername',N'@Servername NVARCHAR(128)',@Servername = '$Servername'"
+                        #Get all data for the current server
+                        $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Servername = @Servername',N'@Servername NVARCHAR(128)',@Servername = '$Servername'"
                         }
                         { $_ -eq 2 } {
-                            #Get data recorded for today only for the current server
-                            $InsertQuery = "EXEC sp_executesql N'DECLARE @Today DATE = CAST(GETDATE() AS DATE); SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Log_Date >= @Today AND Servername = @Servername',N'@Servername NVARCHAR(128)',@Servername = '$Servername'"
-                        }
-                        { $_ -eq 3 } {
-                            #Get data recorded forModule frequency mins ago for the current server
-                            $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Log_Date >= DATEADD(MINUTE,-@Frequency,GETDATE()) AND Servername = @Servername',N'@Servername NVARCHAR(128),@Frequency INT',@Servername = '$Servername',@Frequency = $Frequency"                        
+                        #Get data recorded for today only for the current server
+                        $InsertQuery = "EXEC sp_executesql N'DECLARE @Today DATE = CAST(GETDATE() AS DATE); SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Log_Date >= @Today AND Servername = @Servername',N'@Servername NVARCHAR(128)',@Servername = '$Servername'"
                         }
                         }
-                    Write-Verbose $InsertQuery
                     $CollectedData = $ConnectionCurrent.Query($InsertQuery)
 
                     if ($CollectedData) {

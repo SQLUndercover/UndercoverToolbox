@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 01/02/2020
+Revision date: 03/02/2020
 Version: 2.1
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200201';
+DECLARE @Revisiondate DATE = '20200203';
 DECLARE @Build VARCHAR(6) ='2.1'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -11865,6 +11865,11 @@ FROM [Inspector].[PSConfig]
 INNER JOIN [Inspector].[Modules] ON [PSConfig].[ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] AND [PSConfig].[Modulename] = [Modules].[Modulename]
 WHERE [Modules].[CollectionProcedurename] IS NULL 
 AND [PSConfig].[Tablename] IS NOT NULL;
+
+--Set Frequency based Insert action as the default
+EXEC sp_executesql N'
+UPDATE [Inspector].[PSConfig]
+SET [InsertAction] = REPLACE(REPLACE([InsertAction],''1'',''3''),''2'',''3'');';
 
 --Update Inspector Build 
 UPDATE [Inspector].[Settings]
