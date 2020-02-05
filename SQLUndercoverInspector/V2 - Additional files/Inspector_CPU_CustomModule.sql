@@ -2,7 +2,7 @@
 Description: CPU Custom module for the Inspector
 			 Collect CPU % and report when % over CPU Thresholds which can be configured by changing the values for CPUThreshold in [Inspector].[Settings]
 Author: Adrian Buckman
-Revision date: 01/02/2020
+Revision date: 05/02/2020
 Credit: David Fowler for the CPU collection query body as this was a snippt taken from a stored procedure he had called sp_CPU_Time
 
 � www.sqlundercover.com 
@@ -30,7 +30,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET NOCOUNT ON;
 
-DECLARE @Revisiondate DATETIME = '20200201';
+DECLARE @Revisiondate DATETIME = '20200205';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 DECLARE @LinkedServername NVARCHAR(128) = (SELECT UPPER(TRY_CAST([Value] AS NVARCHAR(128))) FROM [Inspector].[Settings] WHERE [Description] = 'LinkedServername');
 DECLARE @SQLstmt NVARCHAR(4000);
@@ -263,7 +263,7 @@ EXEC('ALTER PROCEDURE [Inspector].[CPUReport] (
 )
 AS
 
---Revision date: 02/01/2020
+--Revision date: 05/02/2020
 BEGIN
 --Excluded from Warning level control
 	DECLARE @HtmlTableHead VARCHAR(4000);
@@ -307,7 +307,7 @@ OtherCPU
 INTO #InspectorModuleReport
 FROM [Inspector].[CPU]
 WHERE SystemCPUUtilization > @CPUThresholdInfoHighlight
-AND EventTime > DATEADD(HOUR,-@Frequency,GETDATE())
+AND EventTime > DATEADD(MINUTE,-@Frequency,GETDATE())
 AND Servername = @Servername
 ORDER BY EventTime ASC 
 
