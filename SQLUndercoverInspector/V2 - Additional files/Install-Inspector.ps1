@@ -20,8 +20,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #THIS SCRIPT IS STILL A WORK IN PROGRESS!
 #Author: Adrian Buckman
-#Version: 2.00
-#Revision date: 04/11/2019
+#Version: 3.00
+#Revision date: 12/02/2020
  
 #set variables
 #if you are using a Github URL this must be the raw URL.
@@ -103,8 +103,8 @@ IF ($ScriptPathType -eq "URL") {
 #Validate script contents
 write-host "Validating script contents";
 
-$InspectorURL = (Get-content -Path $(IF ($ScriptPathType -eq "URL") {$TempFilename} ELSE {$ScriptPath}) -TotalCount 72)[-1]
-$Build = (Get-content -Path $(IF ($ScriptPathType -eq "URL") {$TempFilename} ELSE {$ScriptPath}) -TotalCount 68)[-1]
+$InspectorURL = (Get-content -Path $(IF ($ScriptPathType -eq "URL") {$TempFilename} ELSE {$ScriptPath}) -TotalCount 74)[-1]
+$Build = (Get-content -Path $(IF ($ScriptPathType -eq "URL") {$TempFilename} ELSE {$ScriptPath}) -TotalCount 69)[-1]
 $Build = $Build.Replace("Version: ","");
 
 IF ($InspectorURL -notlike "*SQLUndercover*") {
