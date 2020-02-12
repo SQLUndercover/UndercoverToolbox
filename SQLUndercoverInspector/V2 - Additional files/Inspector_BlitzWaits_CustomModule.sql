@@ -10,7 +10,7 @@ Description: BlitzWaits Custom module for the Inspector
 			 it is up to you how much you want to see.
 
 Author: Adrian Buckman
-Revision date: 09/01/2020
+Revision date: 07/02/2020
 Credit: Brent Ozar unlimited and its contributors, part of the code used in [Inspector].[BlitzWaitsReport] is a revision of the view [dbo].[BlitzFirst_WaitStats_Deltas].
 
 © www.sqlundercover.com 
@@ -77,7 +77,7 @@ THREADPOOL
 
 
 
-DECLARE @Revisiondate DATE = '20200109';
+DECLARE @Revisiondate DATE = '20200207';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 
@@ -258,10 +258,10 @@ DROP TABLE #Deltas;
 
 
 CREATE TABLE #Deltas ( 
-[ServerName] NVARCHAR(128) NOT NULL,
+[ServerName] NVARCHAR(128) COLLATE DATABASE_DEFAULT NOT NULL,
 [CheckDate] DATETIMEOFFSET(7) NOT NULL,
-[wait_type] NVARCHAR(60) NOT NULL,
-[WaitCategory] NVARCHAR(128) NOT NULL,
+[wait_type] NVARCHAR(60) COLLATE DATABASE_DEFAULT NOT NULL,
+[WaitCategory] NVARCHAR(128) COLLATE DATABASE_DEFAULT NOT NULL,
 [Ignorable] BIT NOT NULL,
 [ElapsedSeconds] INT NULL,
 [wait_time_ms_delta] BIGINT NOT NULL,

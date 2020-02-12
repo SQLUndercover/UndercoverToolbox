@@ -15,7 +15,7 @@ DECLARE @EnableModule BIT = 1;
 
 
 
-DECLARE @Revisiondate DATETIME = '20200113';
+DECLARE @Revisiondate DATETIME = '20200207';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 --Ensure that Blitz tables exist
@@ -322,9 +322,9 @@ IF OBJECT_ID(''tempdb.dbo.#ServerLogins'') IS NOT NULL
 DROP TABLE #ServerLogins;
 
 CREATE TABLE #ServerLogins (
-AGName NVARCHAR(128),
-LoginName NVARCHAR(128),
-ServerName NVARCHAR(128)
+AGName NVARCHAR(128) COLLATE DATABASE_DEFAULT,
+LoginName NVARCHAR(128) COLLATE DATABASE_DEFAULT,
+ServerName NVARCHAR(128) COLLATE DATABASE_DEFAULT
 );
 
 
