@@ -1,8 +1,8 @@
 #requires -Modules dbatools
 # SON: We'll create a .psm1 a .psd1 file and put the above into the $RequiredModules field there.
 
-#Script version 1.4
-#Revision date: 03/02/2020
+#Script version 1.5
+#Revision date: 10/02/2020
 #Minimum Inspector version 2.1
 
 <#
@@ -442,8 +442,9 @@ function Invoke-SQLUndercoverInspector {
                         { $_ -eq 3 } {
                             #Get data recorded forModule frequency mins ago for the current server
                             IF($($Tablename[$Pos]) -eq "DatabaseFileSizes") {
-                            
                                 $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE [LastUpdated] >= DATEADD(MINUTE,-@Frequency,GETDATE()) AND Servername = @Servername',N'@Servername NVARCHAR(128),@Frequency INT',@Servername = '$Servername',@Frequency = $Frequency"                        
+                            } ELSEIF ($($Tablename[$Pos]) -eq "AGDatabases"){
+                                $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE ([Log_Date] >= DATEADD(MINUTE,-@Frequency,GETDATE()) OR [LastUpdated] >= DATEADD(MINUTE,-@Frequency,GETDATE())) AND Servername = @Servername',N'@Servername NVARCHAR(128),@Frequency INT',@Servername = '$Servername',@Frequency = $Frequency"                        
                             } ELSE {
                                 $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Log_Date >= DATEADD(MINUTE,-@Frequency,GETDATE()) AND Servername = @Servername',N'@Servername NVARCHAR(128),@Frequency INT',@Servername = '$Servername',@Frequency = $Frequency"                        
                                 }
