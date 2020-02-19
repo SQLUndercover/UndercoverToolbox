@@ -211,7 +211,7 @@ ALTER PROCEDURE [Inspector].[BlitzWaitsReport] (
 )
 AS
 BEGIN
---Revision date: 06/01/2020
+--Revision date: 19/02/2020
 /*
 Explanation of the logic used here:
 DATEADD(HOUR,(DATEPART(HOUR,CheckDate)%@HourlyBucketSize)/-1,DATEADD(HOUR, DATEDIFF(HOUR, 0, CheckDate), 0))
@@ -233,6 +233,7 @@ DATEADD(HOUR,(DATEPART(HOUR,CheckDate)%@HourlyBucketSize)/-1,DATEADD(HOUR, DATED
 	DECLARE @BlitzWaitsBucketColourEven VARCHAR(7) = (SELECT ISNULL(TRY_CAST([Value] AS VARCHAR(7)),''#FFFFFF'') FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsBucketColourEven'');
 	DECLARE @CheckDate DATETIMEOFFSET(7) = DATEADD(MINUTE,-@Frequency,SYSDATETIMEOFFSET());
 
+	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
 	IF (@Top IS NULL) BEGIN SET @Top = 3 END;
 	IF (@HourlyBucketSize IS NULL) BEGIN SET @HourlyBucketSize = 1 END;
