@@ -2,7 +2,7 @@
 Description: CPU Custom module for the Inspector
 			 Collect CPU % and report when % over CPU Thresholds which can be configured by changing the values for CPUThreshold in [Inspector].[Settings]
 Author: Adrian Buckman
-Revision date: 05/02/2020
+Revision date: 18/03/2020
 Credit: David Fowler for the CPU collection query body as this was a snippt taken from a stored procedure he had called sp_CPU_Time
 
 � www.sqlundercover.com 
@@ -10,7 +10,7 @@ Credit: David Fowler for the CPU collection query body as this was a snippt take
 MIT License
 ------------
  
-Copyright 2019 Sql Undercover
+Copyright 2020 Sql Undercover
  
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files
 (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge,
@@ -30,7 +30,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET NOCOUNT ON;
 
-DECLARE @Revisiondate DATETIME = '20200205';
+DECLARE @Revisiondate DATETIME = '20200318';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 DECLARE @LinkedServername NVARCHAR(128) = (SELECT UPPER(TRY_CAST([Value] AS NVARCHAR(128))) FROM [Inspector].[Settings] WHERE [Description] = 'LinkedServername');
 DECLARE @SQLstmt NVARCHAR(4000);
@@ -56,15 +56,25 @@ BEGIN
 	);
 END
 
-IF OBJECT_ID('Inspector.PSCPUStage',N'U') IS NULL 
-CREATE TABLE [Inspector].[PSCPUStage](
+IF OBJECT_ID('Inspector.PSCPUStage',N'U') IS NULL
+BEGIN 
+	CREATE TABLE [Inspector].[PSCPUStage](
 	[Servername] [nvarchar](128) NULL,
 	[Log_Date] [datetime] NULL,
 	[EventTime] [datetime] NULL,
 	[SystemCPUUtilization] [int] NULL,
 	[SQLCPUUtilization] [int] NULL
-);
-
+	);
+END
+	
+IF OBJECT_ID('Inspector.CPUConfig',N'U') IS NULL 
+BEGIN 
+	CREATE TABLE [Inspector].[CPUConfig](
+	[Servername] [nvarchar](128) NULL,
+	[ReportStartHour] INT NOT NULL,
+	[ReportEndHour] INT NOT NULL
+	);
+END
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.CPU',N'U') AND [name] = N'CIX_CPU_EventTime')
 BEGIN 
@@ -79,6 +89,11 @@ END
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.PSCPUStage',N'U') AND [name] = N'CIX_PSCPUStage_EventTime')
 BEGIN 
 	CREATE CLUSTERED INDEX [CIX_PSCPUStage_EventTime] ON [Inspector].[PSCPUStage] ([EventTime] ASC);
+END
+
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.CPUConfig',N'U') AND [name] = N'CIX_CPUConfig_Servername')
+BEGIN 
+	CREATE CLUSTERED INDEX [CIX_CPUConfig_Servername] ON [Inspector].[CPUConfig] ([Servername] ASC)
 END
 
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'CPUHistoryRetentionInDays')
@@ -104,6 +119,16 @@ BEGIN
 	INSERT INTO [Inspector].[Settings] ([Description],[Value])
 	VALUES('CPUThresholdInfoHighlight','75');
 END
+
+
+EXEC sp_executesql N'INSERT INTO [Inspector].[CPUConfig] ([Servername],[ReportStartHour],[ReportEndHour])
+SELECT [Servername],0,23 
+FROM [Inspector].[CurrentServers]
+WHERE [IsActive] = 1
+AND NOT EXISTS (SELECT 1 
+			FROM [Inspector].[CPUConfig]
+			WHERE [CPUConfig].[Servername] = [CurrentServers].[Servername]
+			);';
 
 
 IF OBJECT_ID('Inspector.CPUInsert',N'P') IS NULL 
@@ -263,7 +288,7 @@ EXEC('ALTER PROCEDURE [Inspector].[CPUReport] (
 )
 AS
 
---Revision date: 05/02/2020
+--Revision date: 18/03/2020
 BEGIN
 --Excluded from Warning level control
 	DECLARE @HtmlTableHead VARCHAR(4000);
@@ -273,7 +298,11 @@ BEGIN
 	DECLARE @CPUThresholdAdvisoryHighlight INT
 	DECLARE @CPUThresholdInfoHighlight INT
 	DECLARE @Frequency INT
+	DECLARE @ReportStartHour INT;
+	DECLARE @ReportEndHour INT;
 
+	SET @ReportStartHour = (SELECT [ReportStartHour] FROM [Inspector].[CPUConfig] WHERE [Servername] = @Servername);
+	SET @ReportEndHour = (SELECT [ReportEndHour] FROM [Inspector].[CPUConfig] WHERE [Servername] = @Servername);
 	SET @CPUThresholdWarningHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),90) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdWarningHighlight'');
 	SET @CPUThresholdAdvisoryHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),85) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdAdvisoryHighlight'');
 	SET @CPUThresholdInfoHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),75) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdInfoHighlight'');
@@ -285,6 +314,8 @@ BEGIN
 	IF @CPUThresholdWarningHighlight IS NULL BEGIN SET @CPUThresholdInfoHighlight = 90 END;
 	IF @CPUThresholdAdvisoryHighlight IS NULL BEGIN SET @CPUThresholdInfoHighlight = 85 END;
 	IF @CPUThresholdInfoHighlight IS NULL BEGIN SET @CPUThresholdInfoHighlight = 75 END;
+	IF @ReportStartHour IS NULL BEGIN SET @ReportStartHour = 0 END;
+	IF @ReportEndHour IS NULL BEGIN SET @ReportEndHour = 23 END;
 
 /********************************************************/
 	--Your query MUST have a case statement that determines which colour to highlight rows
@@ -300,7 +331,7 @@ CASE
 	WHEN SystemCPUUtilization > @CPUThresholdInfoHighlight AND SystemCPUUtilization < @CPUThresholdAdvisoryHighlight THEN @InfoHighlight
 END AS [@bgcolor],
 Servername,
-CONVERT(VARCHAR(21),EventTime,113) AS EventTime,
+CONVERT(VARCHAR(20),EventTime,113) AS EventTime,
 SystemCPUUtilization,
 SQLCPUUtilization,
 OtherCPU
@@ -309,6 +340,7 @@ FROM [Inspector].[CPU]
 WHERE SystemCPUUtilization > @CPUThresholdInfoHighlight
 AND EventTime > DATEADD(MINUTE,-@Frequency,GETDATE())
 AND Servername = @Servername
+AND DATEPART(HOUR,EventTime) BETWEEN @ReportStartHour AND @ReportEndHour
 ORDER BY EventTime ASC 
 
 /********************************************************/
@@ -332,7 +364,14 @@ ORDER BY EventTime ASC
 	@Servername,
 	@Modulename,
 	@ServerSpecific,
-	''CPU greater than ''+CAST(@CPUThresholdInfoHighlight AS VARCHAR(3))+''%'', --Title for the HTML table, you can use a string here instead such as ''My table title here'' if you want to
+	''CPU greater than ''
+	+CAST(@CPUThresholdInfoHighlight AS VARCHAR(3))
+	+''% in the last ''
+	+CAST(@Frequency AS VARCHAR(10))
+	+''mins between the hours of ''
+	+CAST(@ReportStartHour AS VARCHAR(10))
+	+'' and ''
+	+CAST(@ReportEndHour AS VARCHAR(10)), --Title for the HTML table, you can use a string here instead such as ''My table title here'' if you want to
 	@TableHeaderColour,
 	@Columnnames)
 	);
