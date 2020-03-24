@@ -10432,9 +10432,9 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 09/01/2020
+--Revision date: 24/03/2020
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
---V2.1
+--V2.2
 
 
 --Example Execute command
@@ -10869,7 +10869,7 @@ BEGIN
 						@WarningLevelFontColour = @WarningLevelFontColour,
 						@CollectionOutOfDate = @CollectionOutOfDate,
 						@NoClutter = @NoClutter,
-						@Importance = @Importance,
+						@Importance = @Importance OUTPUT,
 						@WarningLevel = @WarningLevel,
 						@ServerSpecific = @ServerSpecific,
 						@TableTail = @StandardTableTail OUTPUT,
@@ -11001,7 +11001,7 @@ BEGIN
 					@WarningLevelFontColour = @WarningLevelFontColour,
 					@CollectionOutOfDate = @CollectionOutOfDate,
 					@NoClutter = @NoClutter,
-					@Importance = @Importance,
+					@Importance = @Importance OUTPUT,
 					@WarningLevel = @WarningLevel,
 					@ServerSpecific = @ServerSpecific,
 					@TableTail = @StandardTableTail OUTPUT,
@@ -11290,7 +11290,7 @@ END
 				@WarningLevelFontColour = @WarningLevelFontColour,
 				@CollectionOutOfDate = @CollectionOutOfDate,
 				@NoClutter = @NoClutter,
-				@Importance = @Importance,
+				@Importance = @Importance OUTPUT,
 				@WarningLevel = @WarningLevel,
 				@ServerSpecific = @ServerSpecific,
 				@TableTail = @StandardTableTail OUTPUT,
