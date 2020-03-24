@@ -71,8 +71,8 @@ IF OBJECT_ID('Inspector.CPUConfig',N'U') IS NULL
 BEGIN 
 	CREATE TABLE [Inspector].[CPUConfig](
 	[Servername] [nvarchar](128) NULL,
-	[ReportStartHour] INT NOT NULL,
-	[ReportEndHour] INT NOT NULL
+	[MonitorHourStart] INT NOT NULL,
+	[MonitorHourEnd] INT NOT NULL
 	);
 END
 
@@ -121,7 +121,7 @@ BEGIN
 END
 
 
-EXEC sp_executesql N'INSERT INTO [Inspector].[CPUConfig] ([Servername],[ReportStartHour],[ReportEndHour])
+EXEC sp_executesql N'INSERT INTO [Inspector].[CPUConfig] ([Servername],[MonitorHourStart],[MonitorHourEnd])
 SELECT [Servername],0,23 
 FROM [Inspector].[CurrentServers]
 WHERE [IsActive] = 1
@@ -298,11 +298,11 @@ BEGIN
 	DECLARE @CPUThresholdAdvisoryHighlight INT
 	DECLARE @CPUThresholdInfoHighlight INT
 	DECLARE @Frequency INT
-	DECLARE @ReportStartHour INT;
-	DECLARE @ReportEndHour INT;
+	DECLARE @MonitorHourStart INT;
+	DECLARE @MonitorHourEnd INT;
 
-	SET @ReportStartHour = (SELECT [ReportStartHour] FROM [Inspector].[CPUConfig] WHERE [Servername] = @Servername);
-	SET @ReportEndHour = (SELECT [ReportEndHour] FROM [Inspector].[CPUConfig] WHERE [Servername] = @Servername);
+	SET @MonitorHourStart = (SELECT [MonitorHourStart] FROM [Inspector].[CPUConfig] WHERE [Servername] = @Servername);
+	SET @MonitorHourEnd = (SELECT [MonitorHourEnd] FROM [Inspector].[CPUConfig] WHERE [Servername] = @Servername);
 	SET @CPUThresholdWarningHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),90) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdWarningHighlight'');
 	SET @CPUThresholdAdvisoryHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),85) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdAdvisoryHighlight'');
 	SET @CPUThresholdInfoHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),75) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdInfoHighlight'');
@@ -314,8 +314,8 @@ BEGIN
 	IF @CPUThresholdWarningHighlight IS NULL BEGIN SET @CPUThresholdInfoHighlight = 90 END;
 	IF @CPUThresholdAdvisoryHighlight IS NULL BEGIN SET @CPUThresholdInfoHighlight = 85 END;
 	IF @CPUThresholdInfoHighlight IS NULL BEGIN SET @CPUThresholdInfoHighlight = 75 END;
-	IF @ReportStartHour IS NULL BEGIN SET @ReportStartHour = 0 END;
-	IF @ReportEndHour IS NULL BEGIN SET @ReportEndHour = 23 END;
+	IF @MonitorHourStart IS NULL BEGIN SET @MonitorHourStart = 0 END;
+	IF @MonitorHourEnd IS NULL BEGIN SET @MonitorHourEnd = 23 END;
 
 /********************************************************/
 	--Your query MUST have a case statement that determines which colour to highlight rows
@@ -340,7 +340,7 @@ FROM [Inspector].[CPU]
 WHERE SystemCPUUtilization > @CPUThresholdInfoHighlight
 AND EventTime > DATEADD(MINUTE,-@Frequency,GETDATE())
 AND Servername = @Servername
-AND DATEPART(HOUR,EventTime) BETWEEN @ReportStartHour AND @ReportEndHour
+AND DATEPART(HOUR,EventTime) BETWEEN @MonitorHourStart AND @MonitorHourEnd
 ORDER BY EventTime ASC 
 
 /********************************************************/
@@ -369,9 +369,9 @@ ORDER BY EventTime ASC
 	+''% in the last ''
 	+CAST(@Frequency AS VARCHAR(10))
 	+''mins between the hours of ''
-	+CAST(@ReportStartHour AS VARCHAR(10))
+	+CAST(@MonitorHourStart AS VARCHAR(10))
 	+'' and ''
-	+CAST(@ReportEndHour AS VARCHAR(10)), --Title for the HTML table, you can use a string here instead such as ''My table title here'' if you want to
+	+CAST(@MonitorHourEnd AS VARCHAR(10)), --Title for the HTML table, you can use a string here instead such as ''My table title here'' if you want to
 	@TableHeaderColour,
 	@Columnnames)
 	);
