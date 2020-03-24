@@ -65,8 +65,8 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 03/02/2020
-Version: 2.1
+Revision date: 24/03/2020
+Version: 2.2
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -129,8 +129,8 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200203';
-DECLARE @Build VARCHAR(6) ='2.1'
+DECLARE @Revisiondate DATE = '20200324';
+DECLARE @Build VARCHAR(6) ='2.2'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
 DECLARE @JobsWithoutSchedules VARCHAR(1000);
@@ -373,7 +373,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[ReportDate] DATETIME NOT NULL,
 				[ModuleConfig] VARCHAR(20),
 				[ReportData] VARCHAR(MAX) NULL,
-				[Summary] XML NULL
+				[Summary] XML NULL,
+				[Importance] VARCHAR(6) NULL
 			);
 
 			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Summary' AND [object_id] = OBJECT_ID(N'Inspector.ReportData'))
@@ -398,6 +399,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 						AND system_type_id = 167)
 			BEGIN 
 				ALTER TABLE [Inspector].[ReportData] ALTER COLUMN [Summary] XML NULL;
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Importance' AND [object_id] = OBJECT_ID(N'Inspector.ReportData'))
+			BEGIN
+				--New column for 2.2
+				ALTER TABLE [Inspector].[ReportData] ADD [Importance] VARCHAR(6) NULL;
 			END
 			
 			IF OBJECT_ID('Inspector.Settings') IS NULL 	
@@ -11504,8 +11511,8 @@ IF @ModuleDesc IS NULL BEGIN SET @ModuleDesc = ''NULL'' END;
 
 IF @TestMode = 1 OR (@RecipientsList IS NULL OR @RecipientsList = '''')
 BEGIN
-INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary)
-SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML);
+INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance)
+SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance;
 END
 ELSE
 BEGIN
@@ -11514,8 +11521,8 @@ IF @EmailRedWarningsOnly = 1
 	BEGIN
 		IF @Importance = ''High''
 		BEGIN
-			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary)
-			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML);
+			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance)
+			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance;
 
 			EXEC msdb.dbo.sp_send_dbmail 
 			@recipients = @RecipientsList,
@@ -11527,8 +11534,8 @@ IF @EmailRedWarningsOnly = 1
 	END
 	ELSE 
 	BEGIN
-			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary)
-			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML);
+			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance)
+			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance;
 
 			EXEC msdb.dbo.sp_send_dbmail 
 			@recipients = @RecipientsList,
