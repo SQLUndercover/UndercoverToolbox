@@ -1018,7 +1018,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 						[ReportWarningsOnly] BIT NOT NULL,
 						[NoClutter] BIT NOT NULL,
 						[ShowDisabledModules] BIT NOT NULL,
-						[RunDay] VARCHAR(70) NULL
+						[RunDay] VARCHAR(70) NULL,
+						[EmailGroup] VARCHAR(50) NULL
 					 CONSTRAINT [PK_ModuleConfig_Desc] PRIMARY KEY CLUSTERED 
 					([ModuleConfig_Desc] ASC)
 					);
@@ -1038,6 +1039,16 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				UPDATE [Inspector].[ModuleConfig]
 				SET [RunDay] = ''Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday''
 				WHERE [RunDay] IS NULL;';
+
+				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID('Inspector.ModuleConfig') AND [name] = 'EmailGroup')
+				BEGIN 
+					EXEC sp_executesql N'ALTER TABLE [Inspector].[ModuleConfig] ADD [EmailGroup] VARCHAR(50) NULL;';
+				END
+
+				IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_ModuleConfig_EmailGroup')
+				BEGIN 
+					EXEC sp_executesql N'ALTER TABLE [Inspector].[ModuleConfig] WITH CHECK ADD CONSTRAINT [FK_ModuleConfig_EmailGroup] FOREIGN KEY (EmailGroup) REFERENCES [Inspector].[EmailRecipients]([Description]);';
+				END
 
 				IF OBJECT_ID('Inspector.CatalogueModules') IS NULL
 				BEGIN
@@ -2285,7 +2296,7 @@ END
 	EXEC dbo.sp_executesql @statement = N'
 	CREATE VIEW [Inspector].[ReportSchedulesDue] 
 	AS 
-	--Revision date: 14/01/2020
+	--Revision date: 26/03/2020
 	
 		SELECT 
 		[ModuleConfig_Desc],
@@ -2298,7 +2309,8 @@ END
 		DATEADD(MINUTE,RowNum+1,Schedules.StartDatetime) AS CurrentScheduleEnd,
 		LastRunDateTime,
 		RowNum%Frequency AS modulo,
-		RowNum
+		RowNum,
+		EmailGroup
 		FROM 
 		(
 			SELECT 
@@ -2309,9 +2321,10 @@ END
 			(DATEDIFF(HOUR,CAST(StartTime AS DATETIME),CAST(EndTime AS DATETIME))*60)/Frequency AS TotalRuns,
 			DATEADD(MINUTE,DATEPART(MINUTE,StartTime),DATEADD(HOUR,DATEPART(HOUR,StartTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS StartDatetime,
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
-			LastRunDateTime,RunDay
+			LastRunDateTime,RunDay,
+			ISNULL(EmailGroup,''DBA'') AS EmailGroup
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
 				--AND ModuleConfig_Desc = ''Default''
@@ -2334,7 +2347,7 @@ END
 	EXEC dbo.sp_executesql @statement = N'
 	ALTER VIEW [Inspector].[ReportSchedulesDue] 
 	AS 
-	--Revision date: 14/01/2020
+	--Revision date: 26/03/2020
 	
 		SELECT 
 		[ModuleConfig_Desc],
@@ -2347,7 +2360,8 @@ END
 		DATEADD(MINUTE,RowNum+1,Schedules.StartDatetime) AS CurrentScheduleEnd,
 		LastRunDateTime,
 		RowNum%Frequency AS modulo,
-		RowNum
+		RowNum,
+		EmailGroup
 		FROM 
 		(
 			SELECT 
@@ -2358,9 +2372,10 @@ END
 			(DATEDIFF(HOUR,CAST(StartTime AS DATETIME),CAST(EndTime AS DATETIME))*60)/Frequency AS TotalRuns,
 			DATEADD(MINUTE,DATEPART(MINUTE,StartTime),DATEADD(HOUR,DATEPART(HOUR,StartTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS StartDatetime,
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
-			LastRunDateTime,RunDay
+			LastRunDateTime,RunDay,
+			ISNULL(EmailGroup,''DBA'') AS EmailGroup
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
 				--AND ModuleConfig_Desc = ''Default''
@@ -9852,13 +9867,13 @@ BEGIN
 	DECLARE InspectorReportmaster_cur CURSOR LOCAL STATIC
 	FOR
 	SELECT 
-	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency
+	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup
 	FROM  [Inspector].[ReportSchedulesDue]
 	ORDER BY CurrentScheduleStart ASC
 	
 	OPEN InspectorReportmaster_cur
 	
-	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency
+	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
 	
 	WHILE @@FETCH_STATUS = 0 
 	BEGIN 
@@ -9883,7 +9898,7 @@ BEGIN
 		SET LastRunDateTime = GETDATE() 
 		WHERE ModuleConfig_Desc = @ModuleConfigDesc;
 	
-		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency
+		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
 	END 
 	
 	CLOSE InspectorReportmaster_cur
@@ -9909,13 +9924,13 @@ BEGIN
 	DECLARE InspectorReportmaster_cur CURSOR LOCAL STATIC
 	FOR
 	SELECT 
-	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency
+	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup
 	FROM  [Inspector].[ReportSchedulesDue]
 	ORDER BY CurrentScheduleStart ASC
 	
 	OPEN InspectorReportmaster_cur
 	
-	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency
+	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
 	
 	WHILE @@FETCH_STATUS = 0 
 	BEGIN 
@@ -9940,7 +9955,7 @@ BEGIN
 		SET LastRunDateTime = GETDATE() 
 		WHERE ModuleConfig_Desc = @ModuleConfigDesc;
 	
-		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency
+		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
 	END 
 	
 	CLOSE InspectorReportmaster_cur
