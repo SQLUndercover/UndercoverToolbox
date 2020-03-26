@@ -1,6 +1,6 @@
 ﻿#Script version 1
-#Revision date: 31/01/2020
-#Minimum Inspector version 2.1
+#Revision date: 26/03/2020
+#Minimum Inspector version 2.2
 
 function InspectorAutoUpdate {
     [CmdletBinding()]
@@ -321,7 +321,14 @@ function InspectorAutoUpdate {
                             Try{
                                 write-host "        Executing $Filename" -ForegroundColor White
                                 Invoke-sqlcmd -ServerInstance $Servername -Database $LoggingDb -InputFile $Filename -ConnectionTimeout 15         
-                                
+
+                                #If the Inspector build needs updating then the Setup proc needs to be executed following the above revision to the setup proc.
+                                IF($Modulename -eq "SQLUndercoverinspectorV2.sql"){
+                                    write-host "        Executing [Inspector].[InspectorSetup] stored procedure" -ForegroundColor White
+                                            
+                                    Invoke-sqlcmd -ServerInstance $Servername -Database $LoggingDb -Query $ExecInspectorSetupProc -ConnectionTimeout 15;
+                                }
+                                                                
                             } Catch{
                                 write-host "$_.Exception.Message" -ForegroundColor Red;
                                 #remove-item -LiteralPath $Filename;
