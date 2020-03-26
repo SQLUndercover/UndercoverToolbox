@@ -374,7 +374,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[ModuleConfig] VARCHAR(20),
 				[ReportData] VARCHAR(MAX) NULL,
 				[Summary] XML NULL,
-				[Importance] VARCHAR(6) NULL
+				[Importance] VARCHAR(6) NULL,
+				[EmailGroup] VARCHAR(50) NULL
 			);
 
 			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Summary' AND [object_id] = OBJECT_ID(N'Inspector.ReportData'))
@@ -401,10 +402,15 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				ALTER TABLE [Inspector].[ReportData] ALTER COLUMN [Summary] XML NULL;
 			END
 
+			--New columns for 2.2
 			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Importance' AND [object_id] = OBJECT_ID(N'Inspector.ReportData'))
 			BEGIN
-				--New column for 2.2
 				ALTER TABLE [Inspector].[ReportData] ADD [Importance] VARCHAR(6) NULL;
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'EmailGroup' AND [object_id] = OBJECT_ID(N'Inspector.ReportData'))
+			BEGIN
+				ALTER TABLE [Inspector].[ReportData] ADD [EmailGroup] VARCHAR(50) NULL;
 			END
 			
 			IF OBJECT_ID('Inspector.Settings') IS NULL 	
@@ -9830,7 +9836,7 @@ IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'Inspector
 BEGIN
 	EXEC dbo.sp_executesql @statement = N'
 	CREATE PROCEDURE [Inspector].[InspectorReportMaster] (
-	@EmailGroup VARCHAR(1000) = ''DBA'',
+	@EmailGroup VARCHAR(50) = ''DBA'',
 	@PSCollection BIT = 0
 	)
 	AS
@@ -9867,7 +9873,7 @@ BEGIN
 		@EmailRedWarningsOnly = @ReportWarningsOnly, 
 		@Theme = ''''Dark'''',
 		@NoClutter = @NoClutter;'',
-		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly BIT,@NoClutter BIT,@EmailGroup VARCHAR(1000)'',
+		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly BIT,@NoClutter BIT,@EmailGroup VARCHAR(50)'',
 		@ModuleConfigDesc = @ModuleConfigDesc,
 		@ReportWarningsOnly = @ReportWarningsOnly,
 		@NoClutter = @NoClutter,
@@ -9887,7 +9893,7 @@ ELSE
 BEGIN 
 	EXEC dbo.sp_executesql @statement = N'
 	ALTER PROCEDURE [Inspector].[InspectorReportMaster] (
-	@EmailGroup VARCHAR(1000) = ''DBA'',
+	@EmailGroup VARCHAR(50) = ''DBA'',
 	@PSCollection BIT = 0
 	)
 	AS
@@ -9924,7 +9930,7 @@ BEGIN
 		@EmailRedWarningsOnly = @ReportWarningsOnly, 
 		@Theme = ''''Dark'''',
 		@NoClutter = @NoClutter;'',
-		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly BIT,@NoClutter BIT,@EmailGroup VARCHAR(1000)'',
+		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly BIT,@NoClutter BIT,@EmailGroup VARCHAR(50)'',
 		@ModuleConfigDesc = @ModuleConfigDesc,
 		@ReportWarningsOnly = @ReportWarningsOnly,
 		@NoClutter = @NoClutter,
@@ -10451,7 +10457,7 @@ SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+
 
 CREATE PROCEDURE [Inspector].[SQLUnderCoverInspectorReport] 
 (
-@EmailDistributionGroup VARCHAR(100) = ''DBA'',
+@EmailDistributionGroup VARCHAR(50) = ''DBA'',
 @TestMode BIT = 0,
 @ModuleDesc VARCHAR(20)	= NULL,
 @EmailRedWarningsOnly BIT = 0,
@@ -11511,8 +11517,8 @@ IF @ModuleDesc IS NULL BEGIN SET @ModuleDesc = ''NULL'' END;
 
 IF @TestMode = 1 OR (@RecipientsList IS NULL OR @RecipientsList = '''')
 BEGIN
-INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance)
-SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance;
+INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup)
+SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup;
 END
 ELSE
 BEGIN
@@ -11521,8 +11527,8 @@ IF @EmailRedWarningsOnly = 1
 	BEGIN
 		IF @Importance = ''High''
 		BEGIN
-			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance)
-			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance;
+			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup)
+			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup;
 
 			EXEC msdb.dbo.sp_send_dbmail 
 			@recipients = @RecipientsList,
@@ -11534,8 +11540,8 @@ IF @EmailRedWarningsOnly = 1
 	END
 	ELSE 
 	BEGIN
-			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance)
-			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance;
+			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup)
+			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup;
 
 			EXEC msdb.dbo.sp_send_dbmail 
 			@recipients = @RecipientsList,
