@@ -6096,7 +6096,7 @@ CREATE PROCEDURE [Inspector].[PSGetSettingsTables]
 @PSCollection BIT = 0 --If its a powershell collection ensure that the WarningLevel table is populated
 )
 AS 
---Revision date: 01/02/2020
+--Revision date: 24/03/2020
 
 --Config for Powershell collection use only
 --TruncateTable - 0 Delete contents, 1 Truncate table
@@ -6120,14 +6120,30 @@ BEGIN
 	IF @SortOrder = 0 
 	BEGIN 
 		SELECT Tablename,TruncateTable,ReseedTable 
-		FROM (VALUES(1,''Settings'',1,1),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''ModuleWarningLevel'',0,0),(7,''AGCheckConfig'',1,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		FROM (VALUES
+			(1,''Settings'',1,1),
+			(2,''CurrentServers'',0,0), 
+			--(3,''EmailRecipients'',0,0), 
+			(4,''EmailConfig'',0,0),
+			(5,''CatalogueModules'',0,0),
+			(6,''ModuleWarningLevel'',0,0),
+			(7,''AGCheckConfig'',1,0)
+		) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder ASC;
 	END
 
 	IF @SortOrder = 1 
 	BEGIN 
 		SELECT Tablename,TruncateTable,ReseedTable 
-		FROM (VALUES(1,''Settings'',1,1),(2,''CurrentServers'',0,0), (3,''EmailRecipients'',0,0), (4,''EmailConfig'',0,0),(5,''CatalogueModules'',0,0),(6,''ModuleWarningLevel'',0,0),(7,''AGCheckConfig'',1,0)) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
+		FROM (VALUES
+			(1,''Settings'',1,1),
+			(2,''CurrentServers'',0,0), 
+			--(3,''EmailRecipients'',0,0), 
+			(4,''EmailConfig'',0,0),
+			(5,''CatalogueModules'',0,0),
+			(6,''ModuleWarningLevel'',0,0),
+			(7,''AGCheckConfig'',1,0)
+		) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder DESC;
 	END
 
