@@ -1971,7 +1971,8 @@ TRUNCATE TABLE [Inspector].[Settings];
 TRUNCATE TABLE [Inspector].[EmailConfig];
 TRUNCATE TABLE [Inspector].[ModuleWarnings];
 TRUNCATE TABLE [Inspector].[ModuleWarningLevel];
-TRUNCATE TABLE [Inspector].[EmailRecipients];
+UPDATE [Inspector].[ModuleConfig] SET [EmailGroup] = NULL WHERE [EmailGroup] IS NOT NULL;
+DELETE FROM [Inspector].[EmailRecipients];
 TRUNCATE TABLE [Inspector].[CatalogueModules];
 TRUNCATE TABLE [Inspector].[DefaultHeaderText];';
 
