@@ -2,7 +2,7 @@
 Description: CPU Custom module for the Inspector
 			 Collect CPU % and report when % over CPU Thresholds which can be configured by changing the values for CPUThreshold in [Inspector].[Settings]
 Author: Adrian Buckman
-Revision date: 18/03/2020
+Revision date: 28/03/2020
 Credit: David Fowler for the CPU collection query body as this was a snippt taken from a stored procedure he had called sp_CPU_Time
 
 � www.sqlundercover.com 
@@ -30,7 +30,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET NOCOUNT ON;
 
-DECLARE @Revisiondate DATETIME = '20200318';
+DECLARE @Revisiondate DATETIME = '20200328';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 DECLARE @LinkedServername NVARCHAR(128) = (SELECT UPPER(TRY_CAST([Value] AS NVARCHAR(128))) FROM [Inspector].[Settings] WHERE [Description] = 'LinkedServername');
 DECLARE @SQLstmt NVARCHAR(4000);
@@ -201,7 +201,7 @@ BEGIN
 
 	IF @CPUHistoryRetentionInDays IS NULL BEGIN SET @CPUHistoryRetentionInDays = 7 END;
 
-	DELETE FROM [Inspector].[CPU] 
+	DELETE FROM '+QUOTENAME(@LinkedServername)+N'.'+QUOTENAME(DB_NAME())+N'.[Inspector].[CPU] 
 	WHERE [EventTime] < DATEADD(DAY,-@CPUHistoryRetentionInDays,GETDATE())
 	AND [Servername] = @@SERVERNAME;
 	
