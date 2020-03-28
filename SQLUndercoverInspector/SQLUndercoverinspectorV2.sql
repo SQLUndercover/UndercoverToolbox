@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 24/03/2020
+Revision date: 28/03/2020
 Version: 2.2
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200324';
+DECLARE @Revisiondate DATE = '20200328';
 DECLARE @Build VARCHAR(6) ='2.2'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -151,7 +151,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 
---Inspector V2.1
+--Inspector V2.2
 --Revision date: '+CONVERT(VARCHAR(17),@Revisiondate,113)+'
 
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
@@ -10287,7 +10287,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 24/01/2020
+--Revision date: 28/03/2020
 
 SET NOCOUNT ON;
 
@@ -10305,6 +10305,8 @@ DECLARE @LastTruncate DATE;
 DECLARE @ReportWarningsOnly BIT;
 
 
+IF EXISTS(SELECT 1 FROM [Inspector].[CurrentServers] WHERE [IsActive] = 1 AND Servername = @Servername)
+BEGIN
     IF EXISTS (SELECT ModuleConfig_Desc FROM [Inspector].[Modules] WHERE ModuleConfig_Desc = @ModuleConfig) OR @ModuleConfig IS NULL 
     BEGIN
 		--Truncate the ExecutionLog daily
@@ -10457,6 +10459,39 @@ DECLARE @ReportWarningsOnly BIT;
 		@Procname = @Procname, 
 		@Duration = @Duration,
 		@PSCollection = @PSCollection;
+
+END
+ELSE --Server not present in CurrentServer or IsActive = 1
+BEGIN 
+	SET @ModuleConfig = ISNULL(@ModuleConfig,''Default'');
+
+	IF @PSCollection = 1 
+	BEGIN 
+		RAISERROR(''Cleaning up history tables'',0,0) WITH NOWAIT;
+		EXEC [Inspector].[PSHistCleanup];
+	END
+
+	IF @PSCentralServer = @@SERVERNAME
+	BEGIN 
+		--Run InspectorReportMaster to pick up any scheduled reports
+		RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
+		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
+	END
+
+
+	--Log InspectorDataCollection proc duration to the ExecutionLog
+	SET @Duration = CAST(DATEDIFF(MILLISECOND,@ReportStart,GETDATE()) AS MONEY)/1000;
+
+	EXEC [Inspector].[ExecutionLogInsert] 
+		@RunDatetime = @ReportStart, 
+		@Servername = @Servername, 
+		@ModuleConfigDesc = @ModuleConfig,
+		@Procname = @Procname, 
+		@Duration = @Duration,
+		@PSCollection = @PSCollection;
+
+	RAISERROR(''Server: %s not present or IsActive = 0 in [Inspector].[CurrentServers]'',0,0,@Servername);
+END
 
 END'
 
