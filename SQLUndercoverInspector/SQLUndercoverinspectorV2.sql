@@ -1045,10 +1045,6 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 					EXEC sp_executesql N'ALTER TABLE [Inspector].[ModuleConfig] ADD [EmailGroup] VARCHAR(50) NULL;';
 				END
 
-				IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_ModuleConfig_EmailGroup')
-				BEGIN 
-					EXEC sp_executesql N'ALTER TABLE [Inspector].[ModuleConfig] WITH CHECK ADD CONSTRAINT [FK_ModuleConfig_EmailGroup] FOREIGN KEY (EmailGroup) REFERENCES [Inspector].[EmailRecipients]([Description]);';
-				END
 
 				IF OBJECT_ID('Inspector.CatalogueModules') IS NULL
 				BEGIN
@@ -1435,6 +1431,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			Recipients VARCHAR(1000) DEFAULT NULL
 			CONSTRAINT UC_EmailDescription UNIQUE (Description)
 			); 
+
+			--NEw FK for 2.2
+			IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_ModuleConfig_EmailGroup')
+			BEGIN 
+				EXEC sp_executesql N'ALTER TABLE [Inspector].[ModuleConfig] WITH CHECK ADD CONSTRAINT [FK_ModuleConfig_EmailGroup] FOREIGN KEY (EmailGroup) REFERENCES [Inspector].[EmailRecipients]([Description]);';
+			END
 			
 			IF OBJECT_ID('Inspector.CurrentServers') IS NULL 
 			BEGIN
