@@ -65,8 +65,8 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 28/03/2020
-Version: 2.2
+Revision date: 09/04/2020
+Version: 2.3
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -151,7 +151,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 
---Inspector V2.2
+--Inspector V2.3
 --Revision date: '+CONVERT(VARCHAR(17),@Revisiondate,113)+'
 
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
@@ -1684,7 +1684,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[Procname] NVARCHAR(128) NOT NULL,
 				[Frequency] SMALLINT NULL,
 				[Duration] MONEY,
-				[PSCollection] BIT NOT NULL
+				[PSCollection] BIT NOT NULL,
+				[ErrorMessage] NVARCHAR(128) NULL
 				); 
 
 				CREATE CLUSTERED INDEX [CIX_ExecutionLog_ID] ON [Inspector].[ExecutionLog]
@@ -1699,6 +1700,16 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 							AND columns.name = N'Frequency')
 			BEGIN 
 				ALTER TABLE [Inspector].[ExecutionLog] ADD [Frequency] SMALLINT NULL;
+			END
+
+			IF NOT EXISTS(SELECT 1 
+							FROM sys.tables 
+							INNER JOIN sys.columns ON tables.object_id = columns.object_id 
+							WHERE tables.schema_id = SCHEMA_ID(N'Inspector')
+							AND tables.name = N'ExecutionLog'
+							AND columns.name = N'ErrorMessage')
+			BEGIN 
+				ALTER TABLE [Inspector].[ExecutionLog] ADD [ErrorMessage] NVARCHAR(128) NULL;
 			END
 
 			IF OBJECT_ID('Inspector.CatalogueSIDExclusions') IS NULL
@@ -5371,11 +5382,12 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 @ModuleConfigDesc VARCHAR(20),
 @Procname NVARCHAR(128),
 @Frequency SMALLINT = NULL,
+@ErrorMessage NVARCHAR(128) = NULL,
 @Duration MONEY,
 @PSCollection BIT
 )
 AS
---Revision Date: 26/11/2019
+--Revision Date: 09/04/2020
 DECLARE @Linkedservername NVARCHAR(128) = (SELECT UPPER([Value]) FROM [Inspector].[Settings] WHERE [Description] = ''LinkedServername'');
 DECLARE @CentraliseExecutionLog BIT = (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''CentraliseExecutionLog'');
 DECLARE @LinkedServerInsert NVARCHAR(1000)
@@ -5397,8 +5409,8 @@ IF (EXISTS(SELECT 1 FROM sys.servers WHERE name = @Linkedservername) AND @Centra
 BEGIN 
 	BEGIN 
 		SET @LinkedServerInsert = ''
-		INSERT INTO [''+CAST(@Linkedservername AS VARCHAR(128))+''].[''+CAST(DB_NAME() AS VARCHAR(128))+''].[Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection)
-		VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection);''
+		INSERT INTO [''+CAST(@Linkedservername AS VARCHAR(128))+''].[''+CAST(DB_NAME() AS VARCHAR(128))+''].[Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection,ErrorMessage)
+		VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection,@ErrorMessage);''
 
 		EXEC sp_executesql @LinkedServerInsert,
 		N''@RunDatetime DATETIME,
@@ -5407,21 +5419,23 @@ BEGIN
 		@Procname NVARCHAR(128),
 		@Frequency SMALLINT = NULL,
 		@Duration MONEY,
-		@PSCollection BIT'',
+		@PSCollection BIT,
+		@ErrorMessage NVARCHAR(128)'',
 		@RunDatetime = @RunDatetime,
 		@Servername = @Servername,
 		@ModuleConfigDesc = @ModuleConfigDesc,
 		@Procname = @Procname,
 		@Frequency = @Frequency,
 		@Duration = @Duration,
-		@PSCollection = @PSCollection;	
+		@PSCollection = @PSCollection,
+		@ErrorMessage = @ErrorMessage;
 	END 
 
 END
 ELSE --If Linked server is invalid or @CentraliseExecutionLog = 0 insert locally
 BEGIN
-	INSERT INTO [Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection)
-	VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection);
+	INSERT INTO [Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection,ErrorMessage)
+	VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection,@ErrorMessage);
 END
 '
 
@@ -10290,7 +10304,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 28/03/2020
+--Revision date: 09/04/2020
 
 SET NOCOUNT ON;
 
@@ -10306,6 +10320,7 @@ DECLARE @Frequency SMALLINT;
 DECLARE @Duration MONEY;
 DECLARE @LastTruncate DATE;
 DECLARE @ReportWarningsOnly BIT;
+DECLARE @ErrorMessage NVARCHAR(128);
 
 
 IF EXISTS(SELECT 1 FROM [Inspector].[CurrentServers] WHERE [IsActive] = 1 AND Servername = @Servername)
@@ -10393,7 +10408,14 @@ BEGIN
 					SET @CollectionStart = GETDATE();
 
 					RAISERROR(''Running [Inspector].[%s]'',0,0,@CollectionProcedurename) WITH NOWAIT;
-					EXEC(''EXEC [Inspector].[''+@CollectionProcedurename+''];'');
+					
+					BEGIN TRY 
+						EXEC(''EXEC [Inspector].[''+@CollectionProcedurename+''];'');
+						SET @ErrorMessage = NULL;
+					END TRY 
+					BEGIN CATCH 
+						SET @ErrorMessage = CAST(ERROR_MESSAGE() AS NVARCHAR(128));
+					END CATCH 
 
 					SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
 
@@ -10404,7 +10426,8 @@ BEGIN
 						@Procname = @CollectionProcedurename, 
 						@Frequency = @Frequency,
 						@Duration = @Duration,
-						@PSCollection = @PSCollection;
+						@PSCollection = @PSCollection,
+						@ErrorMessage = @ErrorMessage;
 				END
 				ELSE 
 				BEGIN 
