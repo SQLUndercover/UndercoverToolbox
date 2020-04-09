@@ -10530,9 +10530,9 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 24/03/2020
+--Revision date: 09/04/2020
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
---V2.2
+--V2.3
 
 
 --Example Execute command
@@ -10695,6 +10695,7 @@ DECLARE @ReportSummary VARCHAR(MAX) = '''';
 DECLARE @DetailedSummary BIT = (SELECT CASE WHEN [Value] IS NULL OR [Value] != 1 THEN 0 ELSE 1 END FROM [Inspector].[Settings] WHERE [Description] = ''ReportDataDetailedSummary'')
 DECLARE @MultiWarningModule BIT;
 DECLARE @ShowDisabledModules BIT;
+DECLARE @ErrorMessage NVARCHAR(128);
 
 --------------Internal use only----------------------
 DECLARE @DriveExtensionRequest VARCHAR(MAX)
@@ -11035,55 +11036,62 @@ BEGIN
 				--Get Module warning level 
 				SELECT @WarningLevel = [Inspector].[GetWarningLevel](@ModuleConfigDetermined, @Modulename);
 
-				SET @SQLstatement = N''
-				EXEC [Inspector].[''+@ReportProcedurename+'']
-					@Servername = @Serverlist, 
-					@Modulename = @Modulename,
-					@TableHeaderColour = @TableHeaderColour, 
-					@WarningHighlight = @WarningHighlight, 
-					@AdvisoryHighlight = @AdvisoryHighlight,
-					@InfoHighlight = @InfoHighlight,
-					@PSCollection = @PSCollection, 
-					@ModuleConfig = @ModuleConfigDetermined, 
-					@WarningLevel = @WarningLevel,
-					@ServerSpecific = @ServerSpecific,
-					@NoClutter = @NoClutter,
-					@TableTail = @TableTail,
-					@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
-					@HtmlOutput = @ReportModuleHtml OUTPUT,
-					@Debug = @Debug;''
+				BEGIN TRY
+					SET @SQLstatement = N''
+					EXEC [Inspector].[''+@ReportProcedurename+'']
+						@Servername = @Serverlist, 
+						@Modulename = @Modulename,
+						@TableHeaderColour = @TableHeaderColour, 
+						@WarningHighlight = @WarningHighlight, 
+						@AdvisoryHighlight = @AdvisoryHighlight,
+						@InfoHighlight = @InfoHighlight,
+						@PSCollection = @PSCollection, 
+						@ModuleConfig = @ModuleConfigDetermined, 
+						@WarningLevel = @WarningLevel,
+						@ServerSpecific = @ServerSpecific,
+						@NoClutter = @NoClutter,
+						@TableTail = @TableTail,
+						@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
+						@HtmlOutput = @ReportModuleHtml OUTPUT,
+						@Debug = @Debug;''
 
-				EXEC sp_executesql @SQLstatement,
-					N''@Serverlist NVARCHAR(128),
-					@Modulename VARCHAR(50),
-					@TableHeaderColour VARCHAR(7),
-					@WarningHighlight VARCHAR(7),
-					@AdvisoryHighlight VARCHAR(7),
-					@InfoHighlight VARCHAR(7),
-					@PSCollection BIT,
-					@ModuleConfigDetermined VARCHAR(20),
-					@WarningLevel TINYINT,
-					@ServerSpecific BIT,
-					@NoClutter BIT,
-					@TableTail VARCHAR(256),
-					@CollectionOutOfDate BIT OUTPUT,
-					@ReportModuleHtml VARCHAR(MAX) OUTPUT,
-					@Debug BIT'',
-					@Serverlist = @Serverlist, 
-					@Modulename = @Modulename,
-					@TableHeaderColour = @TableHeaderColour, 
-					@WarningHighlight = @WarningHighlight,
-					@AdvisoryHighlight = @AdvisoryHighlight,
-					@InfoHighlight = @InfoHighlight,
-					@PSCollection = @PSCollection, 
-					@ModuleConfigDetermined = @ModuleConfigDetermined, 
-					@WarningLevel = @WarningLevel,
-					@ServerSpecific = @ServerSpecific,
-					@NoClutter = @NoClutter,
-					@TableTail = @TableTail,
-					@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
-					@ReportModuleHtml = @ReportModuleHtml OUTPUT,
-					@Debug = @Debug;
+					EXEC sp_executesql @SQLstatement,
+						N''@Serverlist NVARCHAR(128),
+						@Modulename VARCHAR(50),
+						@TableHeaderColour VARCHAR(7),
+						@WarningHighlight VARCHAR(7),
+						@AdvisoryHighlight VARCHAR(7),
+						@InfoHighlight VARCHAR(7),
+						@PSCollection BIT,
+						@ModuleConfigDetermined VARCHAR(20),
+						@WarningLevel TINYINT,
+						@ServerSpecific BIT,
+						@NoClutter BIT,
+						@TableTail VARCHAR(256),
+						@CollectionOutOfDate BIT OUTPUT,
+						@ReportModuleHtml VARCHAR(MAX) OUTPUT,
+						@Debug BIT'',
+						@Serverlist = @Serverlist, 
+						@Modulename = @Modulename,
+						@TableHeaderColour = @TableHeaderColour, 
+						@WarningHighlight = @WarningHighlight,
+						@AdvisoryHighlight = @AdvisoryHighlight,
+						@InfoHighlight = @InfoHighlight,
+						@PSCollection = @PSCollection, 
+						@ModuleConfigDetermined = @ModuleConfigDetermined, 
+						@WarningLevel = @WarningLevel,
+						@ServerSpecific = @ServerSpecific,
+						@NoClutter = @NoClutter,
+						@TableTail = @TableTail,
+						@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
+						@ReportModuleHtml = @ReportModuleHtml OUTPUT,
+						@Debug = @Debug;
+
+					SET @ErrorMessage = NULL;
+					END TRY 
+					BEGIN CATCH 
+						SET @ErrorMessage = CAST(ERROR_MESSAGE() AS NVARCHAR(128));
+					END CATCH 
 
 					RAISERROR(''Generating header info for Module: [%s] for server [%s] '',0,0,@Modulename,@Serverlist) WITH NOWAIT;
 
@@ -11157,12 +11165,24 @@ BEGIN
 				@Procname = @ReportProcedurename, 
 				@Frequency = @Frequency,
 				@Duration = @Duration,
-				@PSCollection = @PSCollection;
+				@PSCollection = @PSCollection,
+				@ErrorMessage = @ErrorMessage;
 		END
 	END 
 	ELSE 
 	BEGIN 
 		RAISERROR(''No Report procedure found for Module: %s'',0,0,@Modulename,@Serverlist) WITH NOWAIT;
+
+		EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @ModuleReportStart, 
+			@Servername = @Serverlist, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = @ReportProcedurename, 
+			@Frequency = @Frequency,
+			@Duration = 0,
+			@PSCollection = @PSCollection,
+			@ErrorMessage = ''No Report procedure found for Module'';
+
 	END 
 
 
@@ -11278,6 +11298,8 @@ END
 		SET @ReportSummary += ''ALL_SERVERS (''+@ModuleConfigDetermined+''):''+CHAR(13)+CHAR(10);
 	END
 
+	SET @ErrorMessage = NULL;
+
 	DECLARE OneoffsReportProc_cur CURSOR LOCAL STATIC
 	FOR 
 	SELECT 
@@ -11313,56 +11335,62 @@ END
 			--Get Module warning level 
 			SELECT @WarningLevel = [Inspector].[GetWarningLevel](@ModuleConfigDetermined, @Modulename);
 
-			SET @SQLstatement = N''
-			EXEC [Inspector].[''+@ReportProcedurename+'']
-				@Servername = @Serverlist, 
-				@Modulename = @Modulename,
-				@TableHeaderColour = @TableHeaderColour, 
-				@WarningHighlight = @WarningHighlight, 
-				@AdvisoryHighlight = @AdvisoryHighlight,
-				@InfoHighlight = @InfoHighlight,
-				@PSCollection = @PSCollection, 
-				@ModuleConfig = @ModuleConfigDetermined, 
-				@WarningLevel = @WarningLevel,
-				@ServerSpecific = @ServerSpecific,
-				@NoClutter = @NoClutter,
-				@TableTail = @TableTail,
-				@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
-				@HtmlOutput = @ReportModuleHtml OUTPUT,
-				@Debug = @Debug;''
+			BEGIN TRY
+				SET @SQLstatement = N''
+				EXEC [Inspector].[''+@ReportProcedurename+'']
+					@Servername = @Serverlist, 
+					@Modulename = @Modulename,
+					@TableHeaderColour = @TableHeaderColour, 
+					@WarningHighlight = @WarningHighlight, 
+					@AdvisoryHighlight = @AdvisoryHighlight,
+					@InfoHighlight = @InfoHighlight,
+					@PSCollection = @PSCollection, 
+					@ModuleConfig = @ModuleConfigDetermined, 
+					@WarningLevel = @WarningLevel,
+					@ServerSpecific = @ServerSpecific,
+					@NoClutter = @NoClutter,
+					@TableTail = @TableTail,
+					@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
+					@HtmlOutput = @ReportModuleHtml OUTPUT,
+					@Debug = @Debug;''
 
-			EXEC sp_executesql @SQLstatement,
-				N''@Serverlist NVARCHAR(128),
-				@Modulename VARCHAR(50),
-				@TableHeaderColour VARCHAR(7),
-				@WarningHighlight VARCHAR(7),
-				@AdvisoryHighlight VARCHAR(7),
-				@InfoHighlight VARCHAR(7),
-				@PSCollection BIT,
-				@ModuleConfigDetermined VARCHAR(20),
-				@WarningLevel TINYINT,
-				@ServerSpecific BIT,
-				@NoClutter BIT,
-				@TableTail VARCHAR(256),
-				@CollectionOutOfDate BIT OUTPUT,
-				@ReportModuleHtml VARCHAR(MAX) OUTPUT,
-				@Debug BIT'',
-				@Serverlist = @Serverlist, 
-				@Modulename = @Modulename,
-				@TableHeaderColour = @TableHeaderColour, 
-				@WarningHighlight = @WarningHighlight,
-				@AdvisoryHighlight = @AdvisoryHighlight,
-				@InfoHighlight = @InfoHighlight,
-				@PSCollection = @PSCollection, 
-				@ModuleConfigDetermined = @ModuleConfigDetermined, 
-				@WarningLevel = @WarningLevel,
-				@ServerSpecific = @ServerSpecific,
-				@NoClutter = @NoClutter,
-				@TableTail = @TableTail,
-				@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
-				@ReportModuleHtml = @ReportModuleHtml OUTPUT,
-				@Debug = @Debug;
+				EXEC sp_executesql @SQLstatement,
+					N''@Serverlist NVARCHAR(128),
+					@Modulename VARCHAR(50),
+					@TableHeaderColour VARCHAR(7),
+					@WarningHighlight VARCHAR(7),
+					@AdvisoryHighlight VARCHAR(7),
+					@InfoHighlight VARCHAR(7),
+					@PSCollection BIT,
+					@ModuleConfigDetermined VARCHAR(20),
+					@WarningLevel TINYINT,
+					@ServerSpecific BIT,
+					@NoClutter BIT,
+					@TableTail VARCHAR(256),
+					@CollectionOutOfDate BIT OUTPUT,
+					@ReportModuleHtml VARCHAR(MAX) OUTPUT,
+					@Debug BIT'',
+					@Serverlist = @Serverlist, 
+					@Modulename = @Modulename,
+					@TableHeaderColour = @TableHeaderColour, 
+					@WarningHighlight = @WarningHighlight,
+					@AdvisoryHighlight = @AdvisoryHighlight,
+					@InfoHighlight = @InfoHighlight,
+					@PSCollection = @PSCollection, 
+					@ModuleConfigDetermined = @ModuleConfigDetermined, 
+					@WarningLevel = @WarningLevel,
+					@ServerSpecific = @ServerSpecific,
+					@NoClutter = @NoClutter,
+					@TableTail = @TableTail,
+					@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
+					@ReportModuleHtml = @ReportModuleHtml OUTPUT,
+					@Debug = @Debug;
 
+				SET @ErrorMessage = NULL;
+				END TRY 
+				BEGIN CATCH 
+					SET @ErrorMessage = CAST(ERROR_MESSAGE() AS NVARCHAR(128));
+				END CATCH 			
 
 				SET @Duration = CAST(DATEDIFF(MILLISECOND,@ModuleReportStart,GETDATE()) AS MONEY)/1000;
 
@@ -11373,7 +11401,8 @@ END
 					@Procname = @ReportProcedurename, 
 					@Frequency = @Frequency,
 					@Duration = @Duration,
-					@PSCollection = @PSCollection;
+					@PSCollection = @PSCollection,
+					@ErrorMessage = @ErrorMessage;
 
 				
 				--Generate header information
@@ -11439,6 +11468,16 @@ END
 		ELSE
 		BEGIN 
 			RAISERROR(''No Report procedure found for Module: %s'',0,0,@Modulename,@Serverlist) WITH NOWAIT;
+
+			EXEC [Inspector].[ExecutionLogInsert] 
+				@RunDatetime = @ModuleReportStart, 
+				@Servername = @Serverlist, 
+				@ModuleConfigDesc = @ModuleConfig,
+				@Procname = @ReportProcedurename, 
+				@Frequency = @Frequency,
+				@Duration = 0,
+				@PSCollection = @PSCollection,
+				@ErrorMessage = ''No Report procedure found for Module'';
 		END
 
 		FETCH NEXT FROM OneoffsReportProc_cur INTO @ModuleConfig,@Modulename,@ReportProcedurename,@ServerSpecific,@Frequency
