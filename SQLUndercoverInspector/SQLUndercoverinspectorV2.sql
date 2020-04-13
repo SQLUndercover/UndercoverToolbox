@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 09/04/2020
+Revision date: 13/04/2020
 Version: 2.3
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,8 +129,8 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200328';
-DECLARE @Build VARCHAR(6) ='2.2'
+DECLARE @Revisiondate DATE = '20200413';
+DECLARE @Build VARCHAR(6) ='2.3'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
 DECLARE @JobsWithoutSchedules VARCHAR(1000);
@@ -1019,7 +1019,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 						[NoClutter] BIT NOT NULL,
 						[ShowDisabledModules] BIT NOT NULL,
 						[RunDay] VARCHAR(70) NULL,
-						[EmailGroup] VARCHAR(50) NULL
+						[EmailGroup] VARCHAR(50) NULL,
+						[EmailProfile] NVARCHAR(128) NULL
 					 CONSTRAINT [PK_ModuleConfig_Desc] PRIMARY KEY CLUSTERED 
 					([ModuleConfig_Desc] ASC)
 					);
@@ -1045,6 +1046,10 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 					EXEC sp_executesql N'ALTER TABLE [Inspector].[ModuleConfig] ADD [EmailGroup] VARCHAR(50) NULL;';
 				END
 
+				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID('Inspector.ModuleConfig') AND [name] = 'EmailProfile')
+				BEGIN 
+					EXEC sp_executesql N'ALTER TABLE [Inspector].[ModuleConfig] ADD [EmailProfile] VARCHAR(128) NULL;';
+				END
 
 				IF OBJECT_ID('Inspector.CatalogueModules') IS NULL
 				BEGIN
@@ -1985,6 +1990,7 @@ TRUNCATE TABLE [Inspector].[EmailConfig];
 TRUNCATE TABLE [Inspector].[ModuleWarnings];
 TRUNCATE TABLE [Inspector].[ModuleWarningLevel];
 UPDATE [Inspector].[ModuleConfig] SET [EmailGroup] = NULL WHERE [EmailGroup] IS NOT NULL;
+UPDATE [Inspector].[ModuleConfig] SET [EmailProfile] = NULL WHERE [EmailProfile] IS NOT NULL;
 DELETE FROM [Inspector].[EmailRecipients];
 TRUNCATE TABLE [Inspector].[CatalogueModules];
 TRUNCATE TABLE [Inspector].[DefaultHeaderText];';
@@ -2213,7 +2219,7 @@ END
 	BEGIN
 	EXEC dbo.sp_executesql @statement = N'CREATE VIEW [Inspector].[ModuleSchedulesDue] 
 	AS 
-	--Revision date: 11/10/2019
+	--Revision date: 13/03/2020
 	
 		SELECT 
 		[Schedules].[Modulename],
@@ -2242,8 +2248,7 @@ END
 				SELECT [ModuleConfig_Desc],[Modulename],CollectionProcedurename,Frequency,StartTime,EndTime,LastRunDateTime
 				FROM [Inspector].[Modules] 
 				WHERE [IsActive] = 1
-				--AND ModuleConfig_Desc = ''Default''
-				--AND Modulename = ''ADHocDatabaseCreations''
+				AND CollectionProcedurename IS NOT NULL
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
@@ -2260,7 +2265,7 @@ END
 	BEGIN 
 	EXEC dbo.sp_executesql @statement = N'ALTER VIEW [Inspector].[ModuleSchedulesDue] 
 	AS 
-	--Revision date: 11/10/2019
+	--Revision date: 13/04/2020
 	
 		SELECT 
 		[Schedules].[Modulename],
@@ -2289,8 +2294,7 @@ END
 				SELECT [ModuleConfig_Desc],[Modulename],CollectionProcedurename,Frequency,StartTime,EndTime,LastRunDateTime
 				FROM [Inspector].[Modules] 
 				WHERE [IsActive] = 1
-				--AND ModuleConfig_Desc = ''Default''
-				--AND Modulename = ''ADHocDatabaseCreations''
+				AND CollectionProcedurename IS NOT NULL
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
@@ -2310,7 +2314,7 @@ END
 	EXEC dbo.sp_executesql @statement = N'
 	CREATE VIEW [Inspector].[ReportSchedulesDue] 
 	AS 
-	--Revision date: 26/03/2020
+	--Revision date: 13/04/2020
 	
 		SELECT 
 		[ModuleConfig_Desc],
@@ -2324,7 +2328,8 @@ END
 		LastRunDateTime,
 		RowNum%Frequency AS modulo,
 		RowNum,
-		EmailGroup
+		EmailGroup,
+		EmailProfile
 		FROM 
 		(
 			SELECT 
@@ -2336,9 +2341,10 @@ END
 			DATEADD(MINUTE,DATEPART(MINUTE,StartTime),DATEADD(HOUR,DATEPART(HOUR,StartTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS StartDatetime,
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
 			LastRunDateTime,RunDay,
-			ISNULL(EmailGroup,''DBA'') AS EmailGroup
+			ISNULL(EmailGroup,''DBA'') AS EmailGroup,
+			EmailProfile
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup,EmailProfile
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
 				--AND ModuleConfig_Desc = ''Default''
@@ -2361,7 +2367,7 @@ END
 	EXEC dbo.sp_executesql @statement = N'
 	ALTER VIEW [Inspector].[ReportSchedulesDue] 
 	AS 
-	--Revision date: 26/03/2020
+	--Revision date: 13/04/2020
 	
 		SELECT 
 		[ModuleConfig_Desc],
@@ -2375,7 +2381,8 @@ END
 		LastRunDateTime,
 		RowNum%Frequency AS modulo,
 		RowNum,
-		EmailGroup
+		EmailGroup,
+		EmailProfile
 		FROM 
 		(
 			SELECT 
@@ -2387,9 +2394,10 @@ END
 			DATEADD(MINUTE,DATEPART(MINUTE,StartTime),DATEADD(HOUR,DATEPART(HOUR,StartTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS StartDatetime,
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
 			LastRunDateTime,RunDay,
-			ISNULL(EmailGroup,''DBA'') AS EmailGroup
+			ISNULL(EmailGroup,''DBA'') AS EmailGroup,
+			EmailProfile
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup,EmailProfile
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
 				--AND ModuleConfig_Desc = ''Default''
@@ -9888,6 +9896,8 @@ BEGIN
 	@PSCollection BIT = 0
 	)
 	AS
+
+	--Revision date: 13/04/2020
 	
 	DECLARE @ModuleConfigDesc VARCHAR(20);
 	DECLARE @ReportWarningsOnly BIT;
@@ -9896,17 +9906,18 @@ BEGIN
 	DECLARE @Procname NVARCHAR(128) = OBJECT_NAME(@@PROCID);
 	DECLARE @Duration MONEY;
 	DECLARE @ReportStart DATETIME = GETDATE();
-	
+	DECLARE @EmailProfile NVARCHAR(128);
+
 	DECLARE InspectorReportmaster_cur CURSOR LOCAL STATIC
 	FOR
 	SELECT 
-	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup
+	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
 	FROM  [Inspector].[ReportSchedulesDue]
 	ORDER BY CurrentScheduleStart ASC
 	
 	OPEN InspectorReportmaster_cur
 	
-	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
+	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile
 	
 	WHILE @@FETCH_STATUS = 0 
 	BEGIN 
@@ -9916,22 +9927,24 @@ BEGIN
 		EXEC sp_executesql N''
 		EXEC [Inspector].[SQLUnderCoverInspectorReport]
 		@EmailDistributionGroup = @EmailGroup,
+		@EmailProfile = @EmailProfile,
 		@TestMode = 0, 
 		@ModuleDesc = @ModuleConfigDesc,
 		@EmailRedWarningsOnly = @ReportWarningsOnly, 
 		@Theme = ''''Dark'''',
 		@NoClutter = @NoClutter;'',
-		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly BIT,@NoClutter BIT,@EmailGroup VARCHAR(50)'',
+		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly BIT,@NoClutter BIT,@EmailGroup VARCHAR(50),@EmailProfile NVARCHAR(128)'',
 		@ModuleConfigDesc = @ModuleConfigDesc,
 		@ReportWarningsOnly = @ReportWarningsOnly,
 		@NoClutter = @NoClutter,
-		@EmailGroup = @EmailGroup;
+		@EmailGroup = @EmailGroup,
+		@EmailProfile = @EmailProfile;
 	
 		UPDATE [Inspector].[ModuleConfig]
 		SET LastRunDateTime = GETDATE() 
 		WHERE ModuleConfig_Desc = @ModuleConfigDesc;
 	
-		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
+		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile
 	END 
 	
 	CLOSE InspectorReportmaster_cur
@@ -9945,6 +9958,8 @@ BEGIN
 	@PSCollection BIT = 0
 	)
 	AS
+
+	--Revision date: 13/04/2020
 	
 	DECLARE @ModuleConfigDesc VARCHAR(20);
 	DECLARE @ReportWarningsOnly BIT;
@@ -9953,17 +9968,18 @@ BEGIN
 	DECLARE @Procname NVARCHAR(128) = OBJECT_NAME(@@PROCID);
 	DECLARE @Duration MONEY;
 	DECLARE @ReportStart DATETIME = GETDATE();
-	
+	DECLARE @EmailProfile NVARCHAR(128);
+
 	DECLARE InspectorReportmaster_cur CURSOR LOCAL STATIC
 	FOR
 	SELECT 
-	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup
+	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
 	FROM  [Inspector].[ReportSchedulesDue]
 	ORDER BY CurrentScheduleStart ASC
 	
 	OPEN InspectorReportmaster_cur
 	
-	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
+	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile
 	
 	WHILE @@FETCH_STATUS = 0 
 	BEGIN 
@@ -9973,22 +9989,24 @@ BEGIN
 		EXEC sp_executesql N''
 		EXEC [Inspector].[SQLUnderCoverInspectorReport]
 		@EmailDistributionGroup = @EmailGroup,
+		@EmailProfile = @EmailProfile,
 		@TestMode = 0, 
 		@ModuleDesc = @ModuleConfigDesc,
 		@EmailRedWarningsOnly = @ReportWarningsOnly, 
 		@Theme = ''''Dark'''',
 		@NoClutter = @NoClutter;'',
-		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly BIT,@NoClutter BIT,@EmailGroup VARCHAR(50)'',
+		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly BIT,@NoClutter BIT,@EmailGroup VARCHAR(50),@EmailProfile NVARCHAR(128)'',
 		@ModuleConfigDesc = @ModuleConfigDesc,
 		@ReportWarningsOnly = @ReportWarningsOnly,
 		@NoClutter = @NoClutter,
-		@EmailGroup = @EmailGroup;
+		@EmailGroup = @EmailGroup,
+		@EmailProfile = @EmailProfile;
 	
 		UPDATE [Inspector].[ModuleConfig]
 		SET LastRunDateTime = GETDATE() 
 		WHERE ModuleConfig_Desc = @ModuleConfigDesc;
 	
-		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
+		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile
 	END 
 	
 	CLOSE InspectorReportmaster_cur
@@ -10304,7 +10322,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 09/04/2020
+--Revision date: 13/04/2020
 
 SET NOCOUNT ON;
 
@@ -10383,6 +10401,7 @@ BEGIN
 			FROM [Inspector].[Modules]
 			WHERE (@IgnoreSchedules = 1 OR @PSExecModules = 1)
 			AND IsActive = 1
+			AND [CollectionProcedurename] IS NOT NULL
 			AND [ModuleConfig_Desc] = ISNULL(@ModuleConfig,[ModuleConfig_Desc])
 			UNION 
 			--Get modules due for collection that are not part of @ModuleConfig but due a collection
@@ -10530,7 +10549,7 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 09/04/2020
+--Revision date: 13/04/2020
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V2.3
 
@@ -10541,6 +10560,7 @@ SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+
 --@TestMode = 0,
 --@ModuleDesc = NULL,
 --@EmailRedWarningsOnly = 0,
+--@EmailProfile = NULL,
 --@Theme = ''Dark'',
 --@NoClutter = 0,
 --@Debug = 0;
@@ -10553,6 +10573,7 @@ CREATE PROCEDURE [Inspector].[SQLUnderCoverInspectorReport]
 @TestMode BIT = 0,
 @ModuleDesc VARCHAR(20)	= NULL,
 @EmailRedWarningsOnly BIT = 0,
+@EmailProfile NVARCHAR(128) = NULL,
 @Theme VARCHAR(5) = ''Dark'',
 @PSCollection BIT = 0,
 @NoClutter BIT = 0,
@@ -10892,6 +10913,7 @@ BEGIN
 	INNER JOIN [Inspector].[Modules] ON ([ActiveServers].[ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] OR ActiveServers.ModuleConfig_Desc IS NULL)
 	WHERE [Modules].[IsActive] = 1
 	AND [ServerSpecific] = 1
+	AND ReportProcedurename IS NOT NULL
 	AND [Modules].[ModuleConfig_Desc] = @ModuleConfigDetermined
 	AND NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfigReportExclusions] ExcludedReports WHERE [ExcludedReports].[Servername] = [ActiveServers].[Servername] AND [ExcludedReports].[Modulename] = [Modules].[Modulename] AND [ExcludedReports].[IsActive] = 1)
 	ORDER BY 
@@ -11653,7 +11675,7 @@ SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummar
 END
 ELSE
 BEGIN
-
+BEGIN TRY
 IF @EmailRedWarningsOnly = 1 
 	BEGIN
 		IF @Importance = ''High''
@@ -11681,6 +11703,13 @@ IF @EmailRedWarningsOnly = 1
 			@body=@EmailBody ,
 			@body_format = ''HTML'' 
 	END
+
+END TRY 
+BEGIN CATCH 
+	SET @ErrorMessage = N''Error occured whilst executing sp_send_dbmail: ''+ CAST(ERROR_MESSAGE() AS NVARCHAR(80));
+	RAISERROR(''%s'',0,0,@ErrorMessage); --Severity is 0 as we are logging the error in the next code block
+END CATCH 
+
 END
 
 SET @Duration = CAST(DATEDIFF(MILLISECOND,@ReportStart,GETDATE()) AS MONEY)/1000;
@@ -11692,7 +11721,8 @@ EXEC [Inspector].[ExecutionLogInsert]
 @ModuleConfigDesc = @ModuleDesc,
 @Procname = @Procname, 
 @Duration = @Duration,
-@PSCollection = @PSCollection;
+@PSCollection = @PSCollection,
+@ErrorMessage = @ErrorMessage;
 
 --Report Data cleanup
 DELETE FROM [Inspector].[ReportData]
@@ -11724,7 +11754,7 @@ CREATE FUNCTION [Inspector].[GetNonServerSpecificModules]
 @ModuleDesc VARCHAR(20),
 @DatabaseGrowthCheckRunEnabled BIT
 )
---Revision date: 25/10/2019
+--Revision date: 13/04/2020
 RETURNS TABLE 
 AS
 RETURN 
@@ -11761,6 +11791,7 @@ RETURN
 		) AS ActiveServers
 		INNER JOIN [Inspector].[Modules] ON ([ActiveServers].[ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] OR ActiveServers.ModuleConfig_Desc IS NULL)
 		WHERE [Modules].[IsActive] = 1
+		AND ReportProcedurename IS NOT NULL
 		AND [ServerSpecific] = 0
 		AND [Modules].[ModuleConfig_Desc] = @ModuleDesc 
 	) AS NonServerSpecificModules
