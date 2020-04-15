@@ -20,8 +20,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #THIS SCRIPT IS STILL A WORK IN PROGRESS!
 #Author: Adrian Buckman
-#Version: 3.00
-#Revision date: 12/02/2020
+#Version: 4.00
+#Revision date: 15/04/2020
  
 #set variables
 #if you are using a Github URL this must be the raw URL.
@@ -93,7 +93,8 @@ IF ($ScriptPathType -eq "URL") {
     }
 } ELSE {
     IF ($(Test-Path -Path $ScriptPath) -ne $true) {
-        write-host "Invalid Path specified" -ForegroundColor Red;
+        write-host "Invalid Path specified: $ScriptPath" -ForegroundColor Red;
+        Return;
     }ELSE {
         write-host "Script path - Ok" -ForegroundColor Green;
     }
@@ -103,9 +104,12 @@ IF ($ScriptPathType -eq "URL") {
 #Validate script contents
 write-host "Validating script contents";
 
-$InspectorURL = (Get-content -Path $(IF ($ScriptPathType -eq "URL") {$TempFilename} ELSE {$ScriptPath}) -TotalCount 74)[-1]
-$Build = (Get-content -Path $(IF ($ScriptPathType -eq "URL") {$TempFilename} ELSE {$ScriptPath}) -TotalCount 69)[-1]
-$Build = $Build.Replace("Version: ","");
+#$InspectorURL = (Get-content -Path $(IF ($ScriptPathType -eq "URL") {$TempFilename} ELSE {$ScriptPath}) -TotalCount 74)[-1]
+$InspectorURL = (Select-String -Pattern "URL: " -Path $(IF ($ScriptPathType -eq "URL") {$TempFilename} ELSE {$ScriptPath}) -list -SimpleMatch | select-object -First 1)
+$InspectorURL = $InspectorURL.Line;
+#$Build = (Get-content -Path $(IF ($ScriptPathType -eq "URL") {$TempFilename} ELSE {$ScriptPath}) -TotalCount 69)[-1]
+$Build = (Select-String -Pattern "Version: " -Path $(IF ($ScriptPathType -eq "URL") {$TempFilename} ELSE {$ScriptPath}) -list -SimpleMatch | select-object -First 1)
+$Build = $Build.Line.Replace("Version: ","");
 
 IF ($InspectorURL -notlike "*SQLUndercover*") {
     Write-host "Script contents failed validation" -ForegroundColor Red
