@@ -30,10 +30,20 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET NOCOUNT ON;
 
-DECLARE @Revisiondate DATETIME = '20200328';
+DECLARE @MonitorHourStart INT = 0; -- 0 to 23
+DECLARE @MonitorHourEnd INT = 23; -- 0 to 23
+DECLARE @Revisiondate DATETIME = '20200505';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 DECLARE @LinkedServername NVARCHAR(128) = (SELECT UPPER(TRY_CAST([Value] AS NVARCHAR(128))) FROM [Inspector].[Settings] WHERE [Description] = 'LinkedServername');
 DECLARE @SQLstmt NVARCHAR(4000);
+
+
+IF ((@MonitorHourStart NOT BETWEEN 0 AND 23) OR (@MonitorHourEnd NOT BETWEEN 0 AND 23))
+BEGIN 
+	RAISERROR('@MonitorHourStart and @MonitorHourEnd must be between 0 and 23',11,0);
+	RETURN;
+END
+
 
 IF (@LinkedServername IS NOT NULL) AND NOT EXISTS(SELECT 1 FROM sys.servers WHERE [name] = @LinkedServername)
 BEGIN 
@@ -67,13 +77,16 @@ BEGIN
 	);
 END
 	
-IF OBJECT_ID('Inspector.CPUConfig',N'U') IS NULL 
+IF OBJECT_ID('Inspector.MonitorHours',N'U') IS NULL 
 BEGIN 
-	CREATE TABLE [Inspector].[CPUConfig](
+	CREATE TABLE [Inspector].[MonitorHours](
 	[Servername] [nvarchar](128) NULL,
+	[Modulename] VARCHAR(50) NULL,
 	[MonitorHourStart] INT NOT NULL,
 	[MonitorHourEnd] INT NOT NULL
 	);
+
+	EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_Servername_Modulename] ON [Inspector].[MonitorHours] ([Servername],[Modulename]);';
 END
 
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.CPU',N'U') AND [name] = N'CIX_CPU_EventTime')
@@ -91,10 +104,6 @@ BEGIN
 	CREATE CLUSTERED INDEX [CIX_PSCPUStage_EventTime] ON [Inspector].[PSCPUStage] ([EventTime] ASC);
 END
 
-IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.CPUConfig',N'U') AND [name] = N'CIX_CPUConfig_Servername')
-BEGIN 
-	CREATE CLUSTERED INDEX [CIX_CPUConfig_Servername] ON [Inspector].[CPUConfig] ([Servername] ASC)
-END
 
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'CPUHistoryRetentionInDays')
 BEGIN 
@@ -121,14 +130,39 @@ BEGIN
 END
 
 
-EXEC sp_executesql N'INSERT INTO [Inspector].[CPUConfig] ([Servername],[MonitorHourStart],[MonitorHourEnd])
-SELECT [Servername],0,23 
+/* We want to make sure your previous config is copied to the new table otherwise we will pop a default row in the new MonitorHours table, we will be dropping CPUConfig */
+IF OBJECT_ID('Inspector.CPUConfig') IS NOT NULL 
+BEGIN
+EXEC sp_executesql N'
+IF EXISTS (SELECT 1 FROM [Inspector].[CPUConfig]) 
+BEGIN 
+	--Grouping to ensure we only get one row per server as the new table will not accept duplicates so assuming the MAX Start and MIN End for the narrowest window
+	INSERT INTO [Inspector].[MonitorHours] (Servername,Modulename,MonitorHourStart,MonitorHourEnd)
+	SELECT 
+	[Servername],
+	''CPU'',
+	MAX([MonitorHourStart]),
+	MIN([MonitorHourEnd])
+	FROM [Inspector].[CPUConfig]
+	WHERE NOT EXISTS (SELECT 1 FROM [Inspector].[MonitorHours] WHERE [CPUConfig].[Servername] = [MonitorHours].[Servername] AND [MonitorHours].[Modulename] = ''CPU'')
+	GROUP BY 
+	[Servername];
+END';
+END
+
+
+EXEC sp_executesql N'INSERT INTO [Inspector].[MonitorHours] ([Servername],[Modulename],[MonitorHourStart],[MonitorHourEnd])
+SELECT [Servername],''CPU'',@MonitorHourStart,@MonitorHourEnd 
 FROM [Inspector].[CurrentServers]
 WHERE [IsActive] = 1
 AND NOT EXISTS (SELECT 1 
-			FROM [Inspector].[CPUConfig]
-			WHERE [CPUConfig].[Servername] = [CurrentServers].[Servername]
-			);';
+			FROM [Inspector].[MonitorHours]
+			WHERE [MonitorHours].[Servername] = [CurrentServers].[Servername]
+			AND [Modulename] = ''CPU''
+			);',
+N'@MonitorHourStart INT, @MonitorHourEnd INT',
+@MonitorHourStart = @MonitorHourStart,
+@MonitorHourEnd = @MonitorHourEnd;
 
 
 IF OBJECT_ID('Inspector.CPUInsert',N'P') IS NULL 
@@ -288,7 +322,7 @@ EXEC('ALTER PROCEDURE [Inspector].[CPUReport] (
 )
 AS
 
---Revision date: 18/03/2020
+--Revision date: 02/05/2020
 BEGIN
 --Excluded from Warning level control
 	DECLARE @HtmlTableHead VARCHAR(4000);
@@ -301,8 +335,8 @@ BEGIN
 	DECLARE @MonitorHourStart INT;
 	DECLARE @MonitorHourEnd INT;
 
-	SET @MonitorHourStart = (SELECT [MonitorHourStart] FROM [Inspector].[CPUConfig] WHERE [Servername] = @Servername);
-	SET @MonitorHourEnd = (SELECT [MonitorHourEnd] FROM [Inspector].[CPUConfig] WHERE [Servername] = @Servername);
+	SET @MonitorHourStart = (SELECT [MonitorHourStart] FROM [Inspector].[MonitorHours] WHERE [Servername] = @Servername AND [Modulename] = ''CPU'');
+	SET @MonitorHourEnd = (SELECT [MonitorHourEnd] FROM [Inspector].[MonitorHours] WHERE [Servername] = @Servername AND [Modulename] = ''CPU'');
 	SET @CPUThresholdWarningHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),90) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdWarningHighlight'');
 	SET @CPUThresholdAdvisoryHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),85) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdAdvisoryHighlight'');
 	SET @CPUThresholdInfoHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),75) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdInfoHighlight'');
@@ -338,7 +372,7 @@ OtherCPU
 INTO #InspectorModuleReport
 FROM [Inspector].[CPU]
 WHERE SystemCPUUtilization > @CPUThresholdInfoHighlight
-AND EventTime > DATEADD(MINUTE,-@Frequency,GETDATE())
+AND EventTime >= DATEADD(MINUTE,-@Frequency,GETDATE())
 AND Servername = @Servername
 AND DATEPART(HOUR,EventTime) BETWEEN @MonitorHourStart AND @MonitorHourEnd
 ORDER BY EventTime ASC 
@@ -472,6 +506,15 @@ N'@InspectorBuild DECIMAL(4,2),
 @InspectorBuild = @InspectorBuild,
 @Revisiondate = @Revisiondate;
 
+
+IF (@@ERROR = 0)
+BEGIN 
+	IF EXISTS(SELECT 1 FROM sys.tables WHERE name = 'CPUConfig' AND schema_id = SCHEMA_ID('Inspector'))
+	BEGIN 
+		EXEC sp_executesql N'DROP TABLE [Inspector].[CPUConfig];';
+	END
+END 
+	
 END
 ELSE 
 BEGIN 
