@@ -13,7 +13,7 @@ Revision date: 01/05/2020
 MIT License
 ------------
  
-Copyright 2019 Sql Undercover
+Copyright 2020 Sql Undercover
  
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files
 (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge,
@@ -36,6 +36,8 @@ DECLARE @ModuleConfig VARCHAR(20) = 'Default'; -- Append to the Default ModuleCo
 DECLARE @ReportFrequencyMins SMALLINT = 1440;  --Maximum supported value is 1440 (once a day)
 DECLARE @ReportStartTime TIME(0) = '09:00';
 DECLARE @ReportEndTime TIME(0) = '18:00';
+DECLARE @MonitorHourStart INT = 0 -- 0 to 23
+DECLARE @MonitorHourEnd INT = 23 -- 0 to 23
 
 --Enable or Disable the module following installation
 DECLARE @EnableModule BIT = 1;
@@ -45,13 +47,18 @@ DECLARE @EnableModule BIT = 1;
 DECLARE @Revisiondate DATE = '20200501';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
-
 --Ensure that Blitz tables exist
 IF (OBJECT_ID(N'dbo.BlitzFirst_FileStats') IS NULL)
 BEGIN 
 	RAISERROR('BlitzFirst_FileStats Table not present in this database, please double check the database name is correct - the Inspector must be installed in the same database where your Blitz collection data is stored',11,0);
 	RETURN;
 END		
+
+IF ((@MonitorHourStart NOT BETWEEN 0 AND 23) OR (@MonitorHourEnd NOT BETWEEN 0 AND 23))
+BEGIN 
+	RAISERROR('@MonitorHourStart and @MonitorHourEnd must be between 0 and 23',11,0);
+	RETURN;
+END
 
 --Ensure that the Inspector schema exists
 IF SCHEMA_ID(N'Inspector') IS NOT NULL
@@ -75,8 +82,11 @@ BEGIN
 	IF NOT EXISTS(SELECT 1 FROM [Inspector].[MonitorHours] WHERE Servername = @@SERVERNAME AND Modulename = ''BlitzFileStats'') 
 	BEGIN 
 		INSERT INTO [Inspector].[MonitorHours] ([Servername],[Modulename],[MonitorHourStart],[MonitorHourEnd])
-		VALUES(@@SERVERNAME,''BlitzFileStats'',0,23);
-	END ';
+		VALUES(@@SERVERNAME,''BlitzFileStats'',@MonitorHourStart,@MonitorHourEnd);
+	END ',
+	N'@MonitorHourStart INT, @MonitorHourEnd INT',
+	@MonitorHourStart = @MonitorHourStart,
+	@MonitorHourEnd = @MonitorHourEnd;
 	
 	IF OBJECT_ID('Inspector.BlitzFileStatsConfig',N'U') IS NULL 
 	BEGIN 
