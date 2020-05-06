@@ -6,7 +6,7 @@ SET QUOTED_IDENTIFIER ON;
 Description: 
 
 Author: Adrian Buckman
-Revision date: 01/05/2020
+Revision date: 06/05/2020
 
 © www.sqlundercover.com 
 
@@ -44,7 +44,7 @@ DECLARE @EnableModule BIT = 1;
 
 
 
-DECLARE @Revisiondate DATE = '20200501';
+DECLARE @Revisiondate DATE = '20200506';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 --Ensure that Blitz tables exist
@@ -179,7 +179,7 @@ EXEC('ALTER PROCEDURE [Inspector].[BlitzFileStatsReport] (
 )
 AS 
 BEGIN
-/* Revision date: 01/05/2020 */	
+/* Revision date: 06/05/2020 */	
 	
 DECLARE @Frequency INT
 DECLARE @MonitorHourStart INT;
@@ -221,7 +221,7 @@ SELECT
 			WHEN @WarningLevel = 3 THEN @InfoHighlight
 		END AS [@bgcolor],
 	   [ServerName],
-       [CheckDate],
+       CONVERT(VARCHAR(17),[CheckDate],113) AS CheckDate,
 	   SUBSTRING(PhysicalName,1,LEN(PhysicalName)-CHARINDEX(''\'',REVERSE(PhysicalName))+1) AS Drive,
        SUM([io_stall_read_ms_average]) AS [io_stall_read_ms_average],
        SUM([io_stall_write_ms_average]) AS [io_stall_write_ms_average],
@@ -352,3 +352,4 @@ ELSE
 BEGIN 
 	RAISERROR('Inspector schema not found, ensure that the Inspector is installed then try running this script again',11,0);
 END
+GO
