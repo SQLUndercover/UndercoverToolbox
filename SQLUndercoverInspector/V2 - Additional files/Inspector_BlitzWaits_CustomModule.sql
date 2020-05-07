@@ -642,13 +642,13 @@ Highlighted waits will hightlight the correspinding row in the html table within
 ';
 
 
-SELECT [Description],[Value]
-FROM [Inspector].[Settings] 
-WHERE [Description] IN ('BlitzWaitsTopXRows','BlitzWaitsHourlyBucketSize','BlitzWaitsAlwaysShowBreached');
+--SELECT [Description],[Value]
+--FROM [Inspector].[Settings] 
+--WHERE [Description] IN ('BlitzWaitsTopXRows','BlitzWaitsHourlyBucketSize','BlitzWaitsAlwaysShowBreached');
 
-SELECT * 
-FROM [Inspector].[ModuleConfig] 
-WHERE [ModuleConfig_Desc] = @ModuleConfig;
+--SELECT * 
+--FROM [Inspector].[ModuleConfig] 
+--WHERE [ModuleConfig_Desc] = @ModuleConfig;
 
 END
 ELSE 
