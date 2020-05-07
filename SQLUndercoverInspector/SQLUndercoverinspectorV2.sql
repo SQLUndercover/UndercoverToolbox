@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 13/04/2020
+Revision date: 07/05/2020
 Version: 2.3
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200413';
+DECLARE @Revisiondate DATE = '20200507';
 DECLARE @Build VARCHAR(6) ='2.3'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -293,6 +293,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			
 			IF @CurrentBuild IS NOT NULL
 			BEGIN 
+				IF (@Build < @CurrentBuild)
+				BEGIN 
+					RAISERROR('Current build: %s , is greater than the build you are trying to install (%s)',11,0,@CurrentBuild,@Build) WITH NOWAIT;
+					RETURN;
+				END 
+				ELSE
 				BEGIN
 					RAISERROR('Current build: %s , Target build: %s',0,0,@CurrentBuild,@Build) WITH NOWAIT;
 				END
