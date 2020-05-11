@@ -6,7 +6,7 @@ SET QUOTED_IDENTIFIER ON;
 Description: 
 
 Author: Adrian Buckman
-Revision date: 06/05/2020
+Revision date: 11/05/2020
 
 © www.sqlundercover.com 
 
@@ -44,7 +44,7 @@ DECLARE @EnableModule BIT = 1;
 
 
 
-DECLARE @Revisiondate DATE = '20200506';
+DECLARE @Revisiondate DATE = '20200511';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 --Ensure that Blitz tables exist
@@ -179,7 +179,7 @@ EXEC('ALTER PROCEDURE [Inspector].[BlitzFileStatsReport] (
 )
 AS 
 BEGIN
-/* Revision date: 06/05/2020 */	
+/* Revision date: 11/05/2020 */	
 	
 DECLARE @Frequency INT
 DECLARE @MonitorHourStart INT;
@@ -223,19 +223,19 @@ SELECT
 	   [ServerName],
        CONVERT(VARCHAR(17),[CheckDate],113) AS CheckDate,
 	   SUBSTRING(PhysicalName,1,LEN(PhysicalName)-CHARINDEX(''\'',REVERSE(PhysicalName))+1) AS Drive,
-       SUM([io_stall_read_ms_average]) AS [io_stall_read_ms_average],
-       SUM([io_stall_write_ms_average]) AS [io_stall_write_ms_average],
+       AVG([io_stall_read_ms_average]) AS [io_stall_read_ms_average],
+       AVG([io_stall_write_ms_average]) AS [io_stall_write_ms_average],
 	   @io_stall_read_ms_threshold AS ReadThreshold,
 	   @io_stall_write_ms_threshold AS WriteThreshold
   INTO #InspectorModuleReport
   FROM [dbo].[BlitzFirst_FileStats_Deltas]
   WHERE CheckDate >= DATEADD(MINUTE,-@Frequency,SYSDATETIMEOFFSET())
   AND DATEPART(HOUR,[CheckDate]) BETWEEN @MonitorHourStart AND @MonitorHourEnd
+  AND (([io_stall_read_ms_average] > @io_stall_read_ms_threshold) OR ([io_stall_write_ms_average] > @io_stall_write_ms_threshold))
 GROUP BY 
 [ServerName],
 [CheckDate],
-SUBSTRING(PhysicalName,1,LEN(PhysicalName)-CHARINDEX(''\'',REVERSE(PhysicalName))+1)
-HAVING (SUM([io_stall_read_ms_average]) > @io_stall_read_ms_threshold OR SUM([io_stall_write_ms_average]) > @io_stall_write_ms_threshold);
+SUBSTRING(PhysicalName,1,LEN(PhysicalName)-CHARINDEX(''\'',REVERSE(PhysicalName))+1);
 
 
 --No change required here , this part grabs the column names from the temp table created above
