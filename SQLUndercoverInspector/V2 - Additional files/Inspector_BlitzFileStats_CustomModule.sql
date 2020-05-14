@@ -6,7 +6,7 @@ SET QUOTED_IDENTIFIER ON;
 Description: 
 
 Author: Adrian Buckman
-Revision date: 11/05/2020
+Revision date: 14/05/2020
 
 © www.sqlundercover.com 
 
@@ -44,7 +44,7 @@ DECLARE @EnableModule BIT = 1;
 
 
 
-DECLARE @Revisiondate DATE = '20200511';
+DECLARE @Revisiondate DATE = '20200514';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 --Ensure that Blitz tables exist
@@ -229,7 +229,8 @@ SELECT
 	   @io_stall_write_ms_threshold AS WriteThreshold
   INTO #InspectorModuleReport
   FROM [dbo].[BlitzFirst_FileStats_Deltas]
-  WHERE CheckDate >= DATEADD(MINUTE,-@Frequency,SYSDATETIMEOFFSET())
+  WHERE ServerName = @Servername
+  AND CheckDate >= DATEADD(MINUTE,-@Frequency,SYSDATETIMEOFFSET())
   AND DATEPART(HOUR,[CheckDate]) BETWEEN @MonitorHourStart AND @MonitorHourEnd
   AND (([io_stall_read_ms_average] > @io_stall_read_ms_threshold) OR ([io_stall_write_ms_average] > @io_stall_write_ms_threshold))
 GROUP BY 
