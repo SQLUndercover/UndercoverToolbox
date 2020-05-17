@@ -20,8 +20,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #THIS SCRIPT IS STILL A WORK IN PROGRESS!
 #Author: Adrian Buckman
-#Version: 5
-#Revision date: 29/04/2020
+#Revision date: 17/05/2020
  
 #set variables
 #if you are using a Github URL this must be the raw URL.
