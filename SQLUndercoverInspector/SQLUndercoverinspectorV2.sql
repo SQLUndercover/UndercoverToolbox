@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 17/05/2020
+Revision date: 22/05/2020
 Version: 2.3
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200517';
+DECLARE @Revisiondate DATE = '20200522';
 DECLARE @Build VARCHAR(6) ='2.3'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1855,6 +1855,27 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[PSCollection] BIT
 				);
 			END
+
+
+			IF NOT EXISTS (SELECT * FROM sys.tables WHERE [name] = N'ReportsDueCache' AND [schema_id] = SCHEMA_ID(N'Inspector'))
+			BEGIN 
+				CREATE TABLE [Inspector].[ReportsDueCache] (
+				[ID] UNIQUEIDENTIFIER NOT NULL,
+				[ModuleConfig_Desc] VARCHAR(20) NOT NULL,
+				[CurrentScheduleStart] DATETIME NOT NULL,
+				[ReportWarningsOnly] TINYINT NOT NULL,
+				[NoClutter] BIT NOT NULL,
+				[Frequency] SMALLINT NOT NULL,
+				[EmailGroup] VARCHAR(50) NULL,
+				[EmailProfile] VARCHAR(128) NULL
+				);
+			END
+			
+			IF NOT EXISTS (SELECT 1 FROM sys.tables INNER JOIN sys.indexes ON indexes.[object_id] = tables .[object_id] WHERE tables.[name] = N'ReportsDueCache' AND indexes.[name] = N'CIX_ID' AND SCHEMA_NAME(tables.[schema_id]) = N'Inspector')
+			BEGIN 
+				CREATE CLUSTERED INDEX [CIX_ID] ON [Inspector].[ReportsDueCache] (ID ASC);
+			END
+
 
 		    IF OBJECT_ID('Inspector.PSConfig') IS NULL 
 			BEGIN
@@ -9935,76 +9956,19 @@ EXEC(@SQLStatement);
   
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'Inspector.InspectorReportMaster') AND type in (N'P', N'PC'))
 BEGIN
-	EXEC dbo.sp_executesql @statement = N'
-	CREATE PROCEDURE [Inspector].[InspectorReportMaster] (
-	@EmailGroup VARCHAR(50) = ''DBA'',
-	@PSCollection BIT = 0
-	)
-	AS
-
-	--Revision date: 15/05/2020
-	
-	DECLARE @ModuleConfigDesc VARCHAR(20);
-	DECLARE @ReportWarningsOnly TINYINT;
-	DECLARE @NoClutter BIT;
-	DECLARE @Frequency SMALLINT; 
-	DECLARE @Procname NVARCHAR(128) = OBJECT_NAME(@@PROCID);
-	DECLARE @Duration MONEY;
-	DECLARE @ReportStart DATETIME = GETDATE();
-	DECLARE @EmailProfile NVARCHAR(128);
-
-	DECLARE InspectorReportmaster_cur CURSOR LOCAL STATIC
-	FOR
-	SELECT 
-	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
-	FROM  [Inspector].[ReportSchedulesDue]
-	ORDER BY CurrentScheduleStart ASC
-	
-	OPEN InspectorReportmaster_cur
-	
-	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile
-	
-	WHILE @@FETCH_STATUS = 0 
-	BEGIN 
-	
-		RAISERROR(''Executing [Inspector].[SQLUnderCoverInspectorReport] for config ''''%s'''''',0,0,@ModuleConfigDesc) WITH NOWAIT;
-	
-		EXEC sp_executesql N''
-		EXEC [Inspector].[SQLUnderCoverInspectorReport]
-		@EmailDistributionGroup = @EmailGroup,
-		@EmailProfile = @EmailProfile,
-		@TestMode = 0, 
-		@ModuleDesc = @ModuleConfigDesc,
-		@ReportWarningsOnly = @ReportWarningsOnly, 
-		@Theme = ''''Dark'''',
-		@NoClutter = @NoClutter;'',
-		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly TINYINT,@NoClutter BIT,@EmailGroup VARCHAR(50),@EmailProfile NVARCHAR(128)'',
-		@ModuleConfigDesc = @ModuleConfigDesc,
-		@ReportWarningsOnly = @ReportWarningsOnly,
-		@NoClutter = @NoClutter,
-		@EmailGroup = @EmailGroup,
-		@EmailProfile = @EmailProfile;
-	
-		UPDATE [Inspector].[ModuleConfig]
-		SET LastRunDateTime = GETDATE() 
-		WHERE ModuleConfig_Desc = @ModuleConfigDesc;
-	
-		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile
-	END 
-	
-	CLOSE InspectorReportmaster_cur
-	DEALLOCATE InspectorReportmaster_cur';
+	EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [Inspector].[InspectorReportMaster] AS';
 END
 ELSE 
-BEGIN 
+BEGIN
 	EXEC dbo.sp_executesql @statement = N'
 	ALTER PROCEDURE [Inspector].[InspectorReportMaster] (
 	@EmailGroup VARCHAR(50) = ''DBA'',
-	@PSCollection BIT = 0
+	@PSCollection BIT = 0,
+	@CachedReportID UNIQUEIDENTIFIER = NULL
 	)
 	AS
 
-	--Revision date: 15/05/2020
+	--Revision date: 22/05/2020
 	
 	DECLARE @ModuleConfigDesc VARCHAR(20);
 	DECLARE @ReportWarningsOnly TINYINT;
@@ -10020,7 +9984,11 @@ BEGIN
 	SELECT 
 	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
 	FROM  [Inspector].[ReportSchedulesDue]
-	ORDER BY CurrentScheduleStart ASC
+	UNION --We want to be sure we are not duplicating rows
+	SELECT 
+	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
+	FROM [Inspector].[ReportsDueCache]
+	WHERE ID = @CachedReportID
 	
 	OPEN InspectorReportmaster_cur
 	
@@ -10050,6 +10018,14 @@ BEGIN
 		UPDATE [Inspector].[ModuleConfig]
 		SET LastRunDateTime = GETDATE() 
 		WHERE ModuleConfig_Desc = @ModuleConfigDesc;
+
+		IF (@CachedReportID IS NOT NULL)
+		BEGIN 
+			DELETE 
+			FROM [Inspector].[ReportsDueCache]
+			WHERE ID = @CachedReportID
+			AND ModuleConfig_Desc = @ModuleConfigDesc;
+		END 
 	
 		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile
 	END 
@@ -10367,7 +10343,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 15/05/2020
+--Revision date: 22/05/2020
 
 SET NOCOUNT ON;
 
@@ -10384,12 +10360,23 @@ DECLARE @Duration MONEY;
 DECLARE @LastTruncate DATE;
 DECLARE @ReportWarningsOnly TINYINT;
 DECLARE @ErrorMessage NVARCHAR(128);
-
+DECLARE @CachedReportID UNIQUEIDENTIFIER;
 
 IF EXISTS(SELECT 1 FROM [Inspector].[CurrentServers] WHERE [IsActive] = 1 AND Servername = @Servername)
 BEGIN
     IF EXISTS (SELECT ModuleConfig_Desc FROM [Inspector].[Modules] WHERE ModuleConfig_Desc = @ModuleConfig) OR @ModuleConfig IS NULL 
     BEGIN
+
+		--Check for reports due and cache them in case the collection procs executed in the cursor below exceed the current minute
+		IF EXISTS (SELECT 1 FROM [Inspector].[ReportSchedulesDue])
+		BEGIN 
+			SET @CachedReportID = NEWID();
+
+			INSERT INTO [Inspector].[ReportsDueCache] (ID,ModuleConfig_Desc,CurrentScheduleStart,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile) 
+			SELECT @CachedReportID,ModuleConfig_Desc,[CurrentScheduleStart],ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
+			FROM [Inspector].[ReportSchedulesDue];
+		END 
+
 		--Truncate the ExecutionLog daily
 		SELECT @LastTruncate = (SELECT TOP 1 CAST([ExecutionDate] AS DATE) FROM [Inspector].[ExecutionLog] ORDER BY [ID] DESC)
  
@@ -10535,7 +10522,7 @@ BEGIN
 	BEGIN 
 		--Run InspectorReportMaster to pick up any scheduled reports
 		RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
-		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
+		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection, @CachedReportID = @CachedReportID;
 	END
 
 
@@ -10565,7 +10552,7 @@ BEGIN
 	BEGIN 
 		--Run InspectorReportMaster to pick up any scheduled reports
 		RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
-		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
+		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection, @CachedReportID = @CachedReportID;
 	END
 
 
