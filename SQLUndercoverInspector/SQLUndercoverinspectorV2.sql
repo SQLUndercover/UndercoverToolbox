@@ -1889,6 +1889,20 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				VALUES(CAST(GETDATE() AS DATE));';
 			END
 
+
+			IF OBJECT_ID('Inspector.MonitorHours',N'U') IS NULL 
+			BEGIN 
+				CREATE TABLE [Inspector].[MonitorHours](
+				[Servername] [nvarchar](128) NULL,
+				[Modulename] VARCHAR(50) NULL,
+				[MonitorHourStart] INT NOT NULL,
+				[MonitorHourEnd] INT NOT NULL
+				);
+			
+				EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_Servername_Modulename] ON [Inspector].[MonitorHours] ([Servername],[Modulename]);';
+			END
+
+
 		    IF OBJECT_ID('Inspector.PSConfig') IS NULL 
 			BEGIN
 				CREATE TABLE [Inspector].[PSConfig](
@@ -3529,6 +3543,51 @@ BEGIN
 END'
 
 EXEC(@SQLStatement);
+
+IF OBJECT_ID('Inspector.GetMonitorHours') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[GetMonitorHours] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[GetMonitorHours] (
+@Servername NVARCHAR(128),
+@Modulename VARCHAR(50),
+@MonitorHourStart INT OUTPUT,
+@MonitorHourEnd INT OUTPUT	
+)
+AS 
+BEGIN 
+	/* Revision date: 01/05/2020 */
+
+	SELECT 
+	@MonitorHourStart = [MonitorHourStart],
+	@MonitorHourEnd = [MonitorHourEnd]
+	FROM [Inspector].[MonitorHours] 
+	WHERE [Servername] = @Servername 
+	AND [Modulename] = @Modulename;
+
+END';
+
+
+IF OBJECT_ID('Inspector.GetModuleConfigFrequency') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[GetModuleConfigFrequency] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[GetModuleConfigFrequency] (
+@ModuleConfig VARCHAR(20),
+@Frequency INT OUTPUT
+)
+AS 
+BEGIN 
+	/* Revision date: 01/05/2020 */
+
+	SELECT 
+	@Frequency = [Frequency] 
+	FROM [Inspector].[ModuleConfig]
+	WHERE ModuleConfig_Desc = @ModuleConfig;
+
+END';
 
 
 SET @SQLStatement = 
