@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 22/05/2020
+Revision date: 24/05/2020
 Version: 2.3
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200522';
+DECLARE @Revisiondate DATE = '20200524';
 DECLARE @Build VARCHAR(6) ='2.3'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1876,6 +1876,18 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				CREATE CLUSTERED INDEX [CIX_ID] ON [Inspector].[ReportsDueCache] (ID ASC);
 			END
 
+			IF NOT EXISTS (SELECT * FROM sys.tables WHERE [name] = N'ExecutionLogLastTruncate' AND [schema_id] = SCHEMA_ID(N'Inspector'))
+			BEGIN
+				CREATE TABLE [Inspector].[ExecutionLogLastTruncate] (
+				LastTruncate DATE NOT NULL
+				);
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[ExecutionLogLastTruncate])
+			BEGIN 
+				EXEC sp_executesql N'INSERT INTO [Inspector].[ExecutionLogLastTruncate] (LastTruncate)
+				VALUES(CAST(GETDATE() AS DATE));';
+			END
 
 		    IF OBJECT_ID('Inspector.PSConfig') IS NULL 
 			BEGIN
@@ -3377,6 +3389,9 @@ END
 
 			IF OBJECT_ID('Inspector.BackupSpaceReport') IS NOT NULL
 			DROP PROCEDURE [Inspector].[BackupSpaceReport];
+
+			IF OBJECT_ID('Inspector.ExecutionLogTruncate') IS NOT NULL
+			DROP PROCEDURE [Inspector].[ExecutionLogTruncate];
 			
 
 			--Drop functions for recreation
@@ -10327,6 +10342,26 @@ END
 
 END'
 
+EXEC(@SQLStatement);
+
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[ExecutionLogTruncate] 
+AS 
+BEGIN 
+	DECLARE @LastTruncate DATE;
+
+	SET @LastTruncate = (SELECT TOP 1 [LastTruncate] FROM [Inspector].[ExecutionLogLastTruncate] ORDER BY [LastTruncate] DESC);
+
+	IF (@LastTruncate IS NULL OR @LastTruncate < CAST(GETDATE() AS DATE)) 
+	BEGIN 
+		TRUNCATE TABLE [Inspector].[ExecutionLog];
+
+		UPDATE [Inspector].[ExecutionLogLastTruncate] SET [LastTruncate] = CAST(GETDATE() AS DATE);
+	END	
+
+END';
+
 EXEC(@SQLStatement)
 
 
@@ -10343,7 +10378,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 22/05/2020
+--Revision date: 24/05/2020
 
 SET NOCOUNT ON;
 
@@ -10357,7 +10392,6 @@ DECLARE @ReportStart DATETIME = GETDATE();
 DECLARE @Procname NVARCHAR(128) = OBJECT_NAME(@@PROCID);
 DECLARE @Frequency SMALLINT; 
 DECLARE @Duration MONEY;
-DECLARE @LastTruncate DATE;
 DECLARE @ReportWarningsOnly TINYINT;
 DECLARE @ErrorMessage NVARCHAR(128);
 DECLARE @CachedReportID UNIQUEIDENTIFIER;
@@ -10366,6 +10400,9 @@ IF EXISTS(SELECT 1 FROM [Inspector].[CurrentServers] WHERE [IsActive] = 1 AND Se
 BEGIN
     IF EXISTS (SELECT ModuleConfig_Desc FROM [Inspector].[Modules] WHERE ModuleConfig_Desc = @ModuleConfig) OR @ModuleConfig IS NULL 
     BEGIN
+
+		--Truncate ExecutionLog if required
+		EXEC [Inspector].[ExecutionLogTruncate];
 
 		--Check for reports due and cache them in case the collection procs executed in the cursor below exceed the current minute
 		IF EXISTS (SELECT 1 FROM [Inspector].[ReportSchedulesDue])
@@ -10376,15 +10413,6 @@ BEGIN
 			SELECT @CachedReportID,ModuleConfig_Desc,[CurrentScheduleStart],ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
 			FROM [Inspector].[ReportSchedulesDue];
 		END 
-
-		--Truncate the ExecutionLog daily
-		SELECT @LastTruncate = (SELECT TOP 1 CAST([ExecutionDate] AS DATE) FROM [Inspector].[ExecutionLog] ORDER BY [ID] DESC)
- 
-		--If the most recent log is from yesterday then Truncate the log.
-		IF (@LastTruncate < CAST(GETDATE() AS DATE))
-		BEGIN 
-			TRUNCATE TABLE [Inspector].[ExecutionLog];
-		END
 
 		--Populate needs to occur here rather than the other @PSCollection = 1 block because the Modules table trigger is fired upon the Modules LatRunDateTime update
 		--and we want to control the format of the data through this proc.
