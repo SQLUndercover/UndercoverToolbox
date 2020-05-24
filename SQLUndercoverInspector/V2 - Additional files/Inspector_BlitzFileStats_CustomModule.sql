@@ -6,7 +6,7 @@ SET QUOTED_IDENTIFIER ON;
 Description: 
 
 Author: Adrian Buckman
-Revision date: 14/05/2020
+Revision date: 24/05/2020
 
 © www.sqlundercover.com 
 
@@ -44,7 +44,7 @@ DECLARE @EnableModule BIT = 1;
 
 
 
-DECLARE @Revisiondate DATE = '20200514';
+DECLARE @Revisiondate DATE = '20200524';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 --Ensure that Blitz tables exist
@@ -103,7 +103,7 @@ BEGIN
 	IF NOT EXISTS(SELECT 1 FROM [Inspector].[BlitzFileStatsConfig] WHERE Servername = @@SERVERNAME) 
 	BEGIN 
 		INSERT INTO [Inspector].[BlitzFileStatsConfig] ([Servername],[io_stall_read_ms_threshold],[io_stall_write_ms_threshold])
-		VALUES(@@SERVERNAME,200,200);
+		VALUES(@@SERVERNAME,100,100);
 	END ';
 	
 	IF OBJECT_ID('Inspector.GetMonitorHours') IS NULL
