@@ -20,22 +20,22 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #THIS SCRIPT IS STILL A WORK IN PROGRESS!
 #Author: Adrian Buckman
-#Revision date: 17/05/2020
+#Revision date: 30/05/2020
  
 #set variables
 #if you are using a Github URL this must be the raw URL.
 
 #Set a URL or local path where the SQLUndercoverinspectorV2.sql file exists
-$ScriptPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Inspector-Dev/SQLUndercoverInspector/SQLUndercoverinspectorV2.sql"
+$ScriptPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverInspector/SQLUndercoverinspectorV2.sql"
 #$ScriptPath = "C:\Temp\SQLUndercoverinspectorV2.sql"
 
 #Set a URL or local path of where the Manifest.csv file exists
-$ManifestPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Inspector-Dev/SQLUndercoverInspector/V2%20-%20Additional%20files/Manifest.csv";
+$ManifestPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverInspector/V2%20-%20Additional%20files/Manifest.csv";
 #$ManifestPath = "C:\Temp\Manifest.csv"
 
-$SQLInstances = "DESTINY" #if this is a linked server install ensure that the central server appears first in the list
-$LoggingDB = "DBA"
-$CustomModules = @("CPU") # "ALL" to install all custommodules or name them "CPU,BlitzWaits,Catalogue,BlitzFileStats"
+$SQLInstances = "CATACLYSM\SQL01,CATACLYSM\SQL02,CATACLYSM\SQL03CS" #if this is a linked server install ensure that the central server appears first in the list
+$LoggingDB = "SQLUndercover"
+$CustomModules = @("NONE") # @("NONE") to not include custom modules , @("ALL") to install all custommodules or name them @("CPU","BlitzWaits","Catalogue",BlitzFileStats")
 
 $UseWindowsAuth = "Y"  #"Y" or "N"
 
@@ -265,7 +265,7 @@ ForEach ($SQLInstance in $SQLInstances.Split(","))
             Invoke-Sqlcmd -InputFile $(IF ($ScriptPathType -eq "URL") {$TempFilename} ELSE {$ScriptPath}) -ServerInstance $SQLInstance -database $LoggingDB -ConnectionTimeout 10;
             write-host "Running [Inspector].[InspectorSetup] on [$SQLInstance]";
             write-host "";
-            Invoke-Sqlcmd -Query $InstallScript -ServerInstance $SQLInstance -database $LoggingDB -ConnectionTimeout 10 -Verbose;
+            Invoke-Sqlcmd -Query $InstallScript -ServerInstance $SQLInstance -database $LoggingDB -ConnectionTimeout 10; # -Verbose;
             }
         
     "N" {   $DBExists = Invoke-Sqlcmd -Query $DBExistsQry -ServerInstance $SQLInstance -database "master" -Username $SQLUser -Password $SQLPassword -ConnectionTimeout 10
@@ -292,7 +292,7 @@ ForEach ($SQLInstance in $SQLInstances.Split(","))
             Invoke-Sqlcmd -InputFile $(IF ($ScriptPathType -eq "URL") {$TempFilename} ELSE {$ScriptPath}) -ServerInstance $SQLInstance -database $LoggingDB -Username $SQLUser -Password $SQLPassword -ConnectionTimeout 10;
             write-host "Running [Inspector].[InspectorSetup] on [$SQLInstance]";
             write-host "";
-            Invoke-Sqlcmd -Query $InstallScript -ServerInstance $SQLInstance -database $LoggingDB -Username $SQLUser -Password $SQLPassword -ConnectionTimeout 10 -Verbose;
+            Invoke-Sqlcmd -Query $InstallScript -ServerInstance $SQLInstance -database $LoggingDB -Username $SQLUser -Password $SQLPassword -ConnectionTimeout 10; #-Verbose;
         }
     }
     
@@ -300,10 +300,18 @@ ForEach ($SQLInstance in $SQLInstances.Split(","))
 #endregion
 
 #region start custom module install 
+ForEach ($SQLInstance in $SQLInstances.Split(","))
+{
 
 IF ($ManifestPathType -eq "URL") {
-    invoke-webrequest -Uri $ManifestPath -Outfile $TempFilename -ContentType 'csv';
-    $ManifestContents = import-csv -Path $TempFilename
+    Try{
+        invoke-webrequest -Uri $ManifestPath -Outfile $TempFilename -ContentType 'csv';
+        $ManifestContents = import-csv -Path $TempFilename
+    }
+    Catch {
+        write-host $_.Exception.Message -ForegroundColor Red;
+        Return;
+    }
 
     #Grab the contents of the manifest excluding the Inpector Install file
     foreach($ManifestItem in $($ManifestContents | ?{$_.Modulename -ne "SQLUndercoverinspectorV2.sql"})) {
@@ -313,8 +321,14 @@ IF ($ManifestPathType -eq "URL") {
 
         IF((($CustomModules -eq "ALL") -or $($CustomModules -contains $Modulename)) -eq $true) {
 
-            write-host "Installing $ModuleFilename";
-            invoke-webrequest -Uri $ModuleURL -Outfile $TempFilename -ContentType 'sql';
+            write-host "Installing $ModuleFilename on Instance: $SQLInstance";
+            Try {
+                invoke-webrequest -Uri $ModuleURL -Outfile $TempFilename -ContentType 'sql';
+            } 
+            Catch {
+                write-host "Installing $Modulename failed: "$_.Exception.Message -ForegroundColor Red;
+                Continue;
+            }
 
             IF ($(test-path -Path $TempFilename) -eq $true) {
 
@@ -344,7 +358,7 @@ IF ($ManifestPathType -eq "URL") {
 
         IF((($CustomModules -eq "ALL") -or $($CustomModules -contains $Modulename)) -eq $true) {
 
-            write-host "Installing $ModuleFilename";
+            write-host "Installing $ModuleFilename on Instance: $SQLInstance";
             
             IF ($(test-path -Path $ModulePath) -eq $true) {
 
@@ -365,6 +379,8 @@ IF ($ManifestPathType -eq "URL") {
 
         }
     }
+
+}
 
 }
 
