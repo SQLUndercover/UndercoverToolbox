@@ -65,8 +65,8 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 28/03/2020
-Version: 2.2
+Revision date: 24/05/2020
+Version: 2.3
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -129,8 +129,8 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200328';
-DECLARE @Build VARCHAR(6) ='2.2'
+DECLARE @Revisiondate DATE = '20200524';
+DECLARE @Build VARCHAR(6) ='2.3'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
 DECLARE @JobsWithoutSchedules VARCHAR(1000);
@@ -151,7 +151,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 
---Inspector V2.2
+--Inspector V2.3
 --Revision date: '+CONVERT(VARCHAR(17),@Revisiondate,113)+'
 
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
@@ -293,6 +293,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			
 			IF @CurrentBuild IS NOT NULL
 			BEGIN 
+				IF (@Build < @CurrentBuild)
+				BEGIN 
+					RAISERROR('Current build: %s , is greater than the build you are trying to install (%s)',11,0,@CurrentBuild,@Build) WITH NOWAIT;
+					RETURN;
+				END 
+				ELSE
 				BEGIN
 					RAISERROR('Current build: %s , Target build: %s',0,0,@CurrentBuild,@Build) WITH NOWAIT;
 				END
@@ -375,13 +381,19 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[ReportData] VARCHAR(MAX) NULL,
 				[Summary] XML NULL,
 				[Importance] VARCHAR(6) NULL,
-				[EmailGroup] VARCHAR(50) NULL
+				[EmailGroup] VARCHAR(50) NULL,
+				[ReportWarningsOnly] TINYINT NULL
 			);
 
 			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Summary' AND [object_id] = OBJECT_ID(N'Inspector.ReportData'))
 			BEGIN
 				--New column for 1.2 for Inspector.ReportData
 				ALTER TABLE [Inspector].[ReportData] ADD [Summary] VARCHAR(60) NULL;
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'ReportWarningsOnly' AND [object_id] = OBJECT_ID(N'Inspector.ReportData'))
+			BEGIN
+				ALTER TABLE [Inspector].[ReportData] ADD [ReportWarningsOnly] TINYINT NULL;
 			END
 
 			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.ReportData') AND name='IX_ReportDate')
@@ -391,13 +403,14 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			END
 
 			--Inspector V2.00 change to XML
-			IF EXISTS (SELECT 1 
-						FROM sys.tables 
-						INNER JOIN sys.columns ON tables.object_id = columns.object_id 
-						WHERE tables.name = N'ReportData' 
-						AND schema_id = SCHEMA_ID(N'Inspector')
-						AND columns.name = N'Summary'
-						AND system_type_id = 167)
+			IF NOT EXISTS (SELECT 1 
+							FROM sys.tables 
+							INNER JOIN sys.columns ON tables.object_id = columns.object_id 
+							INNER JOIN sys.types ON columns.user_type_id = types.user_type_id
+							WHERE tables.name = N'ReportData' 
+							AND tables.schema_id = SCHEMA_ID(N'Inspector')
+							AND columns.name = N'Summary'
+							AND types.name = N'xml')
 			BEGIN 
 				ALTER TABLE [Inspector].[ReportData] ALTER COLUMN [Summary] XML NULL;
 			END
@@ -833,7 +846,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 						[StartTime] TIME(0) NOT NULL,
 						[EndTime] TIME(0) NOT NULL,
 						[LastRunDateTime] DATETIME NULL,
-						[ReportWarningsOnly] BIT NOT NULL,
+						[ReportWarningsOnly] TINYINT NOT NULL,
 						[NoClutter] BIT NOT NULL,
 						[ShowDisabledModules] BIT NOT NULL
 					 CONSTRAINT [PK_ModuleConfig_Desc] PRIMARY KEY CLUSTERED 
@@ -1015,11 +1028,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 						[StartTime] TIME(0) NOT NULL,
 						[EndTime] TIME(0) NOT NULL,
 						[LastRunDateTime] DATETIME NULL,
-						[ReportWarningsOnly] BIT NOT NULL,
+						[ReportWarningsOnly] TINYINT NOT NULL,
 						[NoClutter] BIT NOT NULL,
 						[ShowDisabledModules] BIT NOT NULL,
 						[RunDay] VARCHAR(70) NULL,
-						[EmailGroup] VARCHAR(50) NULL
+						[EmailGroup] VARCHAR(50) NULL,
+						[EmailProfile] NVARCHAR(128) NULL
 					 CONSTRAINT [PK_ModuleConfig_Desc] PRIMARY KEY CLUSTERED 
 					([ModuleConfig_Desc] ASC)
 					);
@@ -1045,6 +1059,22 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 					EXEC sp_executesql N'ALTER TABLE [Inspector].[ModuleConfig] ADD [EmailGroup] VARCHAR(50) NULL;';
 				END
 
+				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID('Inspector.ModuleConfig') AND [name] = 'EmailProfile')
+				BEGIN 
+					EXEC sp_executesql N'ALTER TABLE [Inspector].[ModuleConfig] ADD [EmailProfile] VARCHAR(128) NULL;';
+				END
+
+				IF NOT EXISTS (SELECT 1
+								FROM sys.tables 
+								INNER JOIN sys.columns ON tables.object_id = columns.object_id 
+								INNER JOIN sys.types ON columns.user_type_id = types.user_type_id
+								WHERE tables.name = N'ModuleConfig' 
+								AND tables.schema_id = SCHEMA_ID(N'Inspector')
+								AND columns.name = N'ReportWarningsOnly'
+								AND types.name = N'tinyint')
+				BEGIN 
+					ALTER TABLE [Inspector].[ModuleConfig] ALTER COLUMN [ReportWarningsOnly] TINYINT NOT NULL;
+				END
 
 				IF OBJECT_ID('Inspector.CatalogueModules') IS NULL
 				BEGIN
@@ -1684,7 +1714,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[Procname] NVARCHAR(128) NOT NULL,
 				[Frequency] SMALLINT NULL,
 				[Duration] MONEY,
-				[PSCollection] BIT NOT NULL
+				[PSCollection] BIT NOT NULL,
+				[ErrorMessage] NVARCHAR(128) NULL
 				); 
 
 				CREATE CLUSTERED INDEX [CIX_ExecutionLog_ID] ON [Inspector].[ExecutionLog]
@@ -1699,6 +1730,16 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 							AND columns.name = N'Frequency')
 			BEGIN 
 				ALTER TABLE [Inspector].[ExecutionLog] ADD [Frequency] SMALLINT NULL;
+			END
+
+			IF NOT EXISTS(SELECT 1 
+							FROM sys.tables 
+							INNER JOIN sys.columns ON tables.object_id = columns.object_id 
+							WHERE tables.schema_id = SCHEMA_ID(N'Inspector')
+							AND tables.name = N'ExecutionLog'
+							AND columns.name = N'ErrorMessage')
+			BEGIN 
+				ALTER TABLE [Inspector].[ExecutionLog] ADD [ErrorMessage] NVARCHAR(128) NULL;
 			END
 
 			IF OBJECT_ID('Inspector.CatalogueSIDExclusions') IS NULL
@@ -1814,6 +1855,53 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[PSCollection] BIT
 				);
 			END
+
+
+			IF NOT EXISTS (SELECT * FROM sys.tables WHERE [name] = N'ReportsDueCache' AND [schema_id] = SCHEMA_ID(N'Inspector'))
+			BEGIN 
+				CREATE TABLE [Inspector].[ReportsDueCache] (
+				[ID] UNIQUEIDENTIFIER NOT NULL,
+				[ModuleConfig_Desc] VARCHAR(20) NOT NULL,
+				[CurrentScheduleStart] DATETIME NOT NULL,
+				[ReportWarningsOnly] TINYINT NOT NULL,
+				[NoClutter] BIT NOT NULL,
+				[Frequency] SMALLINT NOT NULL,
+				[EmailGroup] VARCHAR(50) NULL,
+				[EmailProfile] VARCHAR(128) NULL
+				);
+			END
+			
+			IF NOT EXISTS (SELECT 1 FROM sys.tables INNER JOIN sys.indexes ON indexes.[object_id] = tables .[object_id] WHERE tables.[name] = N'ReportsDueCache' AND indexes.[name] = N'CIX_ID' AND SCHEMA_NAME(tables.[schema_id]) = N'Inspector')
+			BEGIN 
+				CREATE CLUSTERED INDEX [CIX_ID] ON [Inspector].[ReportsDueCache] (ID ASC);
+			END
+
+			IF NOT EXISTS (SELECT * FROM sys.tables WHERE [name] = N'ExecutionLogLastTruncate' AND [schema_id] = SCHEMA_ID(N'Inspector'))
+			BEGIN
+				CREATE TABLE [Inspector].[ExecutionLogLastTruncate] (
+				LastTruncate DATE NOT NULL
+				);
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[ExecutionLogLastTruncate])
+			BEGIN 
+				EXEC sp_executesql N'INSERT INTO [Inspector].[ExecutionLogLastTruncate] (LastTruncate)
+				VALUES(CAST(GETDATE() AS DATE));';
+			END
+
+
+			IF OBJECT_ID('Inspector.MonitorHours',N'U') IS NULL 
+			BEGIN 
+				CREATE TABLE [Inspector].[MonitorHours](
+				[Servername] [nvarchar](128) NULL,
+				[Modulename] VARCHAR(50) NULL,
+				[MonitorHourStart] INT NOT NULL,
+				[MonitorHourEnd] INT NOT NULL
+				);
+			
+				EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_Servername_Modulename] ON [Inspector].[MonitorHours] ([Servername],[Modulename]);';
+			END
+
 
 		    IF OBJECT_ID('Inspector.PSConfig') IS NULL 
 			BEGIN
@@ -1974,6 +2062,7 @@ TRUNCATE TABLE [Inspector].[EmailConfig];
 TRUNCATE TABLE [Inspector].[ModuleWarnings];
 TRUNCATE TABLE [Inspector].[ModuleWarningLevel];
 UPDATE [Inspector].[ModuleConfig] SET [EmailGroup] = NULL WHERE [EmailGroup] IS NOT NULL;
+UPDATE [Inspector].[ModuleConfig] SET [EmailProfile] = NULL WHERE [EmailProfile] IS NOT NULL;
 DELETE FROM [Inspector].[EmailRecipients];
 TRUNCATE TABLE [Inspector].[CatalogueModules];
 TRUNCATE TABLE [Inspector].[DefaultHeaderText];';
@@ -2202,7 +2291,7 @@ END
 	BEGIN
 	EXEC dbo.sp_executesql @statement = N'CREATE VIEW [Inspector].[ModuleSchedulesDue] 
 	AS 
-	--Revision date: 11/10/2019
+	--Revision date: 13/03/2020
 	
 		SELECT 
 		[Schedules].[Modulename],
@@ -2231,8 +2320,7 @@ END
 				SELECT [ModuleConfig_Desc],[Modulename],CollectionProcedurename,Frequency,StartTime,EndTime,LastRunDateTime
 				FROM [Inspector].[Modules] 
 				WHERE [IsActive] = 1
-				--AND ModuleConfig_Desc = ''Default''
-				--AND Modulename = ''ADHocDatabaseCreations''
+				AND CollectionProcedurename IS NOT NULL
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
@@ -2249,7 +2337,7 @@ END
 	BEGIN 
 	EXEC dbo.sp_executesql @statement = N'ALTER VIEW [Inspector].[ModuleSchedulesDue] 
 	AS 
-	--Revision date: 11/10/2019
+	--Revision date: 13/04/2020
 	
 		SELECT 
 		[Schedules].[Modulename],
@@ -2278,8 +2366,7 @@ END
 				SELECT [ModuleConfig_Desc],[Modulename],CollectionProcedurename,Frequency,StartTime,EndTime,LastRunDateTime
 				FROM [Inspector].[Modules] 
 				WHERE [IsActive] = 1
-				--AND ModuleConfig_Desc = ''Default''
-				--AND Modulename = ''ADHocDatabaseCreations''
+				AND CollectionProcedurename IS NOT NULL
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
@@ -2299,7 +2386,7 @@ END
 	EXEC dbo.sp_executesql @statement = N'
 	CREATE VIEW [Inspector].[ReportSchedulesDue] 
 	AS 
-	--Revision date: 26/03/2020
+	--Revision date: 15/05/2020
 	
 		SELECT 
 		[ModuleConfig_Desc],
@@ -2313,7 +2400,8 @@ END
 		LastRunDateTime,
 		RowNum%Frequency AS modulo,
 		RowNum,
-		EmailGroup
+		EmailGroup,
+		EmailProfile
 		FROM 
 		(
 			SELECT 
@@ -2325,12 +2413,12 @@ END
 			DATEADD(MINUTE,DATEPART(MINUTE,StartTime),DATEADD(HOUR,DATEPART(HOUR,StartTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS StartDatetime,
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
 			LastRunDateTime,RunDay,
-			ISNULL(EmailGroup,''DBA'') AS EmailGroup
+			ISNULL(EmailGroup,''DBA'') AS EmailGroup,
+			EmailProfile
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup,EmailProfile
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
-				--AND ModuleConfig_Desc = ''Default''
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
@@ -2350,7 +2438,7 @@ END
 	EXEC dbo.sp_executesql @statement = N'
 	ALTER VIEW [Inspector].[ReportSchedulesDue] 
 	AS 
-	--Revision date: 26/03/2020
+	--Revision date: 15/05/2020
 	
 		SELECT 
 		[ModuleConfig_Desc],
@@ -2364,7 +2452,8 @@ END
 		LastRunDateTime,
 		RowNum%Frequency AS modulo,
 		RowNum,
-		EmailGroup
+		EmailGroup,
+		EmailProfile
 		FROM 
 		(
 			SELECT 
@@ -2376,12 +2465,12 @@ END
 			DATEADD(MINUTE,DATEPART(MINUTE,StartTime),DATEADD(HOUR,DATEPART(HOUR,StartTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS StartDatetime,
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
 			LastRunDateTime,RunDay,
-			ISNULL(EmailGroup,''DBA'') AS EmailGroup
+			ISNULL(EmailGroup,''DBA'') AS EmailGroup,
+			EmailProfile
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup,EmailProfile
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
-				--AND ModuleConfig_Desc = ''Default''
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
@@ -3314,6 +3403,9 @@ END
 
 			IF OBJECT_ID('Inspector.BackupSpaceReport') IS NOT NULL
 			DROP PROCEDURE [Inspector].[BackupSpaceReport];
+
+			IF OBJECT_ID('Inspector.ExecutionLogTruncate') IS NOT NULL
+			DROP PROCEDURE [Inspector].[ExecutionLogTruncate];
 			
 
 			--Drop functions for recreation
@@ -3451,6 +3543,51 @@ BEGIN
 END'
 
 EXEC(@SQLStatement);
+
+IF OBJECT_ID('Inspector.GetMonitorHours') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[GetMonitorHours] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[GetMonitorHours] (
+@Servername NVARCHAR(128),
+@Modulename VARCHAR(50),
+@MonitorHourStart INT OUTPUT,
+@MonitorHourEnd INT OUTPUT	
+)
+AS 
+BEGIN 
+	/* Revision date: 01/05/2020 */
+
+	SELECT 
+	@MonitorHourStart = [MonitorHourStart],
+	@MonitorHourEnd = [MonitorHourEnd]
+	FROM [Inspector].[MonitorHours] 
+	WHERE [Servername] = @Servername 
+	AND [Modulename] = @Modulename;
+
+END';
+
+
+IF OBJECT_ID('Inspector.GetModuleConfigFrequency') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[GetModuleConfigFrequency] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[GetModuleConfigFrequency] (
+@ModuleConfig VARCHAR(20),
+@Frequency INT OUTPUT
+)
+AS 
+BEGIN 
+	/* Revision date: 01/05/2020 */
+
+	SELECT 
+	@Frequency = [Frequency] 
+	FROM [Inspector].[ModuleConfig]
+	WHERE ModuleConfig_Desc = @ModuleConfig;
+
+END';
 
 
 SET @SQLStatement = 
@@ -5371,11 +5508,12 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 @ModuleConfigDesc VARCHAR(20),
 @Procname NVARCHAR(128),
 @Frequency SMALLINT = NULL,
+@ErrorMessage NVARCHAR(128) = NULL,
 @Duration MONEY,
 @PSCollection BIT
 )
 AS
---Revision Date: 26/11/2019
+--Revision Date: 09/04/2020
 DECLARE @Linkedservername NVARCHAR(128) = (SELECT UPPER([Value]) FROM [Inspector].[Settings] WHERE [Description] = ''LinkedServername'');
 DECLARE @CentraliseExecutionLog BIT = (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''CentraliseExecutionLog'');
 DECLARE @LinkedServerInsert NVARCHAR(1000)
@@ -5397,8 +5535,8 @@ IF (EXISTS(SELECT 1 FROM sys.servers WHERE name = @Linkedservername) AND @Centra
 BEGIN 
 	BEGIN 
 		SET @LinkedServerInsert = ''
-		INSERT INTO [''+CAST(@Linkedservername AS VARCHAR(128))+''].[''+CAST(DB_NAME() AS VARCHAR(128))+''].[Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection)
-		VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection);''
+		INSERT INTO [''+CAST(@Linkedservername AS VARCHAR(128))+''].[''+CAST(DB_NAME() AS VARCHAR(128))+''].[Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection,ErrorMessage)
+		VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection,@ErrorMessage);''
 
 		EXEC sp_executesql @LinkedServerInsert,
 		N''@RunDatetime DATETIME,
@@ -5407,21 +5545,23 @@ BEGIN
 		@Procname NVARCHAR(128),
 		@Frequency SMALLINT = NULL,
 		@Duration MONEY,
-		@PSCollection BIT'',
+		@PSCollection BIT,
+		@ErrorMessage NVARCHAR(128)'',
 		@RunDatetime = @RunDatetime,
 		@Servername = @Servername,
 		@ModuleConfigDesc = @ModuleConfigDesc,
 		@Procname = @Procname,
 		@Frequency = @Frequency,
 		@Duration = @Duration,
-		@PSCollection = @PSCollection;	
+		@PSCollection = @PSCollection,
+		@ErrorMessage = @ErrorMessage;
 	END 
 
 END
 ELSE --If Linked server is invalid or @CentraliseExecutionLog = 0 insert locally
 BEGIN
-	INSERT INTO [Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection)
-	VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection);
+	INSERT INTO [Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection,ErrorMessage)
+	VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection,@ErrorMessage);
 END
 '
 
@@ -8556,7 +8696,7 @@ SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
 @Debug BIT = 0
 )
 AS 
---Revision date: 01/11/2019
+--Revision date: 15/05/2020
 BEGIN
 	DECLARE @HeaderText VARCHAR(100);
 	DECLARE @CountInfo INT = 0;
@@ -8617,7 +8757,7 @@ BEGIN
 				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountWarning AS VARCHAR(5))+'') ''+@HeaderText+''</font><p>''  
 				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountWarning AS VARCHAR(5))+'') ''+@HeaderText+'' <b>(Data collection out of Date)</b></font><p>''  
 			END
-			SET @Importance = ''High'' 
+			SET @Importance = ''High''; 
 		END
 	END
 	
@@ -8635,6 +8775,17 @@ BEGIN
 				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdvisory AS VARCHAR(5))+'') ''+@HeaderText+''</font><p>''  
 				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdvisory AS VARCHAR(5))+'') ''+@HeaderText+'' <b>(Data collection out of Date)</b></font><p>''  
 			END
+
+			--If Multi warning is enabled for this module and Importance was set to high in the previous block then do not reset Importance
+			SET @Importance = (
+				SELECT 
+				CASE 
+					WHEN (@MultiWarningModule = 1 AND @Importance IN (''High'')) THEN @Importance
+					WHEN (@MultiWarningModule = 1 AND @Importance IS NULL) THEN ''Normal''
+					WHEN (@MultiWarningModule = 0) THEN ''Normal''
+					ELSE ''Normal''
+				END
+			);
 		END
 	END
 	
@@ -8652,6 +8803,17 @@ BEGIN
 				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountInfo AS VARCHAR(5))+'') ''+@HeaderText+''</font><p>''  
 				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountInfo AS VARCHAR(5))+'') ''+@HeaderText+'' <b>(Data collection out of Date)</b></font><p>''  
 			END
+
+			--If Multi warning is enabled for this module and Importance was set to high or Normal in the previous blocks then do not reset Importance
+			SET @Importance = (
+				SELECT 
+				CASE 
+					WHEN (@MultiWarningModule = 1 AND @Importance IN (''High'',''Normal'')) THEN @Importance
+					WHEN (@MultiWarningModule = 1 AND @Importance IS NULL) THEN ''Low''
+					WHEN (@MultiWarningModule = 0) THEN ''Low''
+					ELSE ''Low''
+				END
+			);
 		END
 	END
 
@@ -9868,88 +10030,43 @@ EXEC(@SQLStatement);
   
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'Inspector.InspectorReportMaster') AND type in (N'P', N'PC'))
 BEGIN
-	EXEC dbo.sp_executesql @statement = N'
-	CREATE PROCEDURE [Inspector].[InspectorReportMaster] (
-	@EmailGroup VARCHAR(50) = ''DBA'',
-	@PSCollection BIT = 0
-	)
-	AS
-	
-	DECLARE @ModuleConfigDesc VARCHAR(20);
-	DECLARE @ReportWarningsOnly BIT;
-	DECLARE @NoClutter BIT;
-	DECLARE @Frequency SMALLINT; 
-	DECLARE @Procname NVARCHAR(128) = OBJECT_NAME(@@PROCID);
-	DECLARE @Duration MONEY;
-	DECLARE @ReportStart DATETIME = GETDATE();
-	
-	DECLARE InspectorReportmaster_cur CURSOR LOCAL STATIC
-	FOR
-	SELECT 
-	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup
-	FROM  [Inspector].[ReportSchedulesDue]
-	ORDER BY CurrentScheduleStart ASC
-	
-	OPEN InspectorReportmaster_cur
-	
-	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
-	
-	WHILE @@FETCH_STATUS = 0 
-	BEGIN 
-	
-		RAISERROR(''Executing [Inspector].[SQLUnderCoverInspectorReport] for config ''''%s'''''',0,0,@ModuleConfigDesc) WITH NOWAIT;
-	
-		EXEC sp_executesql N''
-		EXEC [Inspector].[SQLUnderCoverInspectorReport]
-		@EmailDistributionGroup = @EmailGroup,
-		@TestMode = 0, 
-		@ModuleDesc = @ModuleConfigDesc,
-		@EmailRedWarningsOnly = @ReportWarningsOnly, 
-		@Theme = ''''Dark'''',
-		@NoClutter = @NoClutter;'',
-		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly BIT,@NoClutter BIT,@EmailGroup VARCHAR(50)'',
-		@ModuleConfigDesc = @ModuleConfigDesc,
-		@ReportWarningsOnly = @ReportWarningsOnly,
-		@NoClutter = @NoClutter,
-		@EmailGroup = @EmailGroup;
-	
-		UPDATE [Inspector].[ModuleConfig]
-		SET LastRunDateTime = GETDATE() 
-		WHERE ModuleConfig_Desc = @ModuleConfigDesc;
-	
-		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
-	END 
-	
-	CLOSE InspectorReportmaster_cur
-	DEALLOCATE InspectorReportmaster_cur';
+	EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [Inspector].[InspectorReportMaster] AS';
 END
 ELSE 
-BEGIN 
+BEGIN
 	EXEC dbo.sp_executesql @statement = N'
 	ALTER PROCEDURE [Inspector].[InspectorReportMaster] (
 	@EmailGroup VARCHAR(50) = ''DBA'',
-	@PSCollection BIT = 0
+	@PSCollection BIT = 0,
+	@CachedReportID UNIQUEIDENTIFIER = NULL
 	)
 	AS
+
+	--Revision date: 22/05/2020
 	
 	DECLARE @ModuleConfigDesc VARCHAR(20);
-	DECLARE @ReportWarningsOnly BIT;
+	DECLARE @ReportWarningsOnly TINYINT;
 	DECLARE @NoClutter BIT;
 	DECLARE @Frequency SMALLINT; 
 	DECLARE @Procname NVARCHAR(128) = OBJECT_NAME(@@PROCID);
 	DECLARE @Duration MONEY;
 	DECLARE @ReportStart DATETIME = GETDATE();
-	
+	DECLARE @EmailProfile NVARCHAR(128);
+
 	DECLARE InspectorReportmaster_cur CURSOR LOCAL STATIC
 	FOR
 	SELECT 
-	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup
+	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
 	FROM  [Inspector].[ReportSchedulesDue]
-	ORDER BY CurrentScheduleStart ASC
+	UNION --We want to be sure we are not duplicating rows
+	SELECT 
+	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
+	FROM [Inspector].[ReportsDueCache]
+	WHERE ID = @CachedReportID
 	
 	OPEN InspectorReportmaster_cur
 	
-	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
+	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile
 	
 	WHILE @@FETCH_STATUS = 0 
 	BEGIN 
@@ -9959,22 +10076,32 @@ BEGIN
 		EXEC sp_executesql N''
 		EXEC [Inspector].[SQLUnderCoverInspectorReport]
 		@EmailDistributionGroup = @EmailGroup,
+		@EmailProfile = @EmailProfile,
 		@TestMode = 0, 
 		@ModuleDesc = @ModuleConfigDesc,
-		@EmailRedWarningsOnly = @ReportWarningsOnly, 
+		@ReportWarningsOnly = @ReportWarningsOnly, 
 		@Theme = ''''Dark'''',
 		@NoClutter = @NoClutter;'',
-		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly BIT,@NoClutter BIT,@EmailGroup VARCHAR(50)'',
+		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly TINYINT,@NoClutter BIT,@EmailGroup VARCHAR(50),@EmailProfile NVARCHAR(128)'',
 		@ModuleConfigDesc = @ModuleConfigDesc,
 		@ReportWarningsOnly = @ReportWarningsOnly,
 		@NoClutter = @NoClutter,
-		@EmailGroup = @EmailGroup;
+		@EmailGroup = @EmailGroup,
+		@EmailProfile = @EmailProfile;
 	
 		UPDATE [Inspector].[ModuleConfig]
 		SET LastRunDateTime = GETDATE() 
 		WHERE ModuleConfig_Desc = @ModuleConfigDesc;
+
+		IF (@CachedReportID IS NOT NULL)
+		BEGIN 
+			DELETE 
+			FROM [Inspector].[ReportsDueCache]
+			WHERE ID = @CachedReportID
+			AND ModuleConfig_Desc = @ModuleConfigDesc;
+		END 
 	
-		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
+		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile
 	END 
 	
 	CLOSE InspectorReportmaster_cur
@@ -10274,6 +10401,26 @@ END
 
 END'
 
+EXEC(@SQLStatement);
+
+
+SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
+'CREATE PROCEDURE [Inspector].[ExecutionLogTruncate] 
+AS 
+BEGIN 
+	DECLARE @LastTruncate DATE;
+
+	SET @LastTruncate = (SELECT TOP 1 [LastTruncate] FROM [Inspector].[ExecutionLogLastTruncate] ORDER BY [LastTruncate] DESC);
+
+	IF (@LastTruncate IS NULL OR @LastTruncate < CAST(GETDATE() AS DATE)) 
+	BEGIN 
+		TRUNCATE TABLE [Inspector].[ExecutionLog];
+
+		UPDATE [Inspector].[ExecutionLogLastTruncate] SET [LastTruncate] = CAST(GETDATE() AS DATE);
+	END	
+
+END';
+
 EXEC(@SQLStatement)
 
 
@@ -10290,7 +10437,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 28/03/2020
+--Revision date: 24/05/2020
 
 SET NOCOUNT ON;
 
@@ -10304,22 +10451,27 @@ DECLARE @ReportStart DATETIME = GETDATE();
 DECLARE @Procname NVARCHAR(128) = OBJECT_NAME(@@PROCID);
 DECLARE @Frequency SMALLINT; 
 DECLARE @Duration MONEY;
-DECLARE @LastTruncate DATE;
-DECLARE @ReportWarningsOnly BIT;
-
+DECLARE @ReportWarningsOnly TINYINT;
+DECLARE @ErrorMessage NVARCHAR(128);
+DECLARE @CachedReportID UNIQUEIDENTIFIER;
 
 IF EXISTS(SELECT 1 FROM [Inspector].[CurrentServers] WHERE [IsActive] = 1 AND Servername = @Servername)
 BEGIN
     IF EXISTS (SELECT ModuleConfig_Desc FROM [Inspector].[Modules] WHERE ModuleConfig_Desc = @ModuleConfig) OR @ModuleConfig IS NULL 
     BEGIN
-		--Truncate the ExecutionLog daily
-		SELECT @LastTruncate = (SELECT TOP 1 CAST([ExecutionDate] AS DATE) FROM [Inspector].[ExecutionLog] ORDER BY [ID] DESC)
- 
-		--If the most recent log is from yesterday then Truncate the log.
-		IF (@LastTruncate < CAST(GETDATE() AS DATE))
+
+		--Truncate ExecutionLog if required
+		EXEC [Inspector].[ExecutionLogTruncate];
+
+		--Check for reports due and cache them in case the collection procs executed in the cursor below exceed the current minute
+		IF EXISTS (SELECT 1 FROM [Inspector].[ReportSchedulesDue])
 		BEGIN 
-			TRUNCATE TABLE [Inspector].[ExecutionLog];
-		END
+			SET @CachedReportID = NEWID();
+
+			INSERT INTO [Inspector].[ReportsDueCache] (ID,ModuleConfig_Desc,CurrentScheduleStart,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile) 
+			SELECT @CachedReportID,ModuleConfig_Desc,[CurrentScheduleStart],ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
+			FROM [Inspector].[ReportSchedulesDue];
+		END 
 
 		--Populate needs to occur here rather than the other @PSCollection = 1 block because the Modules table trigger is fired upon the Modules LatRunDateTime update
 		--and we want to control the format of the data through this proc.
@@ -10368,6 +10520,7 @@ BEGIN
 			FROM [Inspector].[Modules]
 			WHERE (@IgnoreSchedules = 1 OR @PSExecModules = 1)
 			AND IsActive = 1
+			AND [CollectionProcedurename] IS NOT NULL
 			AND [ModuleConfig_Desc] = ISNULL(@ModuleConfig,[ModuleConfig_Desc])
 			UNION 
 			--Get modules due for collection that are not part of @ModuleConfig but due a collection
@@ -10393,7 +10546,14 @@ BEGIN
 					SET @CollectionStart = GETDATE();
 
 					RAISERROR(''Running [Inspector].[%s]'',0,0,@CollectionProcedurename) WITH NOWAIT;
-					EXEC(''EXEC [Inspector].[''+@CollectionProcedurename+''];'');
+					
+					BEGIN TRY 
+						EXEC(''EXEC [Inspector].[''+@CollectionProcedurename+''];'');
+						SET @ErrorMessage = NULL;
+					END TRY 
+					BEGIN CATCH 
+						SET @ErrorMessage = CAST(ERROR_MESSAGE() AS NVARCHAR(128));
+					END CATCH 
 
 					SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
 
@@ -10404,7 +10564,8 @@ BEGIN
 						@Procname = @CollectionProcedurename, 
 						@Frequency = @Frequency,
 						@Duration = @Duration,
-						@PSCollection = @PSCollection;
+						@PSCollection = @PSCollection,
+						@ErrorMessage = @ErrorMessage;
 				END
 				ELSE 
 				BEGIN 
@@ -10448,7 +10609,7 @@ BEGIN
 	BEGIN 
 		--Run InspectorReportMaster to pick up any scheduled reports
 		RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
-		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
+		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection, @CachedReportID = @CachedReportID;
 	END
 
 
@@ -10478,7 +10639,7 @@ BEGIN
 	BEGIN 
 		--Run InspectorReportMaster to pick up any scheduled reports
 		RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
-		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
+		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection, @CachedReportID = @CachedReportID;
 	END
 
 
@@ -10507,9 +10668,9 @@ SET @SQLStatement = ''
 SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
 '/*********************************************
 --Author: Adrian Buckman
---Revision date: 24/03/2020
+--Revision date: 15/05/2020
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
---V2.2
+--V2.3
 
 
 --Example Execute command
@@ -10517,7 +10678,8 @@ SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+
 --@EmailDistributionGroup = ''DBA'',
 --@TestMode = 0,
 --@ModuleDesc = NULL,
---@EmailRedWarningsOnly = 0,
+--@ReportWarningsOnly = 0,
+--@EmailProfile = NULL,
 --@Theme = ''Dark'',
 --@NoClutter = 0,
 --@Debug = 0;
@@ -10529,7 +10691,8 @@ CREATE PROCEDURE [Inspector].[SQLUnderCoverInspectorReport]
 @EmailDistributionGroup VARCHAR(50) = ''DBA'',
 @TestMode BIT = 0,
 @ModuleDesc VARCHAR(20)	= NULL,
-@EmailRedWarningsOnly BIT = 0,
+@ReportWarningsOnly TINYINT = 0,
+@EmailProfile NVARCHAR(128) = NULL,
 @Theme VARCHAR(5) = ''Dark'',
 @PSCollection BIT = 0,
 @NoClutter BIT = 0,
@@ -10632,6 +10795,7 @@ DECLARE @EmailHeader VARCHAR(1000) = CASE
 DECLARE @SubjectText VARCHAR(255) 
 DECLARE @AlertSubjectText VARCHAR(255) 
 DECLARE @Importance VARCHAR(6) = ''Low'';
+DECLARE @HighestImportance TINYINT;
 DECLARE @EmailBody VARCHAR(MAX) = '''';
 DECLARE @AlertHeader VARCHAR(MAX) = '''';
 DECLARE @AdvisoryHeader VARCHAR(MAX) = '''';
@@ -10672,6 +10836,7 @@ DECLARE @ReportSummary VARCHAR(MAX) = '''';
 DECLARE @DetailedSummary BIT = (SELECT CASE WHEN [Value] IS NULL OR [Value] != 1 THEN 0 ELSE 1 END FROM [Inspector].[Settings] WHERE [Description] = ''ReportDataDetailedSummary'')
 DECLARE @MultiWarningModule BIT;
 DECLARE @ShowDisabledModules BIT;
+DECLARE @ErrorMessage NVARCHAR(128);
 
 --------------Internal use only----------------------
 DECLARE @DriveExtensionRequest VARCHAR(MAX)
@@ -10704,6 +10869,8 @@ SET @AlertSubjectText = @SubjectText +'' - WARNINGS FOUND! '';
 IF @Theme IS NOT NULL BEGIN SET @Theme = UPPER(@Theme) END;
 IF @Theme IS NULL BEGIN SET @Theme = ''DARK'' END;
 IF @Theme NOT IN (''LIGHT'',''DARK'') BEGIN SET @Theme = ''DARK'' END;
+
+IF (@ReportWarningsOnly > 3) BEGIN SET @ReportWarningsOnly = 0 END;
 
 --Check if the Undercover Catalogue is installed
 IF (OBJECT_ID(''Catalogue.ConfigInstances'') IS NOT NULL 
@@ -10868,6 +11035,7 @@ BEGIN
 	INNER JOIN [Inspector].[Modules] ON ([ActiveServers].[ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] OR ActiveServers.ModuleConfig_Desc IS NULL)
 	WHERE [Modules].[IsActive] = 1
 	AND [ServerSpecific] = 1
+	AND ReportProcedurename IS NOT NULL
 	AND [Modules].[ModuleConfig_Desc] = @ModuleConfigDetermined
 	AND NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfigReportExclusions] ExcludedReports WHERE [ExcludedReports].[Servername] = [ActiveServers].[Servername] AND [ExcludedReports].[Modulename] = [Modules].[Modulename] AND [ExcludedReports].[IsActive] = 1)
 	ORDER BY 
@@ -10955,6 +11123,25 @@ BEGIN
 						@InfoHeader = @InfoHeaderOutput OUTPUT,
 						@Debug = @Debug;
 
+						--Check @Importance and set to the highest Importance seen so far
+						SET @HighestImportance = (
+						SELECT
+						CASE 
+							WHEN @HighestImportance IS NULL THEN Importance
+							WHEN @HighestImportance > Importance THEN Importance
+							ELSE @HighestImportance
+						END
+						FROM 
+						(
+							SELECT
+							CASE @Importance
+								WHEN ''High'' THEN 1 
+								WHEN ''Normal'' THEN 2 
+								WHEN ''Low'' THEN 3 
+							END AS Importance
+						) Importance
+						);
+
 						--If no headers were populated by the module then revert the back to top hyperlink
 						IF @StandardTableTail IS NOT NULL 
 						BEGIN 
@@ -11012,55 +11199,62 @@ BEGIN
 				--Get Module warning level 
 				SELECT @WarningLevel = [Inspector].[GetWarningLevel](@ModuleConfigDetermined, @Modulename);
 
-				SET @SQLstatement = N''
-				EXEC [Inspector].[''+@ReportProcedurename+'']
-					@Servername = @Serverlist, 
-					@Modulename = @Modulename,
-					@TableHeaderColour = @TableHeaderColour, 
-					@WarningHighlight = @WarningHighlight, 
-					@AdvisoryHighlight = @AdvisoryHighlight,
-					@InfoHighlight = @InfoHighlight,
-					@PSCollection = @PSCollection, 
-					@ModuleConfig = @ModuleConfigDetermined, 
-					@WarningLevel = @WarningLevel,
-					@ServerSpecific = @ServerSpecific,
-					@NoClutter = @NoClutter,
-					@TableTail = @TableTail,
-					@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
-					@HtmlOutput = @ReportModuleHtml OUTPUT,
-					@Debug = @Debug;''
+				BEGIN TRY
+					SET @SQLstatement = N''
+					EXEC [Inspector].[''+@ReportProcedurename+'']
+						@Servername = @Serverlist, 
+						@Modulename = @Modulename,
+						@TableHeaderColour = @TableHeaderColour, 
+						@WarningHighlight = @WarningHighlight, 
+						@AdvisoryHighlight = @AdvisoryHighlight,
+						@InfoHighlight = @InfoHighlight,
+						@PSCollection = @PSCollection, 
+						@ModuleConfig = @ModuleConfigDetermined, 
+						@WarningLevel = @WarningLevel,
+						@ServerSpecific = @ServerSpecific,
+						@NoClutter = @NoClutter,
+						@TableTail = @TableTail,
+						@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
+						@HtmlOutput = @ReportModuleHtml OUTPUT,
+						@Debug = @Debug;''
 
-				EXEC sp_executesql @SQLstatement,
-					N''@Serverlist NVARCHAR(128),
-					@Modulename VARCHAR(50),
-					@TableHeaderColour VARCHAR(7),
-					@WarningHighlight VARCHAR(7),
-					@AdvisoryHighlight VARCHAR(7),
-					@InfoHighlight VARCHAR(7),
-					@PSCollection BIT,
-					@ModuleConfigDetermined VARCHAR(20),
-					@WarningLevel TINYINT,
-					@ServerSpecific BIT,
-					@NoClutter BIT,
-					@TableTail VARCHAR(256),
-					@CollectionOutOfDate BIT OUTPUT,
-					@ReportModuleHtml VARCHAR(MAX) OUTPUT,
-					@Debug BIT'',
-					@Serverlist = @Serverlist, 
-					@Modulename = @Modulename,
-					@TableHeaderColour = @TableHeaderColour, 
-					@WarningHighlight = @WarningHighlight,
-					@AdvisoryHighlight = @AdvisoryHighlight,
-					@InfoHighlight = @InfoHighlight,
-					@PSCollection = @PSCollection, 
-					@ModuleConfigDetermined = @ModuleConfigDetermined, 
-					@WarningLevel = @WarningLevel,
-					@ServerSpecific = @ServerSpecific,
-					@NoClutter = @NoClutter,
-					@TableTail = @TableTail,
-					@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
-					@ReportModuleHtml = @ReportModuleHtml OUTPUT,
-					@Debug = @Debug;
+					EXEC sp_executesql @SQLstatement,
+						N''@Serverlist NVARCHAR(128),
+						@Modulename VARCHAR(50),
+						@TableHeaderColour VARCHAR(7),
+						@WarningHighlight VARCHAR(7),
+						@AdvisoryHighlight VARCHAR(7),
+						@InfoHighlight VARCHAR(7),
+						@PSCollection BIT,
+						@ModuleConfigDetermined VARCHAR(20),
+						@WarningLevel TINYINT,
+						@ServerSpecific BIT,
+						@NoClutter BIT,
+						@TableTail VARCHAR(256),
+						@CollectionOutOfDate BIT OUTPUT,
+						@ReportModuleHtml VARCHAR(MAX) OUTPUT,
+						@Debug BIT'',
+						@Serverlist = @Serverlist, 
+						@Modulename = @Modulename,
+						@TableHeaderColour = @TableHeaderColour, 
+						@WarningHighlight = @WarningHighlight,
+						@AdvisoryHighlight = @AdvisoryHighlight,
+						@InfoHighlight = @InfoHighlight,
+						@PSCollection = @PSCollection, 
+						@ModuleConfigDetermined = @ModuleConfigDetermined, 
+						@WarningLevel = @WarningLevel,
+						@ServerSpecific = @ServerSpecific,
+						@NoClutter = @NoClutter,
+						@TableTail = @TableTail,
+						@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
+						@ReportModuleHtml = @ReportModuleHtml OUTPUT,
+						@Debug = @Debug;
+
+					SET @ErrorMessage = NULL;
+					END TRY 
+					BEGIN CATCH 
+						SET @ErrorMessage = CAST(ERROR_MESSAGE() AS NVARCHAR(128));
+					END CATCH 
 
 					RAISERROR(''Generating header info for Module: [%s] for server [%s] '',0,0,@Modulename,@Serverlist) WITH NOWAIT;
 
@@ -11086,6 +11280,25 @@ BEGIN
 					@AdvisoryHeader = @AdvisoryHeaderOutput OUTPUT,
 					@InfoHeader = @InfoHeaderOutput OUTPUT,
 					@Debug = @Debug;
+
+					--Check @Importance and set to the highest Importance seen so far
+					SET @HighestImportance = (
+					SELECT
+					CASE 
+						WHEN @HighestImportance IS NULL THEN Importance
+						WHEN @HighestImportance > Importance THEN Importance
+						ELSE @HighestImportance
+					END
+					FROM 
+					(
+						SELECT
+						CASE @Importance
+							WHEN ''High'' THEN 1 
+							WHEN ''Normal'' THEN 2 
+							WHEN ''Low'' THEN 3 
+						END AS Importance
+					) Importance
+					);
 
 					--If no headers were populated by the module then revert the back to top hyperlink
 					IF @StandardTableTail IS NOT NULL 
@@ -11134,12 +11347,24 @@ BEGIN
 				@Procname = @ReportProcedurename, 
 				@Frequency = @Frequency,
 				@Duration = @Duration,
-				@PSCollection = @PSCollection;
+				@PSCollection = @PSCollection,
+				@ErrorMessage = @ErrorMessage;
 		END
 	END 
 	ELSE 
 	BEGIN 
 		RAISERROR(''No Report procedure found for Module: %s'',0,0,@Modulename,@Serverlist) WITH NOWAIT;
+
+		EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @ModuleReportStart, 
+			@Servername = @Serverlist, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = @ReportProcedurename, 
+			@Frequency = @Frequency,
+			@Duration = 0,
+			@PSCollection = @PSCollection,
+			@ErrorMessage = ''No Report procedure found for Module'';
+
 	END 
 
 
@@ -11255,6 +11480,8 @@ END
 		SET @ReportSummary += ''ALL_SERVERS (''+@ModuleConfigDetermined+''):''+CHAR(13)+CHAR(10);
 	END
 
+	SET @ErrorMessage = NULL;
+
 	DECLARE OneoffsReportProc_cur CURSOR LOCAL STATIC
 	FOR 
 	SELECT 
@@ -11290,56 +11517,62 @@ END
 			--Get Module warning level 
 			SELECT @WarningLevel = [Inspector].[GetWarningLevel](@ModuleConfigDetermined, @Modulename);
 
-			SET @SQLstatement = N''
-			EXEC [Inspector].[''+@ReportProcedurename+'']
-				@Servername = @Serverlist, 
-				@Modulename = @Modulename,
-				@TableHeaderColour = @TableHeaderColour, 
-				@WarningHighlight = @WarningHighlight, 
-				@AdvisoryHighlight = @AdvisoryHighlight,
-				@InfoHighlight = @InfoHighlight,
-				@PSCollection = @PSCollection, 
-				@ModuleConfig = @ModuleConfigDetermined, 
-				@WarningLevel = @WarningLevel,
-				@ServerSpecific = @ServerSpecific,
-				@NoClutter = @NoClutter,
-				@TableTail = @TableTail,
-				@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
-				@HtmlOutput = @ReportModuleHtml OUTPUT,
-				@Debug = @Debug;''
+			BEGIN TRY
+				SET @SQLstatement = N''
+				EXEC [Inspector].[''+@ReportProcedurename+'']
+					@Servername = @Serverlist, 
+					@Modulename = @Modulename,
+					@TableHeaderColour = @TableHeaderColour, 
+					@WarningHighlight = @WarningHighlight, 
+					@AdvisoryHighlight = @AdvisoryHighlight,
+					@InfoHighlight = @InfoHighlight,
+					@PSCollection = @PSCollection, 
+					@ModuleConfig = @ModuleConfigDetermined, 
+					@WarningLevel = @WarningLevel,
+					@ServerSpecific = @ServerSpecific,
+					@NoClutter = @NoClutter,
+					@TableTail = @TableTail,
+					@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
+					@HtmlOutput = @ReportModuleHtml OUTPUT,
+					@Debug = @Debug;''
 
-			EXEC sp_executesql @SQLstatement,
-				N''@Serverlist NVARCHAR(128),
-				@Modulename VARCHAR(50),
-				@TableHeaderColour VARCHAR(7),
-				@WarningHighlight VARCHAR(7),
-				@AdvisoryHighlight VARCHAR(7),
-				@InfoHighlight VARCHAR(7),
-				@PSCollection BIT,
-				@ModuleConfigDetermined VARCHAR(20),
-				@WarningLevel TINYINT,
-				@ServerSpecific BIT,
-				@NoClutter BIT,
-				@TableTail VARCHAR(256),
-				@CollectionOutOfDate BIT OUTPUT,
-				@ReportModuleHtml VARCHAR(MAX) OUTPUT,
-				@Debug BIT'',
-				@Serverlist = @Serverlist, 
-				@Modulename = @Modulename,
-				@TableHeaderColour = @TableHeaderColour, 
-				@WarningHighlight = @WarningHighlight,
-				@AdvisoryHighlight = @AdvisoryHighlight,
-				@InfoHighlight = @InfoHighlight,
-				@PSCollection = @PSCollection, 
-				@ModuleConfigDetermined = @ModuleConfigDetermined, 
-				@WarningLevel = @WarningLevel,
-				@ServerSpecific = @ServerSpecific,
-				@NoClutter = @NoClutter,
-				@TableTail = @TableTail,
-				@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
-				@ReportModuleHtml = @ReportModuleHtml OUTPUT,
-				@Debug = @Debug;
+				EXEC sp_executesql @SQLstatement,
+					N''@Serverlist NVARCHAR(128),
+					@Modulename VARCHAR(50),
+					@TableHeaderColour VARCHAR(7),
+					@WarningHighlight VARCHAR(7),
+					@AdvisoryHighlight VARCHAR(7),
+					@InfoHighlight VARCHAR(7),
+					@PSCollection BIT,
+					@ModuleConfigDetermined VARCHAR(20),
+					@WarningLevel TINYINT,
+					@ServerSpecific BIT,
+					@NoClutter BIT,
+					@TableTail VARCHAR(256),
+					@CollectionOutOfDate BIT OUTPUT,
+					@ReportModuleHtml VARCHAR(MAX) OUTPUT,
+					@Debug BIT'',
+					@Serverlist = @Serverlist, 
+					@Modulename = @Modulename,
+					@TableHeaderColour = @TableHeaderColour, 
+					@WarningHighlight = @WarningHighlight,
+					@AdvisoryHighlight = @AdvisoryHighlight,
+					@InfoHighlight = @InfoHighlight,
+					@PSCollection = @PSCollection, 
+					@ModuleConfigDetermined = @ModuleConfigDetermined, 
+					@WarningLevel = @WarningLevel,
+					@ServerSpecific = @ServerSpecific,
+					@NoClutter = @NoClutter,
+					@TableTail = @TableTail,
+					@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
+					@ReportModuleHtml = @ReportModuleHtml OUTPUT,
+					@Debug = @Debug;
 
+				SET @ErrorMessage = NULL;
+				END TRY 
+				BEGIN CATCH 
+					SET @ErrorMessage = CAST(ERROR_MESSAGE() AS NVARCHAR(128));
+				END CATCH 			
 
 				SET @Duration = CAST(DATEDIFF(MILLISECOND,@ModuleReportStart,GETDATE()) AS MONEY)/1000;
 
@@ -11350,7 +11583,8 @@ END
 					@Procname = @ReportProcedurename, 
 					@Frequency = @Frequency,
 					@Duration = @Duration,
-					@PSCollection = @PSCollection;
+					@PSCollection = @PSCollection,
+					@ErrorMessage = @ErrorMessage;
 
 				
 				--Generate header information
@@ -11375,6 +11609,25 @@ END
 				@AdvisoryHeader = @AdvisoryHeaderOutput OUTPUT,
 				@InfoHeader = @InfoHeaderOutput OUTPUT,
 				@Debug = @Debug;
+
+				--Check @Importance and set to the highest Importance seen so far
+				SET @HighestImportance = (
+				SELECT
+				CASE 
+					WHEN @HighestImportance IS NULL THEN Importance
+					WHEN @HighestImportance > Importance THEN Importance
+					ELSE @HighestImportance
+				END
+				FROM 
+				(
+					SELECT
+					CASE @Importance
+						WHEN ''High'' THEN 1 
+						WHEN ''Normal'' THEN 2 
+						WHEN ''Low'' THEN 3 
+					END AS Importance
+				) Importance
+				);
 
 				IF (@DetailedSummary = 1)
 				BEGIN 
@@ -11416,6 +11669,16 @@ END
 		ELSE
 		BEGIN 
 			RAISERROR(''No Report procedure found for Module: %s'',0,0,@Modulename,@Serverlist) WITH NOWAIT;
+
+			EXEC [Inspector].[ExecutionLogInsert] 
+				@RunDatetime = @ModuleReportStart, 
+				@Servername = @Serverlist, 
+				@ModuleConfigDesc = @ModuleConfig,
+				@Procname = @ReportProcedurename, 
+				@Frequency = @Frequency,
+				@Duration = 0,
+				@PSCollection = @PSCollection,
+				@ErrorMessage = ''No Report procedure found for Module'';
 		END
 
 		FETCH NEXT FROM OneoffsReportProc_cur INTO @ModuleConfig,@Modulename,@ReportProcedurename,@ServerSpecific,@Frequency
@@ -11584,20 +11847,33 @@ END
 
 IF @ModuleDesc IS NULL BEGIN SET @ModuleDesc = ''NULL'' END;
 
+SET @Importance = (SELECT CASE @HighestImportance WHEN 1 THEN ''High'' WHEN 2 THEN ''Normal'' WHEN 3 THEN ''Low'' END);
+
 IF @TestMode = 1 OR (@RecipientsList IS NULL OR @RecipientsList = '''')
 BEGIN
-INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup)
-SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup;
+	IF (@ReportWarningsOnly > 0)
+	BEGIN
+		IF (@HighestImportance <= @ReportWarningsOnly)
+		BEGIN
+			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup,ReportWarningsOnly)
+			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup,@ReportWarningsOnly;
+		END
+	END
+	ELSE 
+	BEGIN
+		INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup,ReportWarningsOnly)
+		SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup,@ReportWarningsOnly;
+	END
 END
 ELSE
 BEGIN
-
-IF @EmailRedWarningsOnly = 1 
+BEGIN TRY
+IF (@ReportWarningsOnly > 0)
 	BEGIN
-		IF @Importance = ''High''
+		IF (@HighestImportance <= @ReportWarningsOnly)
 		BEGIN
-			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup)
-			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup;
+			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup,ReportWarningsOnly)
+			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup,@ReportWarningsOnly;
 
 			EXEC msdb.dbo.sp_send_dbmail 
 			@recipients = @RecipientsList,
@@ -11609,8 +11885,8 @@ IF @EmailRedWarningsOnly = 1
 	END
 	ELSE 
 	BEGIN
-			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup)
-			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup;
+			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup,ReportWarningsOnly)
+			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup,@ReportWarningsOnly;
 
 			EXEC msdb.dbo.sp_send_dbmail 
 			@recipients = @RecipientsList,
@@ -11619,6 +11895,13 @@ IF @EmailRedWarningsOnly = 1
 			@body=@EmailBody ,
 			@body_format = ''HTML'' 
 	END
+
+END TRY 
+BEGIN CATCH 
+	SET @ErrorMessage = N''Error occured whilst executing sp_send_dbmail: ''+ CAST(ERROR_MESSAGE() AS NVARCHAR(80));
+	RAISERROR(''%s'',0,0,@ErrorMessage); --Severity is 0 as we are logging the error in the next code block
+END CATCH 
+
 END
 
 SET @Duration = CAST(DATEDIFF(MILLISECOND,@ReportStart,GETDATE()) AS MONEY)/1000;
@@ -11630,7 +11913,8 @@ EXEC [Inspector].[ExecutionLogInsert]
 @ModuleConfigDesc = @ModuleDesc,
 @Procname = @Procname, 
 @Duration = @Duration,
-@PSCollection = @PSCollection;
+@PSCollection = @PSCollection,
+@ErrorMessage = @ErrorMessage;
 
 --Report Data cleanup
 DELETE FROM [Inspector].[ReportData]
@@ -11662,7 +11946,7 @@ CREATE FUNCTION [Inspector].[GetNonServerSpecificModules]
 @ModuleDesc VARCHAR(20),
 @DatabaseGrowthCheckRunEnabled BIT
 )
---Revision date: 25/10/2019
+--Revision date: 13/04/2020
 RETURNS TABLE 
 AS
 RETURN 
@@ -11699,6 +11983,7 @@ RETURN
 		) AS ActiveServers
 		INNER JOIN [Inspector].[Modules] ON ([ActiveServers].[ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] OR ActiveServers.ModuleConfig_Desc IS NULL)
 		WHERE [Modules].[IsActive] = 1
+		AND ReportProcedurename IS NOT NULL
 		AND [ServerSpecific] = 0
 		AND [Modules].[ModuleConfig_Desc] = @ModuleDesc 
 	) AS NonServerSpecificModules
