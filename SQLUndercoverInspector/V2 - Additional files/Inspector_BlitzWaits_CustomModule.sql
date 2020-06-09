@@ -10,7 +10,7 @@ Description: BlitzWaits Custom module for the Inspector
 			 it is up to you how much you want to see.
 
 Author: Adrian Buckman
-Revision date: 07/02/2020
+Revision date: 24/05/2020
 Credit: Brent Ozar unlimited and its contributors, part of the code used in [Inspector].[BlitzWaitsReport] is a revision of the view [dbo].[BlitzFirst_WaitStats_Deltas].
 
 © www.sqlundercover.com 
@@ -77,7 +77,7 @@ THREADPOOL
 
 
 
-DECLARE @Revisiondate DATE = '20200207';
+DECLARE @Revisiondate DATE = '20200524';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 
@@ -121,7 +121,7 @@ SELECT
 [Waits].[WaitType],
 1 AS [WarningLevel],
 1 AS [IsActive],
-0.00 AS [Threshold],
+10.00 AS [Threshold],
 '>' AS [ThresholdDirection]
 FROM [Inspector].[CurrentServers]
 CROSS APPLY (
@@ -138,6 +138,71 @@ CROSS APPLY (
 			('THREADPOOL')) AS Waits (WaitType)
 WHERE NOT EXISTS (SELECT 1 FROM [Inspector].[BlitzWaits_WatchedWaitTypes] WatchedWaits WHERE [WatchedWaits].[Servername] = [CurrentServers].[Servername] AND [WatchedWaits].[Wait_type] = [Waits].[WaitType]);
 
+
+IF OBJECT_ID('Inspector.MonitorHours',N'U') IS NULL 
+BEGIN 
+	CREATE TABLE [Inspector].[MonitorHours](
+	[Servername] NVARCHAR(128) NULL,
+	[Modulename] VARCHAR(50) NULL,
+	[MonitorHourStart] INT NOT NULL,
+	[MonitorHourEnd] INT NOT NULL
+	);
+
+	EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_Servername_Modulename] ON [Inspector].[MonitorHours] ([Servername],[Modulename]);';
+END
+
+
+EXEC sp_executesql N'
+IF NOT EXISTS(SELECT 1 FROM [Inspector].[MonitorHours] WHERE Servername = @@SERVERNAME AND Modulename = ''BlitzWaits'') 
+BEGIN 
+	INSERT INTO [Inspector].[MonitorHours] ([Servername],[Modulename],[MonitorHourStart],[MonitorHourEnd])
+	VALUES(@@SERVERNAME,''BlitzWaits'',0,23);
+END';
+
+IF OBJECT_ID('Inspector.GetMonitorHours') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[GetMonitorHours] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[GetMonitorHours] (
+@Servername NVARCHAR(128),
+@Modulename VARCHAR(50),
+@MonitorHourStart INT OUTPUT,
+@MonitorHourEnd INT OUTPUT	
+)
+AS 
+BEGIN 
+	/* Revision date: 01/05/2020 */
+
+	SELECT 
+	@MonitorHourStart = [MonitorHourStart],
+	@MonitorHourEnd = [MonitorHourEnd]
+	FROM [Inspector].[MonitorHours] 
+	WHERE [Servername] = @Servername 
+	AND [Modulename] = @Modulename;
+
+END';
+
+
+IF OBJECT_ID('Inspector.GetModuleConfigFrequency') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[GetModuleConfigFrequency] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[GetModuleConfigFrequency] (
+@ModuleConfig VARCHAR(20),
+@Frequency INT OUTPUT
+)
+AS 
+BEGIN 
+	/* Revision date: 01/05/2020 */
+
+	SELECT 
+	@Frequency = [Frequency] 
+	FROM [Inspector].[ModuleConfig]
+	WHERE ModuleConfig_Desc = @ModuleConfig;
+
+END';
 
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'BlitzWaitsTopXRows')
 BEGIN 
@@ -211,7 +276,7 @@ ALTER PROCEDURE [Inspector].[BlitzWaitsReport] (
 )
 AS
 BEGIN
---Revision date: 19/02/2020
+--Revision date: 24/05/2020
 /*
 Explanation of the logic used here:
 DATEADD(HOUR,(DATEPART(HOUR,CheckDate)%@HourlyBucketSize)/-1,DATEADD(HOUR, DATEDIFF(HOUR, 0, CheckDate), 0))
@@ -225,15 +290,29 @@ DATEADD(HOUR,(DATEPART(HOUR,CheckDate)%@HourlyBucketSize)/-1,DATEADD(HOUR, DATED
 	DECLARE @HtmlTableHead VARCHAR(4000);
 	DECLARE @Columnnames VARCHAR(2000);
 	DECLARE @SQLtext NVARCHAR(4000);
-	DECLARE @Frequency INT = (SELECT Frequency FROM Inspector.ModuleConfig WHERE ModuleConfig_Desc = ''Default'');
+	DECLARE @MonitorHourStart INT;
+	DECLARE @MonitorHourEnd INT;
+	DECLARE @Frequency INT;
 	DECLARE @Top INT = (SELECT ISNULL(TRY_CAST([Value] AS INT),3) FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsTopXRows''); 
 	DECLARE @HourlyBucketSize INT = (SELECT ISNULL(TRY_CAST([Value] AS INT),3) FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsHourlyBucketSize''); 
 	DECLARE @AlwaysShowBreached BIT = (SELECT ISNULL(TRY_CAST([Value] AS BIT),0) FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsAlwaysShowBreached'');
 	DECLARE @BlitzWaitsBucketColourOdd VARCHAR(7) = (SELECT ISNULL(TRY_CAST([Value] AS VARCHAR(7)),''#FFFFFF'') FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsBucketColourOdd'');
 	DECLARE @BlitzWaitsBucketColourEven VARCHAR(7) = (SELECT ISNULL(TRY_CAST([Value] AS VARCHAR(7)),''#FFFFFF'') FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsBucketColourEven'');
-	DECLARE @CheckDate DATETIMEOFFSET(7) = DATEADD(MINUTE,-@Frequency,SYSDATETIMEOFFSET());
+	DECLARE @CheckDate DATETIMEOFFSET(7);
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
+
+	EXEC [Inspector].[GetMonitorHours] 
+		@Servername = @Servername,
+		@Modulename = @Modulename, 
+		@MonitorHourStart  = @MonitorHourStart OUTPUT,
+		@MonitorHourEnd = @MonitorHourEnd OUTPUT;
+
+	EXEC [Inspector].[GetModuleConfigFrequency] 
+		@ModuleConfig = @ModuleConfig,
+		@Frequency = @Frequency OUTPUT;
+
+	SET @CheckDate = DATEADD(MINUTE,-@Frequency,SYSDATETIMEOFFSET());
 
 	IF (@Top IS NULL) BEGIN SET @Top = 3 END;
 	IF (@HourlyBucketSize IS NULL) BEGIN SET @HourlyBucketSize = 1 END;
@@ -241,6 +320,8 @@ DATEADD(HOUR,(DATEPART(HOUR,CheckDate)%@HourlyBucketSize)/-1,DATEADD(HOUR, DATED
 	IF (@AlwaysShowBreached IS NULL) BEGIN SET @AlwaysShowBreached = 0 END
 	IF (@BlitzWaitsBucketColourOdd IS NULL) BEGIN SET @BlitzWaitsBucketColourOdd = ''#bffffc'' END
 	IF (@BlitzWaitsBucketColourEven IS NULL) BEGIN SET @BlitzWaitsBucketColourEven = ''#bfe8ff'' END
+	IF @MonitorHourStart IS NULL BEGIN SET @MonitorHourStart = 0 END;
+	IF @MonitorHourEnd IS NULL BEGIN SET @MonitorHourEnd = 23 END;
 
 
 /********************************************************/
@@ -361,6 +442,7 @@ WITH Buckets as (
 	SUM(signal_wait_time_ms_delta) AS signal_wait_time_ms_delta,
 	SUM(waiting_tasks_count_delta) AS waiting_tasks_count_delta
 	FROM #Deltas
+	WHERE DATEPART(HOUR,[CheckDate]) BETWEEN @MonitorHourStart AND @MonitorHourEnd
 	GROUP BY 
 	ServerName,
 	wait_type,
@@ -501,7 +583,11 @@ FROM
 	@Servername,
 	@Modulename,
 	@ServerSpecific,
-	''Top ''+CAST(@Top AS VARCHAR(6))+'' wait stats grouped by ''+CAST(@HourlyBucketSize AS VARCHAR(6))+'' hourly buckets for the last ''+CAST(@Frequency AS VARCHAR(6))+ '' minutes'', --/**  OPTIONAL  **/ Title for the HTML table, you can use a string here instead such as ''My table title here'' if you want to
+	''Top ''+CAST(@Top AS VARCHAR(6))+'' wait stats grouped by ''+CAST(@HourlyBucketSize AS VARCHAR(6))+'' hourly buckets for the last ''+CAST(@Frequency AS VARCHAR(6)) 
+	+''mins between the hours of ''
+	+CAST(@MonitorHourStart AS VARCHAR(10))
+	+'' and ''
+	+CAST(@MonitorHourEnd AS VARCHAR(10)), --/**  OPTIONAL  **/ Title for the HTML table, you can use a string here instead such as ''My table title here'' if you want to
 	@TableHeaderColour,
 	@Columnnames)
 	);
@@ -642,13 +728,13 @@ Highlighted waits will hightlight the correspinding row in the html table within
 ';
 
 
-SELECT [Description],[Value]
-FROM [Inspector].[Settings] 
-WHERE [Description] IN ('BlitzWaitsTopXRows','BlitzWaitsHourlyBucketSize','BlitzWaitsAlwaysShowBreached');
+--SELECT [Description],[Value]
+--FROM [Inspector].[Settings] 
+--WHERE [Description] IN ('BlitzWaitsTopXRows','BlitzWaitsHourlyBucketSize','BlitzWaitsAlwaysShowBreached');
 
-SELECT * 
-FROM [Inspector].[ModuleConfig] 
-WHERE [ModuleConfig_Desc] = @ModuleConfig;
+--SELECT * 
+--FROM [Inspector].[ModuleConfig] 
+--WHERE [ModuleConfig_Desc] = @ModuleConfig;
 
 END
 ELSE 

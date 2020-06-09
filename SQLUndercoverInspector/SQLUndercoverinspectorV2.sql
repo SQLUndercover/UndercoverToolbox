@@ -65,8 +65,8 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 28/03/2020
-Version: 2.2
+Revision date: 24/05/2020
+Version: 2.3
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -129,8 +129,8 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200328';
-DECLARE @Build VARCHAR(6) ='2.2'
+DECLARE @Revisiondate DATE = '20200524';
+DECLARE @Build VARCHAR(6) ='2.3'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
 DECLARE @JobsWithoutSchedules VARCHAR(1000);
@@ -151,7 +151,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 
---Inspector V2.2
+--Inspector V2.3
 --Revision date: '+CONVERT(VARCHAR(17),@Revisiondate,113)+'
 
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
@@ -276,7 +276,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			BEGIN
 			SET NOCOUNT ON;
 
-			DECLARE @SQLStatement VARCHAR(MAX) 
+			DECLARE @SQLStatement NVARCHAR(MAX) 
 			DECLARE @DatabaseFileSizesResult INT
 			DECLARE @CurrentBuild VARCHAR(6)
 			 
@@ -293,6 +293,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			
 			IF @CurrentBuild IS NOT NULL
 			BEGIN 
+				IF (@Build < @CurrentBuild)
+				BEGIN 
+					RAISERROR('Current build: %s , is greater than the build you are trying to install (%s)',11,0,@CurrentBuild,@Build) WITH NOWAIT;
+					RETURN;
+				END 
+				ELSE
 				BEGIN
 					RAISERROR('Current build: %s , Target build: %s',0,0,@CurrentBuild,@Build) WITH NOWAIT;
 				END
@@ -375,13 +381,19 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[ReportData] VARCHAR(MAX) NULL,
 				[Summary] XML NULL,
 				[Importance] VARCHAR(6) NULL,
-				[EmailGroup] VARCHAR(50) NULL
+				[EmailGroup] VARCHAR(50) NULL,
+				[ReportWarningsOnly] TINYINT NULL
 			);
 
 			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'Summary' AND [object_id] = OBJECT_ID(N'Inspector.ReportData'))
 			BEGIN
 				--New column for 1.2 for Inspector.ReportData
 				ALTER TABLE [Inspector].[ReportData] ADD [Summary] VARCHAR(60) NULL;
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'ReportWarningsOnly' AND [object_id] = OBJECT_ID(N'Inspector.ReportData'))
+			BEGIN
+				ALTER TABLE [Inspector].[ReportData] ADD [ReportWarningsOnly] TINYINT NULL;
 			END
 
 			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.ReportData') AND name='IX_ReportDate')
@@ -391,13 +403,14 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			END
 
 			--Inspector V2.00 change to XML
-			IF EXISTS (SELECT 1 
-						FROM sys.tables 
-						INNER JOIN sys.columns ON tables.object_id = columns.object_id 
-						WHERE tables.name = N'ReportData' 
-						AND schema_id = SCHEMA_ID(N'Inspector')
-						AND columns.name = N'Summary'
-						AND system_type_id = 167)
+			IF NOT EXISTS (SELECT 1 
+							FROM sys.tables 
+							INNER JOIN sys.columns ON tables.object_id = columns.object_id 
+							INNER JOIN sys.types ON columns.user_type_id = types.user_type_id
+							WHERE tables.name = N'ReportData' 
+							AND tables.schema_id = SCHEMA_ID(N'Inspector')
+							AND columns.name = N'Summary'
+							AND types.name = N'xml')
 			BEGIN 
 				ALTER TABLE [Inspector].[ReportData] ALTER COLUMN [Summary] XML NULL;
 			END
@@ -833,7 +846,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 						[StartTime] TIME(0) NOT NULL,
 						[EndTime] TIME(0) NOT NULL,
 						[LastRunDateTime] DATETIME NULL,
-						[ReportWarningsOnly] BIT NOT NULL,
+						[ReportWarningsOnly] TINYINT NOT NULL,
 						[NoClutter] BIT NOT NULL,
 						[ShowDisabledModules] BIT NOT NULL
 					 CONSTRAINT [PK_ModuleConfig_Desc] PRIMARY KEY CLUSTERED 
@@ -1015,11 +1028,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 						[StartTime] TIME(0) NOT NULL,
 						[EndTime] TIME(0) NOT NULL,
 						[LastRunDateTime] DATETIME NULL,
-						[ReportWarningsOnly] BIT NOT NULL,
+						[ReportWarningsOnly] TINYINT NOT NULL,
 						[NoClutter] BIT NOT NULL,
 						[ShowDisabledModules] BIT NOT NULL,
 						[RunDay] VARCHAR(70) NULL,
-						[EmailGroup] VARCHAR(50) NULL
+						[EmailGroup] VARCHAR(50) NULL,
+						[EmailProfile] NVARCHAR(128) NULL
 					 CONSTRAINT [PK_ModuleConfig_Desc] PRIMARY KEY CLUSTERED 
 					([ModuleConfig_Desc] ASC)
 					);
@@ -1045,6 +1059,22 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 					EXEC sp_executesql N'ALTER TABLE [Inspector].[ModuleConfig] ADD [EmailGroup] VARCHAR(50) NULL;';
 				END
 
+				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID('Inspector.ModuleConfig') AND [name] = 'EmailProfile')
+				BEGIN 
+					EXEC sp_executesql N'ALTER TABLE [Inspector].[ModuleConfig] ADD [EmailProfile] VARCHAR(128) NULL;';
+				END
+
+				IF NOT EXISTS (SELECT 1
+								FROM sys.tables 
+								INNER JOIN sys.columns ON tables.object_id = columns.object_id 
+								INNER JOIN sys.types ON columns.user_type_id = types.user_type_id
+								WHERE tables.name = N'ModuleConfig' 
+								AND tables.schema_id = SCHEMA_ID(N'Inspector')
+								AND columns.name = N'ReportWarningsOnly'
+								AND types.name = N'tinyint')
+				BEGIN 
+					ALTER TABLE [Inspector].[ModuleConfig] ALTER COLUMN [ReportWarningsOnly] TINYINT NOT NULL;
+				END
 
 				IF OBJECT_ID('Inspector.CatalogueModules') IS NULL
 				BEGIN
@@ -1188,16 +1218,16 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			END
 
 
-			SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+			SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
 			--Populate AGCheckConfig
-			INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGCheckConfig] ([AGname],[AGReplicaCount],[FailoverReadyNodeCount])
+			INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGCheckConfig] ([AGname],[AGReplicaCount],[FailoverReadyNodeCount])
 			SELECT 
 			Groups.[name],
 			COUNT([name]),
 			2
 			FROM sys.availability_groups Groups
 			INNER JOIN sys.availability_replicas as Replicas ON Groups.group_id = Replicas.group_id
-			WHERE NOT EXISTS (SELECT 1 FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGCheckConfig] WHERE [AGname] = Groups.[name] COLLATE DATABASE_DEFAULT)
+			WHERE NOT EXISTS (SELECT 1 FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGCheckConfig] WHERE [AGname] = Groups.[name] COLLATE DATABASE_DEFAULT)
 			GROUP BY Groups.[name];
 			'
 			EXEC(@SQLStatement);
@@ -1364,12 +1394,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			END 
 
 ;
-			SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+			SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
 			--Make a one off update to the Database files to ensure they now show the full path and not just the filename
 			UPDATE [DatabaseFileSizes]
 			SET [Filename] = [master_files].[physical_name],[LastUpdated] = GETDATE()
 			FROM sys.master_files
-			INNER JOIN '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes] ON [DatabaseFileSizes].[Database_id] = [master_files].[database_id]
+			INNER JOIN '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizes] ON [DatabaseFileSizes].[Database_id] = [master_files].[database_id]
 														AND [DatabaseFileSizes].[File_id] = [master_files].[file_id]
 			WHERE [DatabaseFileSizes].[Servername] = @@SERVERNAME;';
 
@@ -1684,7 +1714,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[Procname] NVARCHAR(128) NOT NULL,
 				[Frequency] SMALLINT NULL,
 				[Duration] MONEY,
-				[PSCollection] BIT NOT NULL
+				[PSCollection] BIT NOT NULL,
+				[ErrorMessage] NVARCHAR(128) NULL
 				); 
 
 				CREATE CLUSTERED INDEX [CIX_ExecutionLog_ID] ON [Inspector].[ExecutionLog]
@@ -1699,6 +1730,16 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 							AND columns.name = N'Frequency')
 			BEGIN 
 				ALTER TABLE [Inspector].[ExecutionLog] ADD [Frequency] SMALLINT NULL;
+			END
+
+			IF NOT EXISTS(SELECT 1 
+							FROM sys.tables 
+							INNER JOIN sys.columns ON tables.object_id = columns.object_id 
+							WHERE tables.schema_id = SCHEMA_ID(N'Inspector')
+							AND tables.name = N'ExecutionLog'
+							AND columns.name = N'ErrorMessage')
+			BEGIN 
+				ALTER TABLE [Inspector].[ExecutionLog] ADD [ErrorMessage] NVARCHAR(128) NULL;
 			END
 
 			IF OBJECT_ID('Inspector.CatalogueSIDExclusions') IS NULL
@@ -1814,6 +1855,53 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[PSCollection] BIT
 				);
 			END
+
+
+			IF NOT EXISTS (SELECT * FROM sys.tables WHERE [name] = N'ReportsDueCache' AND [schema_id] = SCHEMA_ID(N'Inspector'))
+			BEGIN 
+				CREATE TABLE [Inspector].[ReportsDueCache] (
+				[ID] UNIQUEIDENTIFIER NOT NULL,
+				[ModuleConfig_Desc] VARCHAR(20) NOT NULL,
+				[CurrentScheduleStart] DATETIME NOT NULL,
+				[ReportWarningsOnly] TINYINT NOT NULL,
+				[NoClutter] BIT NOT NULL,
+				[Frequency] SMALLINT NOT NULL,
+				[EmailGroup] VARCHAR(50) NULL,
+				[EmailProfile] VARCHAR(128) NULL
+				);
+			END
+			
+			IF NOT EXISTS (SELECT 1 FROM sys.tables INNER JOIN sys.indexes ON indexes.[object_id] = tables .[object_id] WHERE tables.[name] = N'ReportsDueCache' AND indexes.[name] = N'CIX_ID' AND SCHEMA_NAME(tables.[schema_id]) = N'Inspector')
+			BEGIN 
+				CREATE CLUSTERED INDEX [CIX_ID] ON [Inspector].[ReportsDueCache] (ID ASC);
+			END
+
+			IF NOT EXISTS (SELECT * FROM sys.tables WHERE [name] = N'ExecutionLogLastTruncate' AND [schema_id] = SCHEMA_ID(N'Inspector'))
+			BEGIN
+				CREATE TABLE [Inspector].[ExecutionLogLastTruncate] (
+				LastTruncate DATE NOT NULL
+				);
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[ExecutionLogLastTruncate])
+			BEGIN 
+				EXEC sp_executesql N'INSERT INTO [Inspector].[ExecutionLogLastTruncate] (LastTruncate)
+				VALUES(CAST(GETDATE() AS DATE));';
+			END
+
+
+			IF OBJECT_ID('Inspector.MonitorHours',N'U') IS NULL 
+			BEGIN 
+				CREATE TABLE [Inspector].[MonitorHours](
+				[Servername] [nvarchar](128) NULL,
+				[Modulename] VARCHAR(50) NULL,
+				[MonitorHourStart] INT NOT NULL,
+				[MonitorHourEnd] INT NOT NULL
+				);
+			
+				EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_Servername_Modulename] ON [Inspector].[MonitorHours] ([Servername],[Modulename]);';
+			END
+
 
 		    IF OBJECT_ID('Inspector.PSConfig') IS NULL 
 			BEGIN
@@ -1974,6 +2062,7 @@ TRUNCATE TABLE [Inspector].[EmailConfig];
 TRUNCATE TABLE [Inspector].[ModuleWarnings];
 TRUNCATE TABLE [Inspector].[ModuleWarningLevel];
 UPDATE [Inspector].[ModuleConfig] SET [EmailGroup] = NULL WHERE [EmailGroup] IS NOT NULL;
+UPDATE [Inspector].[ModuleConfig] SET [EmailProfile] = NULL WHERE [EmailProfile] IS NOT NULL;
 DELETE FROM [Inspector].[EmailRecipients];
 TRUNCATE TABLE [Inspector].[CatalogueModules];
 TRUNCATE TABLE [Inspector].[DefaultHeaderText];';
@@ -2122,20 +2211,20 @@ N'@StackNameForEmailSubject VARCHAR(255),
 
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
-INSERT INTO '+CAST(@LinkedServername AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] (Servername,IsActive,ModuleConfig_Desc)
+INSERT INTO '+CAST(@LinkedServername AS NVARCHAR(128))+N'['+CAST(@Databasename AS NVARCHAR(128))+N'].[Inspector].[CurrentServers] (Servername,IsActive,ModuleConfig_Desc)
 SELECT DISTINCT replica_server_name,1,NULL
 FROM sys.dm_hadr_availability_replica_cluster_nodes AGServers
-WHERE NOT EXISTS (SELECT Servername FROM '+CAST(@LinkedServername AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] WHERE Servername COLLATE DATABASE_DEFAULT = AGServers.replica_server_name)
+WHERE NOT EXISTS (SELECT Servername FROM '+CAST(@LinkedServername AS NVARCHAR(128))+N'['+CAST(@Databasename AS NVARCHAR(128))+N'].[Inspector].[CurrentServers] WHERE Servername COLLATE DATABASE_DEFAULT = AGServers.replica_server_name)
 END 
 ELSE 
 BEGIN 
 
-INSERT INTO '+CAST(@LinkedServername AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] (Servername,IsActive,ModuleConfig_Desc)
+INSERT INTO '+CAST(@LinkedServername AS NVARCHAR(128))+N'['+CAST(@Databasename AS NVARCHAR(128))+N'].[Inspector].[CurrentServers] (Servername,IsActive,ModuleConfig_Desc)
 SELECT @@SERVERNAME,1,NULL
-WHERE NOT EXISTS (SELECT Servername FROM '+CAST(@LinkedServername AS VARCHAR(128))+'['+CAST(@Databasename AS VARCHAR(128))+'].[Inspector].[CurrentServers] WHERE Servername = @@Servername)
+WHERE NOT EXISTS (SELECT Servername FROM '+CAST(@LinkedServername AS NVARCHAR(128))+N'['+CAST(@Databasename AS NVARCHAR(128))+N'].[Inspector].[CurrentServers] WHERE Servername = @@Servername)
 END
 '
 
@@ -2202,7 +2291,7 @@ END
 	BEGIN
 	EXEC dbo.sp_executesql @statement = N'CREATE VIEW [Inspector].[ModuleSchedulesDue] 
 	AS 
-	--Revision date: 11/10/2019
+	--Revision date: 13/03/2020
 	
 		SELECT 
 		[Schedules].[Modulename],
@@ -2231,8 +2320,7 @@ END
 				SELECT [ModuleConfig_Desc],[Modulename],CollectionProcedurename,Frequency,StartTime,EndTime,LastRunDateTime
 				FROM [Inspector].[Modules] 
 				WHERE [IsActive] = 1
-				--AND ModuleConfig_Desc = ''Default''
-				--AND Modulename = ''ADHocDatabaseCreations''
+				AND CollectionProcedurename IS NOT NULL
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
@@ -2249,7 +2337,7 @@ END
 	BEGIN 
 	EXEC dbo.sp_executesql @statement = N'ALTER VIEW [Inspector].[ModuleSchedulesDue] 
 	AS 
-	--Revision date: 11/10/2019
+	--Revision date: 13/04/2020
 	
 		SELECT 
 		[Schedules].[Modulename],
@@ -2278,8 +2366,7 @@ END
 				SELECT [ModuleConfig_Desc],[Modulename],CollectionProcedurename,Frequency,StartTime,EndTime,LastRunDateTime
 				FROM [Inspector].[Modules] 
 				WHERE [IsActive] = 1
-				--AND ModuleConfig_Desc = ''Default''
-				--AND Modulename = ''ADHocDatabaseCreations''
+				AND CollectionProcedurename IS NOT NULL
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
@@ -2299,7 +2386,7 @@ END
 	EXEC dbo.sp_executesql @statement = N'
 	CREATE VIEW [Inspector].[ReportSchedulesDue] 
 	AS 
-	--Revision date: 26/03/2020
+	--Revision date: 15/05/2020
 	
 		SELECT 
 		[ModuleConfig_Desc],
@@ -2313,7 +2400,8 @@ END
 		LastRunDateTime,
 		RowNum%Frequency AS modulo,
 		RowNum,
-		EmailGroup
+		EmailGroup,
+		EmailProfile
 		FROM 
 		(
 			SELECT 
@@ -2325,12 +2413,12 @@ END
 			DATEADD(MINUTE,DATEPART(MINUTE,StartTime),DATEADD(HOUR,DATEPART(HOUR,StartTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS StartDatetime,
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
 			LastRunDateTime,RunDay,
-			ISNULL(EmailGroup,''DBA'') AS EmailGroup
+			ISNULL(EmailGroup,''DBA'') AS EmailGroup,
+			EmailProfile
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup,EmailProfile
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
-				--AND ModuleConfig_Desc = ''Default''
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
@@ -2350,7 +2438,7 @@ END
 	EXEC dbo.sp_executesql @statement = N'
 	ALTER VIEW [Inspector].[ReportSchedulesDue] 
 	AS 
-	--Revision date: 26/03/2020
+	--Revision date: 15/05/2020
 	
 		SELECT 
 		[ModuleConfig_Desc],
@@ -2364,7 +2452,8 @@ END
 		LastRunDateTime,
 		RowNum%Frequency AS modulo,
 		RowNum,
-		EmailGroup
+		EmailGroup,
+		EmailProfile
 		FROM 
 		(
 			SELECT 
@@ -2376,12 +2465,12 @@ END
 			DATEADD(MINUTE,DATEPART(MINUTE,StartTime),DATEADD(HOUR,DATEPART(HOUR,StartTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS StartDatetime,
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
 			LastRunDateTime,RunDay,
-			ISNULL(EmailGroup,''DBA'') AS EmailGroup
+			ISNULL(EmailGroup,''DBA'') AS EmailGroup,
+			EmailProfile
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup,EmailProfile
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
-				--AND ModuleConfig_Desc = ''Default''
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
@@ -3314,6 +3403,9 @@ END
 
 			IF OBJECT_ID('Inspector.BackupSpaceReport') IS NOT NULL
 			DROP PROCEDURE [Inspector].[BackupSpaceReport];
+
+			IF OBJECT_ID('Inspector.ExecutionLogTruncate') IS NOT NULL
+			DROP PROCEDURE [Inspector].[ExecutionLogTruncate];
 			
 
 			--Drop functions for recreation
@@ -3334,8 +3426,7 @@ END
 			DROP TRIGGER [Inspector].[PSConfigSync];
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
 -- =============================================
 -- This trigger is used to keep the table PSConfig up to date with the Modules table
 -- =============================================
@@ -3452,9 +3543,54 @@ END'
 
 EXEC(@SQLStatement);
 
+IF OBJECT_ID('Inspector.GetMonitorHours') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[GetMonitorHours] AS;';
+END 
 
-SET @SQLStatement = 
-'CREATE PROCEDURE [Inspector].[ADHocDatabaseCreationsInsert]
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[GetMonitorHours] (
+@Servername NVARCHAR(128),
+@Modulename VARCHAR(50),
+@MonitorHourStart INT OUTPUT,
+@MonitorHourEnd INT OUTPUT	
+)
+AS 
+BEGIN 
+	/* Revision date: 01/05/2020 */
+
+	SELECT 
+	@MonitorHourStart = [MonitorHourStart],
+	@MonitorHourEnd = [MonitorHourEnd]
+	FROM [Inspector].[MonitorHours] 
+	WHERE [Servername] = @Servername 
+	AND [Modulename] = @Modulename;
+
+END';
+
+
+IF OBJECT_ID('Inspector.GetModuleConfigFrequency') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[GetModuleConfigFrequency] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[GetModuleConfigFrequency] (
+@ModuleConfig VARCHAR(20),
+@Frequency INT OUTPUT
+)
+AS 
+BEGIN 
+	/* Revision date: 01/05/2020 */
+
+	SELECT 
+	@Frequency = [Frequency] 
+	FROM [Inspector].[ModuleConfig]
+	WHERE ModuleConfig_Desc = @ModuleConfig;
+
+END';
+
+
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[ADHocDatabaseCreationsInsert]
 AS
 BEGIN
 
@@ -3463,11 +3599,11 @@ BEGIN
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 
 DELETE 
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ADHocDatabaseCreations]
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[ADHocDatabaseCreations]
 WHERE Servername = @Servername;
 
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ADHocDatabaseCreations] (Servername,Log_Date,Databasename,Create_Date)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[ADHocDatabaseCreations] (Servername,Log_Date,Databasename,Create_Date)
 SELECT
 @Servername,
 GETDATE(),
@@ -3482,29 +3618,29 @@ AND [state] = 0
 AND [create_date] > DATEADD(DAY,-7,CAST(GETDATE() AS DATE))
 AND [source_database_id] IS NULL 
 AND name COLLATE DATABASE_DEFAULT NOT IN (SELECT Databasename 
-			  FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ADHocDatabaseSupression] 
+			  FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[ADHocDatabaseSupression] 
 			  WHERE Servername = @Servername AND Suppress = 1)
 ORDER BY create_date ASC;
 
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ADHocDatabaseSupression] (Servername, Log_Date, Databasename, Suppress)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[ADHocDatabaseSupression] (Servername, Log_Date, Databasename, Suppress)
 SELECT
 @Servername,
 GETDATE(),
 Databasename,
 0
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ADHocDatabaseCreations] Creations
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[ADHocDatabaseCreations] Creations
 WHERE Servername = @Servername
 AND NOT EXISTS (SELECT Databasename 
-			 FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ADHocDatabaseSupression] SuppressList
+			 FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[ADHocDatabaseSupression] SuppressList
 			 WHERE SuppressList.Servername = @Servername AND SuppressList.Databasename = Creations.Databasename);
 
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ADHocDatabaseCreations] 
+			FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[ADHocDatabaseCreations] 
 			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ADHocDatabaseCreations] (Servername,Log_Date,Databasename,Create_Date)
+			INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[ADHocDatabaseCreations] (Servername,Log_Date,Databasename,Create_Date)
 			VALUES(@Servername,GETDATE(),''No Ad hoc database creations present'',NULL)
 			END
 
@@ -3512,8 +3648,8 @@ END;'
 
 EXEC (@SQLStatement);
 
-SET @SQLStatement = 
-'CREATE PROCEDURE [Inspector].[AGCheckInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[AGCheckInsert]
 AS
 BEGIN
 
@@ -3522,9 +3658,9 @@ BEGIN
 SET NOCOUNT ON;
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
-DECLARE @PrimaryHistoryRetention INT = (SELECT ISNULL(NULLIF([Value],''''),90) From '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[Settings] Where Description = ''AGPrimaryHistoryRetentionPeriodInDays'');
+DECLARE @PrimaryHistoryRetention INT = (SELECT ISNULL(NULLIF([Value],''''),90) From '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[Settings] Where Description = ''AGPrimaryHistoryRetentionPeriodInDays'');
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGPrimaryHistory] ([Log_Date], [CollectionDateTime], [Servername], [AGname])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGPrimaryHistory] ([Log_Date], [CollectionDateTime], [Servername], [AGname])
 --Is this server now a primary since the last Inspector collection
 SELECT 
 [Log_Date],
@@ -3540,24 +3676,24 @@ INNER JOIN (SELECT [Log_Date],[AGname]
 			) AS SecondaryCheck ON [Groups].[name] = [SecondaryCheck].[AGname] COLLATE DATABASE_DEFAULT
 WHERE States.primary_replica = @Servername
 AND NOT EXISTS (SELECT 1 
-				FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGPrimaryHistory] 
+				FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGPrimaryHistory] 
 				WHERE [AGPrimaryHistory].[Log_Date] = [SecondaryCheck].[Log_Date]
 				AND [AGPrimaryHistory].[AGname] = [SecondaryCheck].[AGname] 
 				AND [AGPrimaryHistory].[Servername] = @Servername)
 
 DELETE 
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGCheck]
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGCheck]
 WHERE Servername = @Servername;
 
 DELETE 
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGPrimaryHistory]
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGPrimaryHistory]
 WHERE Servername = @Servername
 AND [Log_Date] <= DATEADD(DAY,-@PrimaryHistoryRetention,GETDATE());
 
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGCheck] ([Servername], [Log_Date], [AGname], [State], [ReplicaServername], [Suspended], [SuspendReason], [FailoverReady], [ReplicaRole])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGCheck] ([Servername], [Log_Date], [AGname], [State], [ReplicaServername], [Suspended], [SuspendReason], [FailoverReady], [ReplicaRole])
 SELECT DISTINCT
 @Servername,
 GETDATE(),
@@ -3586,26 +3722,26 @@ FROM
 	INNER JOIN sys.availability_replicas as Replicas ON Groups.group_id = Replicas.group_id
 	GROUP BY Groups.[name]
 ) AS ReplicaCounts 
-INNER JOIN '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGCheckConfig] ON [AGname] = [ReplicaCounts].[name] COLLATE DATABASE_DEFAULT
+INNER JOIN '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGCheckConfig] ON [AGname] = [ReplicaCounts].[name] COLLATE DATABASE_DEFAULT
 WHERE [AGCheckConfig].[AGReplicaCount] != ReplicaCount;
 
 
 --Insert AG Replica counts and base Failover ready node count config count 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGCheckConfig] ([AGname],[AGReplicaCount],[FailoverReadyNodeCount])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGCheckConfig] ([AGname],[AGReplicaCount],[FailoverReadyNodeCount])
 SELECT 
 Groups.[name],
 COUNT([name]),
 2
 FROM sys.availability_groups Groups
 INNER JOIN sys.availability_replicas as Replicas ON Groups.group_id = Replicas.group_id
-WHERE NOT EXISTS (SELECT 1 FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGCheckConfig] WHERE [AGname] = Groups.[name] COLLATE DATABASE_DEFAULT)
+WHERE NOT EXISTS (SELECT 1 FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGCheckConfig] WHERE [AGname] = Groups.[name] COLLATE DATABASE_DEFAULT)
 GROUP BY Groups.[name];
 
 END 
 ELSE 
 BEGIN
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGCheck] ([Servername], [Log_Date], [AGname], [State])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGCheck] ([Servername], [Log_Date], [AGname], [State])
 SELECT
 @Servername,
 GETDATE(),
@@ -3618,8 +3754,8 @@ END;'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = 
-'CREATE PROCEDURE [Inspector].[DatabaseFilesInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DatabaseFilesInsert]
 AS
 BEGIN
 
@@ -3628,8 +3764,8 @@ BEGIN
 SET NOCOUNT ON;
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
-DECLARE @DataDrives VARCHAR(255) = (SELECT NULLIF([Value],'''') FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[Settings] WHERE [Description] = ''DataDrives'');
-DECLARE @LogDrives VARCHAR(255) = (SELECT NULLIF([Value],'''') FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[Settings] WHERE [Description] = ''LogDrives'');
+DECLARE @DataDrives VARCHAR(255) = (SELECT NULLIF([Value],'''') FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[Settings] WHERE [Description] = ''DataDrives'');
+DECLARE @LogDrives VARCHAR(255) = (SELECT NULLIF([Value],'''') FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[Settings] WHERE [Description] = ''LogDrives'');
 
 IF OBJECT_ID(''tempdb.dbo.#SplitDrives'') IS NOT NULL 
 DROP TABLE #SplitDrives;
@@ -3641,7 +3777,7 @@ DriveLabel NVARCHAR(20)
 
 
 DELETE 
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFiles]
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFiles]
 WHERE Servername = @Servername;
 
 INSERT INTO #SplitDrives (DriveType,DriveLabel)
@@ -3670,7 +3806,7 @@ WHERE DriveLabel IN
 );
 
 
-INSERT INTO  '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFiles] (Servername,Log_Date,Databasename,FileType,FilePath)
+INSERT INTO  '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFiles] (Servername,Log_Date,Databasename,FileType,FilePath)
 SELECT
 @Servername,
 GETDATE(),
@@ -3695,10 +3831,10 @@ WHERE physical_name LIKE ''%.mdf'';
 
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFiles]
+			FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFiles]
 			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFiles] (Servername,Log_Date,Databasename,FileType,FilePath)
+			INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFiles] (Servername,Log_Date,Databasename,FileType,FilePath)
 			VALUES(@Servername,GETDATE(),''No Database File issues present'',NULL,NULL)
 			END
 			
@@ -3709,8 +3845,8 @@ EXEC(@SQLStatement);
 
 
 
-SET @SQLStatement =  
-'CREATE PROCEDURE [Inspector].[DatabaseStatesInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DatabaseStatesInsert]
 AS
 BEGIN
 
@@ -3721,10 +3857,10 @@ SET NOCOUNT ON;
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
 DELETE 
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseStates]
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseStates]
 WHERE Servername = @Servername;
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseStates] (Servername,Log_Date,DatabaseState,Total,DatabaseNames)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseStates] (Servername,Log_Date,DatabaseState,Total,DatabaseNames)
 SELECT 
 @Servername,
 GETDATE(),
@@ -3766,8 +3902,8 @@ END;'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = 
-'CREATE PROCEDURE [Inspector].[DriveSpaceInsert] 
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DriveSpaceInsert] 
 AS
 BEGIN
 
@@ -3781,17 +3917,17 @@ to reduce the number of executions performed by the TVF because on instances wit
 
 **************************/
 
-DECLARE @Retention INT = (SELECT Value From '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'')
+DECLARE @Retention INT = (SELECT Value From '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'')
 
-DELETE FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DriveSpace] 
+DELETE FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DriveSpace] 
 WHERE Log_Date < DATEADD(DAY,-@Retention,DATEADD(DAY,1,CAST(GETDATE() AS DATE)))
 AND Servername = @@SERVERNAME;
 
 
-IF NOT EXISTS (SELECT Log_Date FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DriveSpace] WHERE Servername = @@SERVERNAME AND CAST(Log_Date AS DATE) = CAST(GETDATE() AS DATE))
+IF NOT EXISTS (SELECT Log_Date FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DriveSpace] WHERE Servername = @@SERVERNAME AND CAST(Log_Date AS DATE) = CAST(GETDATE() AS DATE))
 	BEGIN
 		--RECORD THE DRIVE SPACE CAPACITY AND AVAILABLE SPACE PER DAY
-		INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DriveSpace] (Servername, Log_Date, Drive, Capacity_GB, AvailableSpace_GB)
+		INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DriveSpace] (Servername, Log_Date, Drive, Capacity_GB, AvailableSpace_GB)
 		SELECT DISTINCT
 		@@SERVERNAME,
 		GETDATE(),
@@ -3818,8 +3954,8 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[PopulateModuleWarningLevel] 
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[PopulateModuleWarningLevel] 
 AS 
 BEGIN
 
@@ -3834,11 +3970,11 @@ DatabaseGrowthCheck
 BackupSizesCheck
 */
 
-	INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ModuleWarningLevel] ([ModuleConfig_Desc],[Module])
+	INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[ModuleWarningLevel] ([ModuleConfig_Desc],[Module])
 	SELECT [ModuleConfig_Desc],[Modulename]
 	FROM [Inspector].[Modules] [ModulesList]
 	WHERE NOT EXISTS (SELECT 1 
-					FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ModuleWarningLevel] 
+					FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[ModuleWarningLevel] 
 					WHERE [ModulesList].[ModuleConfig_Desc] = [ModuleWarningLevel].[ModuleConfig_Desc]
 					AND [ModulesList].[Modulename] = [ModuleWarningLevel].[Module]
 					)
@@ -3849,7 +3985,7 @@ BackupSizesCheck
    FROM [Inspector].[Modules]
    CROSS JOIN (SELECT [Module] FROM (VALUES(''CatalogueMissingLogins''),(''CatalogueDroppedTables''),(''CatalogueDroppedDatabases'')) ModuleList(Module)) AS CatalogueModulesList
    WHERE NOT EXISTS (SELECT 1 
-					FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ModuleWarningLevel] 
+					FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[ModuleWarningLevel] 
 					WHERE [ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] 
 					AND [Module] = [CatalogueModulesList].[Module]);
 
@@ -3860,8 +3996,8 @@ EXEC(@SQLStatement);
 --Run Proc for the first time to populate the Warning Level table
 EXEC sp_executesql N'EXEC [Inspector].[PopulateModuleWarningLevel];';
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[FailedAgentJobsInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[FailedAgentJobsInsert]
 AS
 BEGIN
 
@@ -3872,10 +4008,10 @@ SET NOCOUNT ON;
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
 DELETE 
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[FailedAgentJobs]
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[FailedAgentJobs]
 WHERE Servername = @Servername;
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[FailedAgentJobs] (Servername,Log_Date,Jobname,LastStepFailed,LastFailedDate,LastError)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[FailedAgentJobs] (Servername,Log_Date,Jobname,LastStepFailed,LastFailedDate,LastError)
 SELECT 
 @Servername,
 GETDATE(),
@@ -3932,10 +4068,10 @@ AND NOT EXISTS (SELECT 1
 ORDER BY name ASC
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[FailedAgentJobs]
+			FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[FailedAgentJobs]
 			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[FailedAgentJobs] (Servername,Log_Date,Jobname,LastStepFailed,LastFailedDate,LastError)
+			INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[FailedAgentJobs] (Servername,Log_Date,Jobname,LastStepFailed,LastFailedDate,LastError)
 			VALUES(@Servername,GETDATE(),''No Failed Jobs present'',NULL,NULL,NULL)
 			END
 
@@ -3944,8 +4080,8 @@ END;'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[LoginAttemptsInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[LoginAttemptsInsert]
 AS
 BEGIN
 
@@ -3956,7 +4092,7 @@ SET NOCOUNT ON;
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
 DELETE 
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[LoginAttempts]
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[LoginAttempts]
 WHERE Servername = @Servername;
  
 IF OBJECT_ID(''tempdb.dbo.#Errors'') IS NOT NULL
@@ -3974,7 +4110,7 @@ DECLARE @StartTime DATETIME = DATEADD(DAY,-1,GETDATE())
 INSERT INTO #Errors ([Logdate],[Processinfo],[Text])
 EXEC xp_readerrorlog 0, 1, N''FAILED'',N''login'',@StartTime,NULL;
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[LoginAttempts] (Servername,Log_Date,Username,Attempts,LastErrorDate,LastError)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[LoginAttempts] (Servername,Log_Date,Username,Attempts,LastErrorDate,LastError)
 SELECT 
 @Servername,
 GETDATE(), 
@@ -3995,10 +4131,10 @@ CROSS APPLY (SELECT TOP 1 Logdate,Text as LastError
 ORDER BY Attempts DESC
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[LoginAttempts]
+			FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[LoginAttempts]
 			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[LoginAttempts] (Servername,Log_Date,Username,Attempts,LastErrorDate,LastError)
+			INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[LoginAttempts] (Servername,Log_Date,Username,Attempts,LastErrorDate,LastError)
 			VALUES(@Servername,GETDATE(),''No Failed Logins present'',NULL,NULL,NULL)
 			END
 
@@ -4008,8 +4144,8 @@ END;'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = 
-'CREATE PROCEDURE [Inspector].[JobOwnerInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[JobOwnerInsert]
 AS
 BEGIN
 
@@ -4018,13 +4154,13 @@ BEGIN
 SET NOCOUNT ON;
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
-DECLARE @AgentjobOwnerExclusions VARCHAR(255) = (SELECT REPLACE([Value],'' '','''') FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[Settings] WHERE [Description] = ''AgentJobOwnerExclusions'')
+DECLARE @AgentjobOwnerExclusions VARCHAR(255) = (SELECT REPLACE([Value],'' '','''') FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[Settings] WHERE [Description] = ''AgentJobOwnerExclusions'')
 
 DELETE 
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[JobOwner]
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[JobOwner]
 WHERE Servername = @Servername;
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[JobOwner] (Servername,Log_Date,Job_ID,Jobname)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[JobOwner] (Servername,Log_Date,Job_ID,Jobname)
 SELECT 
 @Servername,
 GETDATE(),
@@ -4042,10 +4178,10 @@ WHERE logins.name NOT IN ('+CASE WHEN @Compatibility = 0
 AND jobs.enabled = 1
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[JobOwner]
+			FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[JobOwner]
 			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[JobOwner] (Servername,Log_Date,Job_ID,Jobname)
+			INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[JobOwner] (Servername,Log_Date,Job_ID,Jobname)
 			VALUES(@Servername,GETDATE(),NULL,''No Job Owner issues present'')
 			END
 
@@ -4055,8 +4191,8 @@ END;'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = 
-'CREATE PROCEDURE [Inspector].[TopFiveDatabasesInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[TopFiveDatabasesInsert]
 AS
 BEGIN
 
@@ -4067,10 +4203,10 @@ SET NOCOUNT ON;
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
 DELETE 
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[TopFiveDatabases]
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[TopFiveDatabases]
 WHERE Servername = @Servername;
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[TopFiveDatabases] (Servername,Log_Date,Databasename,TotalSize_MB)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[TopFiveDatabases] (Servername,Log_Date,Databasename,TotalSize_MB)
 SELECT TOP 5 
 @Servername,
 GETDATE(),
@@ -4091,18 +4227,18 @@ END ;'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[BackupsCheckInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[BackupsCheckInsert]
 AS
 BEGIN
 
 --Revision date: 11/09/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
-DECLARE @FullBackupThreshold INT = (Select [Value] FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[Settings] WHERE Description = ''FullBackupThreshold'')
+DECLARE @FullBackupThreshold INT = (Select [Value] FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[Settings] WHERE Description = ''FullBackupThreshold'')
 
 DELETE 
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[BackupsCheck]
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[BackupsCheck]
 WHERE Servername = @Servername;
 
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
@@ -4190,7 +4326,7 @@ GROUP BY Database_id,backuplog.database_name,backuplog.type ) p
 PIVOT( MAX(backup_finish_date) FOR type IN ([D],[I],[L])) d
 ORDER BY Database_id ASC
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[BackupsCheck] ([Servername],[Log_Date],[Databasename],[AGname],[FULL],[DIFF],[LOG],[IsFullRecovery],[IsSystemDB],[primary_replica],[backup_preference])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[BackupsCheck] ([Servername],[Log_Date],[Databasename],[AGname],[FULL],[DIFF],[LOG],[IsFullRecovery],[IsSystemDB],[primary_replica],[backup_preference])
 SELECT 
 [Servername],
 [Log_Date],
@@ -4215,7 +4351,7 @@ END
 ELSE 
 BEGIN 
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[BackupsCheck] ([Servername],[Log_Date],[Databasename],[AGname],[FULL],[DIFF],[LOG],[IsFullRecovery],[IsSystemDB],[primary_replica],[backup_preference])  
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[BackupsCheck] ([Servername],[Log_Date],[Databasename],[AGname],[FULL],[DIFF],[LOG],[IsFullRecovery],[IsSystemDB],[primary_replica],[backup_preference])  
 SELECT DISTINCT @Servername,GETDATE(),dbs.name,@Servername +''(Non AG)'' AS AGname,ISNULL([D],''19000101''),ISNULL([I],''19000101''),ISNULL([L],''19000101''),
 CASE WHEN dbs.recovery_model_desc = ''FULL'' THEN 1 ELSE 0 END,
 CASE WHEN dbs.database_id <= 4 THEN 1 ELSE 0 END AS IsSystemDB,
@@ -4238,8 +4374,8 @@ END;'
 
 EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[DatabaseGrowthsInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DatabaseGrowthsInsert]
 AS
 
 --Revision date: 06/06/2019
@@ -4250,13 +4386,13 @@ AS
 
         DECLARE @Servername NVARCHAR(128)= @@Servername;
 	    DECLARE @LastUpdated DATETIME = GETDATE();
-		DECLARE @Retention INT = (SELECT ISNULL(NULLIF([Value],''''),90) From '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'');
+		DECLARE @Retention INT = (SELECT ISNULL(NULLIF([Value],''''),90) From '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'');
 		DECLARE @ScopeIdentity INT
 
 --Insert any databases that are present on the serverbut not present in [Inspector].[DatabaseFileSizes]
          IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
              BEGIN
-                 INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes]
+                 INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizes]
                  ([Servername],
                   [Database_id],
                   [Database_name],
@@ -4322,7 +4458,7 @@ AS
                        AND NOT EXISTS
                  (
                      SELECT [Database_id]
-                     FROM   '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes] [DatabaseFileSizes]
+                     FROM   '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizes] [DatabaseFileSizes]
                      WHERE  [Servername] = @Servername
                             AND DB_NAME([Masterfiles].[database_id]) = [DatabaseFileSizes].[Database_name]
                             AND [Masterfiles].[file_id] = [DatabaseFileSizes].[File_id]
@@ -4332,7 +4468,7 @@ AS
          END
              ELSE
              BEGIN
-                 INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes]
+                 INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizes]
                  ([Servername],
                   [Database_id],
                   [Database_name],
@@ -4391,7 +4527,7 @@ AS
                         AND NOT EXISTS
                  (
                      SELECT [Database_id]
-                     FROM   '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes] [DatabaseFileSizes]
+                     FROM   '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizes] [DatabaseFileSizes]
                      WHERE  [Servername] = @Servername
                             AND DB_NAME([Masterfiles].[database_id]) = [DatabaseFileSizes].[Database_name]
                             AND [Masterfiles].[file_id] = [DatabaseFileSizes].[File_id]
@@ -4401,7 +4537,7 @@ AS
 
 --Remove any databases that have been dropped from SQL but still present in [Inspector].[DatabaseFileSizes]
          DELETE [Sizes]
-         FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes] [Sizes]
+         FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizes] [Sizes]
               LEFT JOIN [sys].[databases] [DatabasesList] ON [Sizes].[Database_name] = [DatabasesList].[name] COLLATE DATABASE_DEFAULT
          WHERE  [Sizes].[Servername] = @Servername
                 AND [DatabasesList].[database_id] IS NULL;
@@ -4411,7 +4547,7 @@ AS
          SET
             [Database_id] = [DatabasesList].[database_id],
 			[LastUpdated] = @LastUpdated
-         FROM   '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes] [Sizes]
+         FROM   '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizes] [Sizes]
                 INNER JOIN [sys].[databases] [DatabasesList] ON [Sizes].[Database_name] = [DatabasesList].[name] COLLATE DATABASE_DEFAULT
          WHERE  [Sizes].[Servername] = @Servername
                 AND [DatabasesList].[database_id] != [Sizes].[Database_id];
@@ -4448,7 +4584,7 @@ AS
                     AND [type_desc] != ''LOG''
                     AND [DatabasesList].state = 0
          ) [GrowthCheck]
-         INNER JOIN '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes] [Sizes] ON [GrowthCheck].[database_id] = [Sizes].[Database_id]
+         INNER JOIN '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizes] [Sizes] ON [GrowthCheck].[database_id] = [Sizes].[Database_id]
                                                                                       AND [Sizes].[File_id] = [GrowthCheck].[file_id]
          WHERE(([GrowthCheck].[GrowthRate_MB] != [Sizes].[GrowthRate])
                OR ([GrowthCheck].[is_percent_growth] != [Sizes].[Is_percent_growth]))
@@ -4472,14 +4608,14 @@ AS
                     AND [type_desc] != ''LOG''
                     AND [DatabasesList].state = 0
          ) [ShrunkDatabases]
-         INNER JOIN '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes] [Sizes] ON [ShrunkDatabases].[database_id] = [Sizes].[Database_id]
+         INNER JOIN '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizes] [Sizes] ON [ShrunkDatabases].[database_id] = [Sizes].[Database_id]
                                                                                       AND [Sizes].[File_id] = [ShrunkDatabases].[file_id]
          WHERE [ShrunkDatabases].[size] < [PostGrowthSize_MB]
          AND [Servername] = @Servername;
 
 
 --Log the Database Growth event, using sp_executesql to ensure that SCOPE_IDENTITY() works if using linked server
-		INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizeHistory]
+		INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizeHistory]
          ([Servername],
           [Database_id],
           [Database_name],
@@ -4506,7 +4642,7 @@ AS
                 [DatabaseFileSizes].[GrowthRate],
                 (((CAST([Masterfiles].[size] AS BIGINT) * 8) / 1024 - [DatabaseFileSizes].[PostGrowthSize_MB]) / [DatabaseFileSizes].[GrowthRate]) AS [TotalGrowthIncrements],  --IF Growth is in Percent then this will be calculated based on the Current DB size Less Originally logged size , Divided by the Growth percentage based on the original database size
                 (CAST([Masterfiles].[size] AS BIGINT) * 8) / 1024 AS [CurrentSize_MB] --Next approx Growth interval in MB
-         FROM   '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes] [DatabaseFileSizes]
+         FROM   '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizes] [DatabaseFileSizes]
                 INNER JOIN [sys].[master_files] [Masterfiles] ON [Masterfiles].[database_id] = [DatabaseFileSizes].[Database_id]
                                                                  AND [DatabaseFileSizes].[File_id] = [Masterfiles].[file_id]
 				CROSS APPLY sys.dm_os_volume_stats([Masterfiles].[database_id],[Masterfiles].[file_id]) volumestats
@@ -4514,7 +4650,7 @@ AS
                 AND [DatabaseFileSizes].[Servername] = @Servername
 			 AND NOT EXISTS (
 						  SELECT GrowthID
-						  FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizeHistory] ExistingRecord
+						  FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizeHistory] ExistingRecord
 						  WHERE [Servername] = @Servername 
 						  AND DB_NAME([Masterfiles].[database_id]) = [Database_name]
 						  AND CAST([Log_Date] AS DATE) = CAST(GETDATE() AS DATE)
@@ -4522,7 +4658,7 @@ AS
 						     --(this allows the collection to be ran without worrying that the growths will be logged prematurely);
 		
 		'+CASE WHEN @LinkedServernameParam IS NULL THEN 'SELECT @ScopeIdentity = SCOPE_IDENTITY();'
-		ELSE 'SELECT @ScopeIdentity = MAX(GrowthID) FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizeHistory] WHERE Servername = @Servername AND Log_Date = @LastUpdated;' END +'
+		ELSE 'SELECT @ScopeIdentity = MAX(GrowthID) FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizeHistory] WHERE Servername = @Servername AND Log_Date = @LastUpdated;' END +'
 		
 
 
@@ -4533,14 +4669,14 @@ BEGIN
          SET    [PostGrowthSize_MB] = (CAST([Masterfiles].[size] AS BIGINT) * 8) / 1024,
 			 [LastUpdated] = @LastUpdated
          FROM   [sys].[master_files] [Masterfiles]
-                INNER JOIN '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes] [Sizes] ON [Masterfiles].[database_id] = [Sizes].[Database_id]
+                INNER JOIN '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizes] [Sizes] ON [Masterfiles].[database_id] = [Sizes].[Database_id]
                                                                                              AND [Sizes].[File_id] = [Masterfiles].[file_id]
          WHERE  [Masterfiles].[database_id] > 3
                 AND ((CAST([Masterfiles].[size] AS BIGINT) * 8) / 1024 != [Sizes].[PostGrowthSize_MB])
                 AND [Servername] = @Servername; 
 
 --Set Next growth size for all Databases on this server which have grown
-         UPDATE '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizes]
+         UPDATE '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizes]
          SET    [NextGrowth] = ([PostGrowthSize_MB] + [GrowthRate]),
 			 [LastUpdated] = @LastUpdated
          WHERE  [NextGrowth] <= [PostGrowthSize_MB]
@@ -4548,7 +4684,7 @@ BEGIN
 END
 
 --Clean up the history for growths older than @Retention in days
-         DELETE FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseFileSizeHistory]
+         DELETE FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseFileSizeHistory]
          WHERE [Log_Date] < DATEADD(DAY,-@Retention,GETDATE())
          AND [Servername] = @Servername;
 
@@ -4558,23 +4694,23 @@ EXEC(@SQLStatement);
 
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[DatabaseOwnershipInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DatabaseOwnershipInsert]
 AS
 BEGIN
 
 --Revision date: 28/06/2018
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
-DECLARE @DatabaseOwnerExclusions NVARCHAR(255) = (SELECT REPLACE(Value,'' '','''') from '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'Inspector.Settings WHERE Description = ''DatabaseOwnerExclusions'');
+DECLARE @DatabaseOwnerExclusions NVARCHAR(255) = (SELECT REPLACE(Value,'' '','''') from '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'Inspector.Settings WHERE Description = ''DatabaseOwnerExclusions'');
 
 DELETE 
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseOwnership]
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseOwnership]
 WHERE Servername = @Servername;
 
 IF SERVERPROPERTY(''IsHadrEnabled'') = 1 AND EXISTS (SELECT name FROM sys.availability_groups)
 BEGIN 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'Inspector.DatabaseOwnership ([Servername],[Log_Date],[AGname],[Database_name],[Owner])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'Inspector.DatabaseOwnership ([Servername],[Log_Date],[AGname],[Database_name],[Owner])
 SELECT 
 @Servername,
 GETDATE(),
@@ -4616,7 +4752,7 @@ ORDER BY Databases.name ASC
 END
 ELSE 
 BEGIN 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'Inspector.DatabaseOwnership ([Servername],[Log_Date],[AGname],[Database_name],[Owner])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'Inspector.DatabaseOwnership ([Servername],[Log_Date],[AGname],[Database_name],[Owner])
 SELECT 
 @Servername,
 GETDATE(),
@@ -4638,10 +4774,10 @@ ORDER BY Databases.name ASC
 END
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseOwnership]
+			FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseOwnership]
 			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseOwnership] ([Servername],[Log_Date],[AGname],[Database_name],[Owner])
+			INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseOwnership] ([Servername],[Log_Date],[AGname],[Database_name],[Owner])
 			VALUES(@Servername,GETDATE(),NULL,''No Database Ownership issues present'',NULL)
 			END
 			
@@ -4650,8 +4786,8 @@ END;'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = 
-'CREATE PROCEDURE [Inspector].[BackupSizesByDayInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[BackupSizesByDayInsert]
 AS
 BEGIN
 
@@ -4659,10 +4795,10 @@ BEGIN
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
-DELETE FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[BackupSizesByDay]
+DELETE FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[BackupSizesByDay]
 WHERE Servername = @@Servername;
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[BackupSizesByDay] ([Servername],[Log_Date],[DayOfWeek],[CastedDate],[TotalSizeInBytes])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[BackupSizesByDay] ([Servername],[Log_Date],[DayOfWeek],[CastedDate],[TotalSizeInBytes])
 SELECT 
 @Servername,
 GETDATE(),
@@ -4681,10 +4817,10 @@ GROUP BY DATENAME(WEEKDAY,backup_start_date) ,CAST(backup_start_date AS DATE)
 
 
 IF NOT EXISTS (SELECT Servername
-			FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[BackupSizesByDay]
+			FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[BackupSizesByDay]
 			WHERE Servername = @Servername)
 			BEGIN 
-			INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[BackupSizesByDay] ([Servername],[Log_Date],[DayOfWeek],[CastedDate],[TotalSizeInBytes])
+			INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[BackupSizesByDay] ([Servername],[Log_Date],[DayOfWeek],[CastedDate],[TotalSizeInBytes])
 			VALUES(@Servername,NULL,NULL,NULL,NULL)
 			END
 
@@ -4694,8 +4830,8 @@ END;'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[DatabaseSettingsInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DatabaseSettingsInsert]
 
 AS
 
@@ -4706,10 +4842,10 @@ BEGIN
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME 
 DECLARE @LogDate DATETIME = GETDATE()
 
-DELETE FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseSettings]
+DELETE FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseSettings]
 WHERE Servername = @Servername
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
@@ -4720,7 +4856,7 @@ FROM sys.databases
 GROUP BY collation_name
 
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
@@ -4731,7 +4867,7 @@ FROM sys.databases
 GROUP BY is_auto_close_on
 
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
@@ -4742,7 +4878,7 @@ FROM sys.databases
 GROUP BY is_auto_shrink_on
 
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
@@ -4753,7 +4889,7 @@ FROM sys.databases
 GROUP BY is_auto_update_stats_on
 
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
@@ -4763,7 +4899,7 @@ COUNT(is_read_only)
 FROM sys.databases
 GROUP BY is_read_only
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
@@ -4773,7 +4909,7 @@ COUNT(user_access_desc)
 FROM sys.databases
 GROUP BY user_access_desc
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
@@ -4784,7 +4920,7 @@ FROM sys.databases
 GROUP BY [compatibility_level]
 
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatabaseSettings] (Servername,Log_Date,Setting,Description,Total)
 SELECT 
 @Servername,
 @LogDate,
@@ -4799,8 +4935,8 @@ END;'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[ServerSettingsInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[ServerSettingsInsert]
 
 AS
 
@@ -4811,10 +4947,10 @@ BEGIN
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME 
 DECLARE @LogDate DATETIME = GETDATE()
 
-DELETE FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ServerSettings]
+DELETE FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[ServerSettings]
 WHERE Servername = @Servername
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[ServerSettings] ([Servername],[Log_Date],[configuration_id],[Setting],[value_in_use])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[ServerSettings] ([Servername],[Log_Date],[configuration_id],[Setting],[value_in_use])
 SELECT 
 @Servername,
 @LogDate,
@@ -4833,8 +4969,8 @@ END;'
 
 EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[InstanceStartInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[InstanceStartInsert]
 
 AS
 
@@ -4845,10 +4981,10 @@ BEGIN
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME 
 DECLARE @LogDate DATETIME = GETDATE()
 
-DELETE FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[InstanceStart]
+DELETE FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[InstanceStart]
 WHERE Servername = @Servername
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[InstanceStart] ([Servername],[Log_Date],[InstanceStart])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[InstanceStart] ([Servername],[Log_Date],[InstanceStart])
 SELECT 
 @Servername,
 @LogDate,
@@ -4861,8 +4997,8 @@ END;'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[InstanceVersionInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[InstanceVersionInsert]
 
 AS
 
@@ -4878,12 +5014,12 @@ DECLARE @Version NVARCHAR(20) =  CAST(SERVERPROPERTY(''ProductVersion'') AS NVAR
 DECLARE @Edition NVARCHAR(50) = CAST(SERVERPROPERTY(''Edition'') AS NVARCHAR(50));
 
 --Check for version and/or edition change
-IF EXISTS(SELECT 1 FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[InstanceVersion] WHERE Servername = @Servername)
+IF EXISTS(SELECT 1 FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[InstanceVersion] WHERE Servername = @Servername)
 BEGIN 
 	--If the major version has changed we only want to advise of that change, if the major version has not changed 
 	--then check for a minor version change and advise of the change.
 
-	INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[InstanceVersionHistory] ([Servername], [Log_Date], [CollectionDatetime], [VersionNo], [Edition])
+	INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[InstanceVersionHistory] ([Servername], [Log_Date], [CollectionDatetime], [VersionNo], [Edition])
 	SELECT 
 	@Servername,
 	[Log_Date],
@@ -4931,31 +5067,31 @@ BEGIN
 			[Log_Date],
 			SUBSTRING([VersionInfo],0,CHARINDEX('' - '',[VersionInfo])) AS  VersionNo,
 			SUBSTRING([VersionInfo],CHARINDEX('' - '',[VersionInfo])+3,LEN([VersionInfo])-CHARINDEX('' - '',[VersionInfo])) AS Edition
-			FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[InstanceVersion]
+			FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[InstanceVersion]
 			WHERE Servername = @Servername
 		) AS LastLoggedVersionInfo
 	) AS VersionCheck
 	WHERE ([VersionNo] IS NOT NULL OR [Edition] IS NOT NULL)
 	AND NOT EXISTS (SELECT 1 
-					FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[InstanceVersionHistory] 
+					FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[InstanceVersionHistory] 
 					WHERE Servername = @Servername 
 					AND CAST(VersionCheck.[Log_Date] AS DATE) = CAST([InstanceVersionHistory].[Log_Date] AS DATE) 
 					AND ([VersionNo] = [VersionCheck].[VersionNo] OR [Edition] = [VersionCheck].[Edition]))
 
 END 
 
-DELETE FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[InstanceVersion]
+DELETE FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[InstanceVersion]
 WHERE Servername = @Servername;
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[InstanceVersion] ([Servername], [PhysicalServername], [Log_Date], [VersionInfo])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[InstanceVersion] ([Servername], [PhysicalServername], [Log_Date], [VersionInfo])
 SELECT @Servername, @PhysicalServername, GETDATE(), @Version + N'' - '' + @Edition
 END;
 '
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[SuspectPagesInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[SuspectPagesInsert]
 
 AS
 
@@ -4966,10 +5102,10 @@ BEGIN
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME 
 DECLARE @LogDate DATETIME = GETDATE()
 
-DELETE FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[SuspectPages]
+DELETE FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[SuspectPages]
 WHERE Servername = @Servername
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[SuspectPages] ([Servername],[Log_Date],[Databasename],[file_id],[page_id],[event_type],[error_count],[last_update_date])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[SuspectPages] ([Servername],[Log_Date],[Databasename],[file_id],[page_id],[event_type],[error_count],[last_update_date])
 SELECT
 @Servername,
 @LogDate,
@@ -4981,9 +5117,9 @@ DB_NAME([database_id]),
 [last_update_date]
 FROM msdb.dbo.suspect_pages
 
-IF NOT EXISTS (SELECT Servername FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[SuspectPages] WHERE Servername = @Servername)
+IF NOT EXISTS (SELECT Servername FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[SuspectPages] WHERE Servername = @Servername)
 BEGIN 
-	INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[SuspectPages] ([Servername],[Log_Date],[Databasename],[file_id],[page_id],[event_type],[error_count],[last_update_date])
+	INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[SuspectPages] ([Servername],[Log_Date],[Databasename],[file_id],[page_id],[event_type],[error_count],[last_update_date])
 	VALUES(@Servername,GETDATE(),NULL,NULL,NULL,NULL,NULL,NULL)
 END
 
@@ -4993,8 +5129,8 @@ END;'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[AGDatabasesInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[AGDatabasesInsert]
 AS
 
 BEGIN
@@ -5016,13 +5152,13 @@ BEGIN
 END
 	
 --Delete databases from the table when the state is not online OR Database is no longer on the server.
-DELETE FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGDatabases] 
+DELETE FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGDatabases] 
 WHERE AGDatabases.Servername = @Servername
 AND (EXISTS (SELECT 1 FROM sys.databases DBs WHERE AGDatabases.Databasename = DBs.name COLLATE DATABASE_DEFAULT AND AGDatabases.Servername = @Servername AND state != 0)
 OR NOT EXISTS (SELECT 1 FROM sys.databases DBs WHERE AGDatabases.Databasename = DBs.name COLLATE DATABASE_DEFAULT AND AGDatabases.Servername = @Servername));
 
 --INSERT databases missing from the table and assume they should be joined to an AG.
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGDatabases] ([Servername], [Log_Date], [LastUpdated], [Databasename], [Is_AG], [Is_AGJoined])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGDatabases] ([Servername], [Log_Date], [LastUpdated], [Databasename], [Is_AG], [Is_AGJoined])
 SELECT 
 @Servername,
 GETDATE(),
@@ -5039,7 +5175,7 @@ LEFT JOIN sys.availability_replicas AGReplicas ON AGDBs.group_id = AGReplicas.gr
 WHERE DBs.database_id > 4 
 AND state = 0
 AND source_database_id IS NULL
-AND NOT EXISTS (SELECT 1 FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGDatabases] WHERE Databasename = DBs.name COLLATE DATABASE_DEFAULT AND Servername = @Servername);
+AND NOT EXISTS (SELECT 1 FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGDatabases] WHERE Databasename = DBs.name COLLATE DATABASE_DEFAULT AND Servername = @Servername);
 
 
 --Update Is_AGJoined 
@@ -5047,7 +5183,7 @@ UPDATE DBs
 SET 
 [Is_AGJoined] = CASE WHEN [AGReplicas].[replica_server_name] IS NULL THEN 0 ELSE 1 END, 
 [LastUpdated] = GETDATE()
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[AGDatabases] DBs
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGDatabases] DBs
 LEFT JOIN (SELECT JoinedDBs.group_id,database_name
 		   FROM sys.availability_databases_cluster JoinedDBs 
 		   WHERE EXISTS (SELECT 1 FROM sys.availability_groups Groups WHERE JoinedDBs.group_id = Groups.group_id)
@@ -5061,8 +5197,8 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[LongRunningTransactionsInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[LongRunningTransactionsInsert]
 AS
 
 BEGIN
@@ -5075,7 +5211,7 @@ DECLARE @TransactionDurationThreshold INT = (SELECT CAST([Value] AS INT) FROM [I
 DECLARE @Now DATETIME = GETDATE();
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 
-DELETE FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[LongRunningTransactions]
+DELETE FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[LongRunningTransactions]
 WHERE Servername = @Servername;
 
 --Set a default value of 300 (5 Mins) if NULL
@@ -5084,7 +5220,7 @@ BEGIN
 	SET @TransactionDurationThreshold = 300;
 END
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[LongRunningTransactions] ([Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[LongRunningTransactions] ([Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename])
 SELECT
 @Servername,
 @Now,
@@ -5118,9 +5254,9 @@ JOIN sys.dm_exec_connections Connections ON Connections.session_id = Sessions.se
 WHERE ActiveTrans.transaction_begin_time <= DATEADD(SECOND,-@TransactionDurationThreshold,@Now)
 ORDER BY ActiveTrans.transaction_begin_time ASC;
 
-IF NOT EXISTS (SELECT 1 FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[LongRunningTransactions] WHERE Servername = @Servername)
+IF NOT EXISTS (SELECT 1 FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[LongRunningTransactions] WHERE Servername = @Servername)
 BEGIN 
-	INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[LongRunningTransactions] ([Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename])
+	INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[LongRunningTransactions] ([Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename])
 	VALUES(@Servername,@Now,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)
 END
 
@@ -5129,8 +5265,8 @@ END
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[UnusedLogshipConfigInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[UnusedLogshipConfigInsert]
 AS
 BEGIN
 
@@ -5141,10 +5277,10 @@ SET NOCOUNT ON;
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 
 DELETE 
-FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[UnusedLogshipConfig]
+FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[UnusedLogshipConfig]
 WHERE Servername = @Servername;
 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[UnusedLogshipConfig] (Servername,Log_Date,Databasename,Databasestate)
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[UnusedLogshipConfig] (Servername,Log_Date,Databasename,Databasestate)
 SELECT 
 @Servername,
 GETDATE(),
@@ -5163,17 +5299,17 @@ END;
 '
 EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[DatacollectionsOverdueInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DatacollectionsOverdueInsert]
 AS
 --Revision date:13/10/2019
 SET NOCOUNT ON;
 
-DELETE FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatacollectionsOverdue]
+DELETE FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatacollectionsOverdue]
 WHERE Servername = @@SERVERNAME;
 
 --Warn if the Collection has overun the minimum Frequency set for a Module or Modules with the same ModuleConfig_Desc 
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[DatacollectionsOverdue] ([ExecutionLogID], [Servername], [Log_Date], [ModuleConfig_Desc], [Procname], [DurationInSeconds], [ExecutionDate], [PreviousRunDateTime], [RunNumber], [FrequencyInSeconds], [Variance], [PSCollection])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[DatacollectionsOverdue] ([ExecutionLogID], [Servername], [Log_Date], [ModuleConfig_Desc], [Procname], [DurationInSeconds], [ExecutionDate], [PreviousRunDateTime], [RunNumber], [FrequencyInSeconds], [Variance], [PSCollection])
 SELECT 
 [ExecutionLogDetails].[ID] AS ExecutionLogID, 
 [ExecutionLogDetails].[Servername], 
@@ -5197,7 +5333,7 @@ AND ([ExecutionLogDetails].[Duration]/60) > MinFrequencies.Frequency;'
 
 EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
 CREATE PROCEDURE [Inspector].[DatacollectionsOverdueReport] (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -5363,19 +5499,20 @@ END'
 
 EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[ExecutionLogInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[ExecutionLogInsert]
 (
 @RunDatetime DATETIME,
 @Servername NVARCHAR(128),
 @ModuleConfigDesc VARCHAR(20),
 @Procname NVARCHAR(128),
 @Frequency SMALLINT = NULL,
+@ErrorMessage NVARCHAR(128) = NULL,
 @Duration MONEY,
 @PSCollection BIT
 )
 AS
---Revision Date: 26/11/2019
+--Revision Date: 09/04/2020
 DECLARE @Linkedservername NVARCHAR(128) = (SELECT UPPER([Value]) FROM [Inspector].[Settings] WHERE [Description] = ''LinkedServername'');
 DECLARE @CentraliseExecutionLog BIT = (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''CentraliseExecutionLog'');
 DECLARE @LinkedServerInsert NVARCHAR(1000)
@@ -5397,8 +5534,8 @@ IF (EXISTS(SELECT 1 FROM sys.servers WHERE name = @Linkedservername) AND @Centra
 BEGIN 
 	BEGIN 
 		SET @LinkedServerInsert = ''
-		INSERT INTO [''+CAST(@Linkedservername AS VARCHAR(128))+''].[''+CAST(DB_NAME() AS VARCHAR(128))+''].[Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection)
-		VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection);''
+		INSERT INTO [''+CAST(@Linkedservername AS VARCHAR(128))+''].[''+CAST(DB_NAME() AS VARCHAR(128))+''].[Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection,ErrorMessage)
+		VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection,@ErrorMessage);''
 
 		EXEC sp_executesql @LinkedServerInsert,
 		N''@RunDatetime DATETIME,
@@ -5407,29 +5544,31 @@ BEGIN
 		@Procname NVARCHAR(128),
 		@Frequency SMALLINT = NULL,
 		@Duration MONEY,
-		@PSCollection BIT'',
+		@PSCollection BIT,
+		@ErrorMessage NVARCHAR(128)'',
 		@RunDatetime = @RunDatetime,
 		@Servername = @Servername,
 		@ModuleConfigDesc = @ModuleConfigDesc,
 		@Procname = @Procname,
 		@Frequency = @Frequency,
 		@Duration = @Duration,
-		@PSCollection = @PSCollection;	
+		@PSCollection = @PSCollection,
+		@ErrorMessage = @ErrorMessage;
 	END 
 
 END
 ELSE --If Linked server is invalid or @CentraliseExecutionLog = 0 insert locally
 BEGIN
-	INSERT INTO [Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection)
-	VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection);
+	INSERT INTO [Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection,ErrorMessage)
+	VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection,@ErrorMessage);
 END
 '
 
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[ResetHtmlColors]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[ResetHtmlColors]
 AS
 BEGIN 
 
@@ -5456,8 +5595,8 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[DriveCapacityHistory]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DriveCapacityHistory]
 (
 @Servername NVARCHAR(128),
 @Drive VARCHAR(20)
@@ -5495,8 +5634,8 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[SuppressAdHocDatabase]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[SuppressAdHocDatabase]
 (
 @Databasename NVARCHAR(128),
 @Servername NVARCHAR(128)
@@ -5516,8 +5655,8 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[SuppressAGDatabase]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[SuppressAGDatabase]
 (
 @Databasename NVARCHAR(128),
 @Servername NVARCHAR(128)
@@ -5537,8 +5676,8 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[DatabaseGrowthFilenameSync]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DatabaseGrowthFilenameSync]
 AS
 BEGIN
 
@@ -5575,8 +5714,8 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[PSGetColumns]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[PSGetColumns]
 (
 @Tablename NVARCHAR(128)
 )
@@ -5603,8 +5742,8 @@ END'
 
 EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[PSGetInspectorBuild]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[PSGetInspectorBuild]
 AS
 BEGIN 
 --Revision date: 14/09/2018
@@ -5618,8 +5757,8 @@ END'
 
 EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[PSGetConfig]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[PSGetConfig]
 (
 @Servername NVARCHAR(128),
 @ModuleConfig VARCHAR(20) = NULL,
@@ -5708,8 +5847,8 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[PSGetServers]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[PSGetServers]
 AS 
 BEGIN 
 --Revision date: 20/01/2020
@@ -5728,8 +5867,8 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[PSGetADHocDatabaseCreationsStage]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[PSGetADHocDatabaseCreationsStage]
 (
 @Servername NVARCHAR(128)
 )
@@ -5775,8 +5914,8 @@ END'
 
 EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[PSGetAGDatabasesStage]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[PSGetAGDatabasesStage]
 (
 @Servername NVARCHAR(128)
 )
@@ -5812,7 +5951,7 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
 CREATE PROCEDURE [Inspector].[PSGetDriveSpaceStage]
 (
 @Servername NVARCHAR(128)
@@ -5845,8 +5984,8 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[PSGetDatabaseGrowthsStage]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[PSGetDatabaseGrowthsStage]
 (
 @Servername NVARCHAR(128)
 )
@@ -5912,8 +6051,8 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[PSGetInstanceVersionHistoryStage]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[PSGetInstanceVersionHistoryStage]
 (
 @Servername NVARCHAR(128)
 )
@@ -5939,8 +6078,8 @@ END'
 
 EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[PSGetAGPrimaryHistoryStage]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[PSGetAGPrimaryHistoryStage]
 (
 @Servername NVARCHAR(128)
 )
@@ -5965,7 +6104,7 @@ END'
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
 CREATE PROCEDURE [Inspector].[PSHistCleanup]
 AS 
 BEGIN 
@@ -5986,7 +6125,7 @@ END '
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
 CREATE PROCEDURE [Inspector].[PopulatePSConfig]
 AS
 BEGIN
@@ -6092,7 +6231,7 @@ END'
 
 EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
 CREATE PROCEDURE [Inspector].[PSGetSettingsTables]
 (
 @SortOrder BIT, --0 FOR ORDER BY TableOrder ASC , 1 FOR ORDER BY TableOrder DESC
@@ -6155,8 +6294,8 @@ END'
 EXEC(@SQLStatement);
 
 --Catalogue reporting procs
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[CatalogueMissingLogins]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[CatalogueMissingLogins]
 (
 @Servername NVARCHAR(128),
 @TableHeaderColour VARCHAR(7) = NULL,
@@ -6276,8 +6415,8 @@ END'
 
 EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[CatalogueDroppedTables]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[CatalogueDroppedTables]
 (
 @Servername NVARCHAR(128),
 @TableHeaderColour VARCHAR(7) = NULL,
@@ -6352,8 +6491,8 @@ END'
 
 EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[CatalogueDroppedDatabases]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[CatalogueDroppedDatabases]
 (
 @Servername NVARCHAR(128),
 @TableHeaderColour VARCHAR(7) = NULL,
@@ -6425,8 +6564,8 @@ END'
 
 EXEC(@SQLStatement);
 
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[ADHocDatabaseCreationsReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[ADHocDatabaseCreationsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -6560,8 +6699,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[AGCheckReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[AGCheckReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -6774,8 +6913,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[AGDatabasesReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[AGDatabasesReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -6917,8 +7056,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[BackupsCheckReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[BackupsCheckReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -7250,8 +7389,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[BackupSizesByDayReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[BackupSizesByDayReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -7377,8 +7516,8 @@ END
 EXEC(@SQLStatement);
 
                 
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[DatabaseFilesReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DatabaseFilesReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -7521,8 +7660,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[DatabaseGrowthsReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DatabaseGrowthsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -7641,8 +7780,8 @@ END'
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[DatabaseOwnershipReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DatabaseOwnershipReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -7782,8 +7921,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[DatabaseSettingsReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DatabaseSettingsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -8036,8 +8175,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[DatabaseStatesReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DatabaseStatesReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -8153,8 +8292,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[DriveSpaceReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[DriveSpaceReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -8393,8 +8532,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[FailedAgentJobsReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[FailedAgentJobsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -8532,8 +8671,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[GenerateHeaderInfo] (
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[GenerateHeaderInfo] (
 @Servername NVARCHAR(128),
 @ModuleConfig VARCHAR(20),
 @Modulename VARCHAR(50),
@@ -8556,7 +8695,7 @@ SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
 @Debug BIT = 0
 )
 AS 
---Revision date: 01/11/2019
+--Revision date: 15/05/2020
 BEGIN
 	DECLARE @HeaderText VARCHAR(100);
 	DECLARE @CountInfo INT = 0;
@@ -8617,7 +8756,7 @@ BEGIN
 				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountWarning AS VARCHAR(5))+'') ''+@HeaderText+''</font><p>''  
 				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountWarning AS VARCHAR(5))+'') ''+@HeaderText+'' <b>(Data collection out of Date)</b></font><p>''  
 			END
-			SET @Importance = ''High'' 
+			SET @Importance = ''High''; 
 		END
 	END
 	
@@ -8635,6 +8774,17 @@ BEGIN
 				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdvisory AS VARCHAR(5))+'') ''+@HeaderText+''</font><p>''  
 				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdvisory AS VARCHAR(5))+'') ''+@HeaderText+'' <b>(Data collection out of Date)</b></font><p>''  
 			END
+
+			--If Multi warning is enabled for this module and Importance was set to high in the previous block then do not reset Importance
+			SET @Importance = (
+				SELECT 
+				CASE 
+					WHEN (@MultiWarningModule = 1 AND @Importance IN (''High'')) THEN @Importance
+					WHEN (@MultiWarningModule = 1 AND @Importance IS NULL) THEN ''Normal''
+					WHEN (@MultiWarningModule = 0) THEN ''Normal''
+					ELSE ''Normal''
+				END
+			);
 		END
 	END
 	
@@ -8652,6 +8802,17 @@ BEGIN
 				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountInfo AS VARCHAR(5))+'') ''+@HeaderText+''</font><p>''  
 				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountInfo AS VARCHAR(5))+'') ''+@HeaderText+'' <b>(Data collection out of Date)</b></font><p>''  
 			END
+
+			--If Multi warning is enabled for this module and Importance was set to high or Normal in the previous blocks then do not reset Importance
+			SET @Importance = (
+				SELECT 
+				CASE 
+					WHEN (@MultiWarningModule = 1 AND @Importance IN (''High'',''Normal'')) THEN @Importance
+					WHEN (@MultiWarningModule = 1 AND @Importance IS NULL) THEN ''Low''
+					WHEN (@MultiWarningModule = 0) THEN ''Low''
+					ELSE ''Low''
+				END
+			);
 		END
 	END
 
@@ -8691,8 +8852,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE FUNCTION [Inspector].[GenerateHtmlTableheader] (
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE FUNCTION [Inspector].[GenerateHtmlTableheader] (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(128),
 @ServerSpecific BIT,
@@ -8725,8 +8886,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE FUNCTION [Inspector].[GetDebugFlag] (
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE FUNCTION [Inspector].[GetDebugFlag] (
 @Debug BIT,
 @ModuleConfig VARCHAR(20),
 @Modulename VARCHAR(50)
@@ -8756,8 +8917,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE FUNCTION [Inspector].[GetWarningLevel] 
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE FUNCTION [Inspector].[GetWarningLevel] 
 (
 @ModuleConfig VARCHAR(20),
 @Modulename VARCHAR(50)
@@ -8780,8 +8941,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[JobOwnerReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[JobOwnerReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -8913,8 +9074,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[LoginAttemptsReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[LoginAttemptsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -9048,8 +9209,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[LongRunningTransactionsReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[LongRunningTransactionsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -9212,8 +9373,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[ModuleReportProcTemplate] (
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[ModuleReportProcTemplate] (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
 @TableHeaderColour VARCHAR(7) = ''#E6E6FA'',
@@ -9376,8 +9537,8 @@ END'
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[ServerSettingsReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[ServerSettingsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -9510,8 +9671,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[SuspectPagesReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[SuspectPagesReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -9638,8 +9799,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[TopFiveDatabasesReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[TopFiveDatabasesReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -9735,8 +9896,8 @@ END
 EXEC(@SQLStatement);
 
         
-SET @SQLStatement =  CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[UnusedLogshipConfigReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[UnusedLogshipConfigReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -9868,88 +10029,43 @@ EXEC(@SQLStatement);
   
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'Inspector.InspectorReportMaster') AND type in (N'P', N'PC'))
 BEGIN
-	EXEC dbo.sp_executesql @statement = N'
-	CREATE PROCEDURE [Inspector].[InspectorReportMaster] (
-	@EmailGroup VARCHAR(50) = ''DBA'',
-	@PSCollection BIT = 0
-	)
-	AS
-	
-	DECLARE @ModuleConfigDesc VARCHAR(20);
-	DECLARE @ReportWarningsOnly BIT;
-	DECLARE @NoClutter BIT;
-	DECLARE @Frequency SMALLINT; 
-	DECLARE @Procname NVARCHAR(128) = OBJECT_NAME(@@PROCID);
-	DECLARE @Duration MONEY;
-	DECLARE @ReportStart DATETIME = GETDATE();
-	
-	DECLARE InspectorReportmaster_cur CURSOR LOCAL STATIC
-	FOR
-	SELECT 
-	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup
-	FROM  [Inspector].[ReportSchedulesDue]
-	ORDER BY CurrentScheduleStart ASC
-	
-	OPEN InspectorReportmaster_cur
-	
-	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
-	
-	WHILE @@FETCH_STATUS = 0 
-	BEGIN 
-	
-		RAISERROR(''Executing [Inspector].[SQLUnderCoverInspectorReport] for config ''''%s'''''',0,0,@ModuleConfigDesc) WITH NOWAIT;
-	
-		EXEC sp_executesql N''
-		EXEC [Inspector].[SQLUnderCoverInspectorReport]
-		@EmailDistributionGroup = @EmailGroup,
-		@TestMode = 0, 
-		@ModuleDesc = @ModuleConfigDesc,
-		@EmailRedWarningsOnly = @ReportWarningsOnly, 
-		@Theme = ''''Dark'''',
-		@NoClutter = @NoClutter;'',
-		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly BIT,@NoClutter BIT,@EmailGroup VARCHAR(50)'',
-		@ModuleConfigDesc = @ModuleConfigDesc,
-		@ReportWarningsOnly = @ReportWarningsOnly,
-		@NoClutter = @NoClutter,
-		@EmailGroup = @EmailGroup;
-	
-		UPDATE [Inspector].[ModuleConfig]
-		SET LastRunDateTime = GETDATE() 
-		WHERE ModuleConfig_Desc = @ModuleConfigDesc;
-	
-		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
-	END 
-	
-	CLOSE InspectorReportmaster_cur
-	DEALLOCATE InspectorReportmaster_cur';
+	EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [Inspector].[InspectorReportMaster] AS';
 END
 ELSE 
-BEGIN 
+BEGIN
 	EXEC dbo.sp_executesql @statement = N'
 	ALTER PROCEDURE [Inspector].[InspectorReportMaster] (
 	@EmailGroup VARCHAR(50) = ''DBA'',
-	@PSCollection BIT = 0
+	@PSCollection BIT = 0,
+	@CachedReportID UNIQUEIDENTIFIER = NULL
 	)
 	AS
+
+	--Revision date: 22/05/2020
 	
 	DECLARE @ModuleConfigDesc VARCHAR(20);
-	DECLARE @ReportWarningsOnly BIT;
+	DECLARE @ReportWarningsOnly TINYINT;
 	DECLARE @NoClutter BIT;
 	DECLARE @Frequency SMALLINT; 
 	DECLARE @Procname NVARCHAR(128) = OBJECT_NAME(@@PROCID);
 	DECLARE @Duration MONEY;
 	DECLARE @ReportStart DATETIME = GETDATE();
-	
+	DECLARE @EmailProfile NVARCHAR(128);
+
 	DECLARE InspectorReportmaster_cur CURSOR LOCAL STATIC
 	FOR
 	SELECT 
-	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup
+	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
 	FROM  [Inspector].[ReportSchedulesDue]
-	ORDER BY CurrentScheduleStart ASC
+	UNION --We want to be sure we are not duplicating rows
+	SELECT 
+	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
+	FROM [Inspector].[ReportsDueCache]
+	WHERE ID = @CachedReportID
 	
 	OPEN InspectorReportmaster_cur
 	
-	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
+	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile
 	
 	WHILE @@FETCH_STATUS = 0 
 	BEGIN 
@@ -9959,22 +10075,32 @@ BEGIN
 		EXEC sp_executesql N''
 		EXEC [Inspector].[SQLUnderCoverInspectorReport]
 		@EmailDistributionGroup = @EmailGroup,
+		@EmailProfile = @EmailProfile,
 		@TestMode = 0, 
 		@ModuleDesc = @ModuleConfigDesc,
-		@EmailRedWarningsOnly = @ReportWarningsOnly, 
+		@ReportWarningsOnly = @ReportWarningsOnly, 
 		@Theme = ''''Dark'''',
 		@NoClutter = @NoClutter;'',
-		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly BIT,@NoClutter BIT,@EmailGroup VARCHAR(50)'',
+		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly TINYINT,@NoClutter BIT,@EmailGroup VARCHAR(50),@EmailProfile NVARCHAR(128)'',
 		@ModuleConfigDesc = @ModuleConfigDesc,
 		@ReportWarningsOnly = @ReportWarningsOnly,
 		@NoClutter = @NoClutter,
-		@EmailGroup = @EmailGroup;
+		@EmailGroup = @EmailGroup,
+		@EmailProfile = @EmailProfile;
 	
 		UPDATE [Inspector].[ModuleConfig]
 		SET LastRunDateTime = GETDATE() 
 		WHERE ModuleConfig_Desc = @ModuleConfigDesc;
+
+		IF (@CachedReportID IS NOT NULL)
+		BEGIN 
+			DELETE 
+			FROM [Inspector].[ReportsDueCache]
+			WHERE ID = @CachedReportID
+			AND ModuleConfig_Desc = @ModuleConfigDesc;
+		END 
 	
-		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup
+		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile
 	END 
 	
 	CLOSE InspectorReportmaster_cur
@@ -9982,24 +10108,24 @@ BEGIN
 END
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[BackupSpaceInsert]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[BackupSpaceInsert]
 AS
 BEGIN
 SET NOCOUNT ON;
 --Revision date: 18/12/2019
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
-DECLARE @BackupPath NVARCHAR(1000) = (SELECT NULLIF([Value],'''') From '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[Settings] where [Description] = ''BackupsPath'');
+DECLARE @BackupPath NVARCHAR(1000) = (SELECT NULLIF([Value],'''') From '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[Settings] where [Description] = ''BackupsPath'');
 
-DELETE FROM '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[BackupSpace]
+DELETE FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[BackupSpace]
 WHERE Servername = @Servername;
 
 WITH BackupPaths AS (
 SELECT CAST(StringElement AS VARCHAR(256)) AS BackupPath 
 FROM master.dbo.fn_SplitString(@BackupPath,'','')
 )
-INSERT INTO '+ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','')+'[Inspector].[BackupSpace] ([Servername],[Log_Date],[DayOfWeek],[CastedDate],[BackupPath],[TotalSizeInBytes])
+INSERT INTO '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[BackupSpace] ([Servername],[Log_Date],[DayOfWeek],[CastedDate],[BackupPath],[TotalSizeInBytes])
 SELECT 
 @Servername,
 GETDATE(),
@@ -10038,8 +10164,8 @@ END'
 EXEC(@SQLStatement)
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[BackupSpaceReport]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[BackupSpaceReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -10274,11 +10400,31 @@ END
 
 END'
 
+EXEC(@SQLStatement);
+
+
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[ExecutionLogTruncate] 
+AS 
+BEGIN 
+	DECLARE @LastTruncate DATE;
+
+	SET @LastTruncate = (SELECT TOP 1 [LastTruncate] FROM [Inspector].[ExecutionLogLastTruncate] ORDER BY [LastTruncate] DESC);
+
+	IF (@LastTruncate IS NULL OR @LastTruncate < CAST(GETDATE() AS DATE)) 
+	BEGIN 
+		TRUNCATE TABLE [Inspector].[ExecutionLog];
+
+		UPDATE [Inspector].[ExecutionLogLastTruncate] SET [LastTruncate] = CAST(GETDATE() AS DATE);
+	END	
+
+END';
+
 EXEC(@SQLStatement)
 
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'CREATE PROCEDURE [Inspector].[InspectorDataCollection]
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE PROCEDURE [Inspector].[InspectorDataCollection]
 (
 @ModuleConfig VARCHAR(20)  = NULL,
 @PSCollection BIT = 0,
@@ -10290,7 +10436,7 @@ SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
 AS 
 BEGIN 
 
---Revision date: 28/03/2020
+--Revision date: 24/05/2020
 
 SET NOCOUNT ON;
 
@@ -10304,22 +10450,27 @@ DECLARE @ReportStart DATETIME = GETDATE();
 DECLARE @Procname NVARCHAR(128) = OBJECT_NAME(@@PROCID);
 DECLARE @Frequency SMALLINT; 
 DECLARE @Duration MONEY;
-DECLARE @LastTruncate DATE;
-DECLARE @ReportWarningsOnly BIT;
-
+DECLARE @ReportWarningsOnly TINYINT;
+DECLARE @ErrorMessage NVARCHAR(128);
+DECLARE @CachedReportID UNIQUEIDENTIFIER;
 
 IF EXISTS(SELECT 1 FROM [Inspector].[CurrentServers] WHERE [IsActive] = 1 AND Servername = @Servername)
 BEGIN
     IF EXISTS (SELECT ModuleConfig_Desc FROM [Inspector].[Modules] WHERE ModuleConfig_Desc = @ModuleConfig) OR @ModuleConfig IS NULL 
     BEGIN
-		--Truncate the ExecutionLog daily
-		SELECT @LastTruncate = (SELECT TOP 1 CAST([ExecutionDate] AS DATE) FROM [Inspector].[ExecutionLog] ORDER BY [ID] DESC)
- 
-		--If the most recent log is from yesterday then Truncate the log.
-		IF (@LastTruncate < CAST(GETDATE() AS DATE))
+
+		--Truncate ExecutionLog if required
+		EXEC [Inspector].[ExecutionLogTruncate];
+
+		--Check for reports due and cache them in case the collection procs executed in the cursor below exceed the current minute
+		IF EXISTS (SELECT 1 FROM [Inspector].[ReportSchedulesDue])
 		BEGIN 
-			TRUNCATE TABLE [Inspector].[ExecutionLog];
-		END
+			SET @CachedReportID = NEWID();
+
+			INSERT INTO [Inspector].[ReportsDueCache] (ID,ModuleConfig_Desc,CurrentScheduleStart,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile) 
+			SELECT @CachedReportID,ModuleConfig_Desc,[CurrentScheduleStart],ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
+			FROM [Inspector].[ReportSchedulesDue];
+		END 
 
 		--Populate needs to occur here rather than the other @PSCollection = 1 block because the Modules table trigger is fired upon the Modules LatRunDateTime update
 		--and we want to control the format of the data through this proc.
@@ -10333,7 +10484,7 @@ BEGIN
 	    IF (@ModuleConfig IS NULL)
 	    BEGIN
 		   SELECT @ModuleConfig = ISNULL(ModuleConfig_Desc,''Default'')
-		   FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS VARCHAR(256))+'[Inspector].[CurrentServers]
+		   FROM '+CAST(CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX)) AS NVARCHAR(MAX))+N'[Inspector].[CurrentServers]
 		   WHERE IsActive = 1 
 		   AND Servername = @Servername;
 	    END
@@ -10368,6 +10519,7 @@ BEGIN
 			FROM [Inspector].[Modules]
 			WHERE (@IgnoreSchedules = 1 OR @PSExecModules = 1)
 			AND IsActive = 1
+			AND [CollectionProcedurename] IS NOT NULL
 			AND [ModuleConfig_Desc] = ISNULL(@ModuleConfig,[ModuleConfig_Desc])
 			UNION 
 			--Get modules due for collection that are not part of @ModuleConfig but due a collection
@@ -10393,7 +10545,14 @@ BEGIN
 					SET @CollectionStart = GETDATE();
 
 					RAISERROR(''Running [Inspector].[%s]'',0,0,@CollectionProcedurename) WITH NOWAIT;
-					EXEC(''EXEC [Inspector].[''+@CollectionProcedurename+''];'');
+					
+					BEGIN TRY 
+						EXEC(''EXEC [Inspector].[''+@CollectionProcedurename+''];'');
+						SET @ErrorMessage = NULL;
+					END TRY 
+					BEGIN CATCH 
+						SET @ErrorMessage = CAST(ERROR_MESSAGE() AS NVARCHAR(128));
+					END CATCH 
 
 					SET @Duration = CAST(DATEDIFF(MILLISECOND,@CollectionStart,GETDATE()) AS MONEY)/1000;
 
@@ -10404,7 +10563,8 @@ BEGIN
 						@Procname = @CollectionProcedurename, 
 						@Frequency = @Frequency,
 						@Duration = @Duration,
-						@PSCollection = @PSCollection;
+						@PSCollection = @PSCollection,
+						@ErrorMessage = @ErrorMessage;
 				END
 				ELSE 
 				BEGIN 
@@ -10448,7 +10608,7 @@ BEGIN
 	BEGIN 
 		--Run InspectorReportMaster to pick up any scheduled reports
 		RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
-		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
+		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection, @CachedReportID = @CachedReportID;
 	END
 
 
@@ -10478,7 +10638,7 @@ BEGIN
 	BEGIN 
 		--Run InspectorReportMaster to pick up any scheduled reports
 		RAISERROR(''Running [Inspector].[InspectorReportMaster]'',0,0) WITH NOWAIT;
-		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection;
+		EXEC [Inspector].[InspectorReportMaster] @PSCollection = @PSCollection, @CachedReportID = @CachedReportID;
 	END
 
 
@@ -10502,14 +10662,12 @@ EXEC(@SQLStatement);
 
 
 --Create Main Inspector Report Stored Procedure
-SET @SQLStatement = ''
-
-SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+ 
-'/*********************************************
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+ N'
+/*********************************************
 --Author: Adrian Buckman
---Revision date: 24/03/2020
+--Revision date: 15/05/2020
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
---V2.2
+--V2.3
 
 
 --Example Execute command
@@ -10517,7 +10675,8 @@ SELECT @SQLStatement = @SQLStatement + CONVERT(VARCHAR(MAX), '')+
 --@EmailDistributionGroup = ''DBA'',
 --@TestMode = 0,
 --@ModuleDesc = NULL,
---@EmailRedWarningsOnly = 0,
+--@ReportWarningsOnly = 0,
+--@EmailProfile = NULL,
 --@Theme = ''Dark'',
 --@NoClutter = 0,
 --@Debug = 0;
@@ -10529,7 +10688,8 @@ CREATE PROCEDURE [Inspector].[SQLUnderCoverInspectorReport]
 @EmailDistributionGroup VARCHAR(50) = ''DBA'',
 @TestMode BIT = 0,
 @ModuleDesc VARCHAR(20)	= NULL,
-@EmailRedWarningsOnly BIT = 0,
+@ReportWarningsOnly TINYINT = 0,
+@EmailProfile NVARCHAR(128) = NULL,
 @Theme VARCHAR(5) = ''Dark'',
 @PSCollection BIT = 0,
 @NoClutter BIT = 0,
@@ -10632,6 +10792,7 @@ DECLARE @EmailHeader VARCHAR(1000) = CASE
 DECLARE @SubjectText VARCHAR(255) 
 DECLARE @AlertSubjectText VARCHAR(255) 
 DECLARE @Importance VARCHAR(6) = ''Low'';
+DECLARE @HighestImportance TINYINT;
 DECLARE @EmailBody VARCHAR(MAX) = '''';
 DECLARE @AlertHeader VARCHAR(MAX) = '''';
 DECLARE @AdvisoryHeader VARCHAR(MAX) = '''';
@@ -10672,6 +10833,7 @@ DECLARE @ReportSummary VARCHAR(MAX) = '''';
 DECLARE @DetailedSummary BIT = (SELECT CASE WHEN [Value] IS NULL OR [Value] != 1 THEN 0 ELSE 1 END FROM [Inspector].[Settings] WHERE [Description] = ''ReportDataDetailedSummary'')
 DECLARE @MultiWarningModule BIT;
 DECLARE @ShowDisabledModules BIT;
+DECLARE @ErrorMessage NVARCHAR(128);
 
 --------------Internal use only----------------------
 DECLARE @DriveExtensionRequest VARCHAR(MAX)
@@ -10704,6 +10866,8 @@ SET @AlertSubjectText = @SubjectText +'' - WARNINGS FOUND! '';
 IF @Theme IS NOT NULL BEGIN SET @Theme = UPPER(@Theme) END;
 IF @Theme IS NULL BEGIN SET @Theme = ''DARK'' END;
 IF @Theme NOT IN (''LIGHT'',''DARK'') BEGIN SET @Theme = ''DARK'' END;
+
+IF (@ReportWarningsOnly > 3) BEGIN SET @ReportWarningsOnly = 0 END;
 
 --Check if the Undercover Catalogue is installed
 IF (OBJECT_ID(''Catalogue.ConfigInstances'') IS NOT NULL 
@@ -10868,6 +11032,7 @@ BEGIN
 	INNER JOIN [Inspector].[Modules] ON ([ActiveServers].[ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] OR ActiveServers.ModuleConfig_Desc IS NULL)
 	WHERE [Modules].[IsActive] = 1
 	AND [ServerSpecific] = 1
+	AND ReportProcedurename IS NOT NULL
 	AND [Modules].[ModuleConfig_Desc] = @ModuleConfigDetermined
 	AND NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfigReportExclusions] ExcludedReports WHERE [ExcludedReports].[Servername] = [ActiveServers].[Servername] AND [ExcludedReports].[Modulename] = [Modules].[Modulename] AND [ExcludedReports].[IsActive] = 1)
 	ORDER BY 
@@ -10955,6 +11120,25 @@ BEGIN
 						@InfoHeader = @InfoHeaderOutput OUTPUT,
 						@Debug = @Debug;
 
+						--Check @Importance and set to the highest Importance seen so far
+						SET @HighestImportance = (
+						SELECT
+						CASE 
+							WHEN @HighestImportance IS NULL THEN Importance
+							WHEN @HighestImportance > Importance THEN Importance
+							ELSE @HighestImportance
+						END
+						FROM 
+						(
+							SELECT
+							CASE @Importance
+								WHEN ''High'' THEN 1 
+								WHEN ''Normal'' THEN 2 
+								WHEN ''Low'' THEN 3 
+							END AS Importance
+						) Importance
+						);
+
 						--If no headers were populated by the module then revert the back to top hyperlink
 						IF @StandardTableTail IS NOT NULL 
 						BEGIN 
@@ -11012,55 +11196,62 @@ BEGIN
 				--Get Module warning level 
 				SELECT @WarningLevel = [Inspector].[GetWarningLevel](@ModuleConfigDetermined, @Modulename);
 
-				SET @SQLstatement = N''
-				EXEC [Inspector].[''+@ReportProcedurename+'']
-					@Servername = @Serverlist, 
-					@Modulename = @Modulename,
-					@TableHeaderColour = @TableHeaderColour, 
-					@WarningHighlight = @WarningHighlight, 
-					@AdvisoryHighlight = @AdvisoryHighlight,
-					@InfoHighlight = @InfoHighlight,
-					@PSCollection = @PSCollection, 
-					@ModuleConfig = @ModuleConfigDetermined, 
-					@WarningLevel = @WarningLevel,
-					@ServerSpecific = @ServerSpecific,
-					@NoClutter = @NoClutter,
-					@TableTail = @TableTail,
-					@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
-					@HtmlOutput = @ReportModuleHtml OUTPUT,
-					@Debug = @Debug;''
+				BEGIN TRY
+					SET @SQLstatement = N''
+					EXEC [Inspector].[''+@ReportProcedurename+'']
+						@Servername = @Serverlist, 
+						@Modulename = @Modulename,
+						@TableHeaderColour = @TableHeaderColour, 
+						@WarningHighlight = @WarningHighlight, 
+						@AdvisoryHighlight = @AdvisoryHighlight,
+						@InfoHighlight = @InfoHighlight,
+						@PSCollection = @PSCollection, 
+						@ModuleConfig = @ModuleConfigDetermined, 
+						@WarningLevel = @WarningLevel,
+						@ServerSpecific = @ServerSpecific,
+						@NoClutter = @NoClutter,
+						@TableTail = @TableTail,
+						@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
+						@HtmlOutput = @ReportModuleHtml OUTPUT,
+						@Debug = @Debug;''
 
-				EXEC sp_executesql @SQLstatement,
-					N''@Serverlist NVARCHAR(128),
-					@Modulename VARCHAR(50),
-					@TableHeaderColour VARCHAR(7),
-					@WarningHighlight VARCHAR(7),
-					@AdvisoryHighlight VARCHAR(7),
-					@InfoHighlight VARCHAR(7),
-					@PSCollection BIT,
-					@ModuleConfigDetermined VARCHAR(20),
-					@WarningLevel TINYINT,
-					@ServerSpecific BIT,
-					@NoClutter BIT,
-					@TableTail VARCHAR(256),
-					@CollectionOutOfDate BIT OUTPUT,
-					@ReportModuleHtml VARCHAR(MAX) OUTPUT,
-					@Debug BIT'',
-					@Serverlist = @Serverlist, 
-					@Modulename = @Modulename,
-					@TableHeaderColour = @TableHeaderColour, 
-					@WarningHighlight = @WarningHighlight,
-					@AdvisoryHighlight = @AdvisoryHighlight,
-					@InfoHighlight = @InfoHighlight,
-					@PSCollection = @PSCollection, 
-					@ModuleConfigDetermined = @ModuleConfigDetermined, 
-					@WarningLevel = @WarningLevel,
-					@ServerSpecific = @ServerSpecific,
-					@NoClutter = @NoClutter,
-					@TableTail = @TableTail,
-					@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
-					@ReportModuleHtml = @ReportModuleHtml OUTPUT,
-					@Debug = @Debug;
+					EXEC sp_executesql @SQLstatement,
+						N''@Serverlist NVARCHAR(128),
+						@Modulename VARCHAR(50),
+						@TableHeaderColour VARCHAR(7),
+						@WarningHighlight VARCHAR(7),
+						@AdvisoryHighlight VARCHAR(7),
+						@InfoHighlight VARCHAR(7),
+						@PSCollection BIT,
+						@ModuleConfigDetermined VARCHAR(20),
+						@WarningLevel TINYINT,
+						@ServerSpecific BIT,
+						@NoClutter BIT,
+						@TableTail VARCHAR(256),
+						@CollectionOutOfDate BIT OUTPUT,
+						@ReportModuleHtml VARCHAR(MAX) OUTPUT,
+						@Debug BIT'',
+						@Serverlist = @Serverlist, 
+						@Modulename = @Modulename,
+						@TableHeaderColour = @TableHeaderColour, 
+						@WarningHighlight = @WarningHighlight,
+						@AdvisoryHighlight = @AdvisoryHighlight,
+						@InfoHighlight = @InfoHighlight,
+						@PSCollection = @PSCollection, 
+						@ModuleConfigDetermined = @ModuleConfigDetermined, 
+						@WarningLevel = @WarningLevel,
+						@ServerSpecific = @ServerSpecific,
+						@NoClutter = @NoClutter,
+						@TableTail = @TableTail,
+						@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
+						@ReportModuleHtml = @ReportModuleHtml OUTPUT,
+						@Debug = @Debug;
+
+					SET @ErrorMessage = NULL;
+					END TRY 
+					BEGIN CATCH 
+						SET @ErrorMessage = CAST(ERROR_MESSAGE() AS NVARCHAR(128));
+					END CATCH 
 
 					RAISERROR(''Generating header info for Module: [%s] for server [%s] '',0,0,@Modulename,@Serverlist) WITH NOWAIT;
 
@@ -11086,6 +11277,25 @@ BEGIN
 					@AdvisoryHeader = @AdvisoryHeaderOutput OUTPUT,
 					@InfoHeader = @InfoHeaderOutput OUTPUT,
 					@Debug = @Debug;
+
+					--Check @Importance and set to the highest Importance seen so far
+					SET @HighestImportance = (
+					SELECT
+					CASE 
+						WHEN @HighestImportance IS NULL THEN Importance
+						WHEN @HighestImportance > Importance THEN Importance
+						ELSE @HighestImportance
+					END
+					FROM 
+					(
+						SELECT
+						CASE @Importance
+							WHEN ''High'' THEN 1 
+							WHEN ''Normal'' THEN 2 
+							WHEN ''Low'' THEN 3 
+						END AS Importance
+					) Importance
+					);
 
 					--If no headers were populated by the module then revert the back to top hyperlink
 					IF @StandardTableTail IS NOT NULL 
@@ -11134,12 +11344,24 @@ BEGIN
 				@Procname = @ReportProcedurename, 
 				@Frequency = @Frequency,
 				@Duration = @Duration,
-				@PSCollection = @PSCollection;
+				@PSCollection = @PSCollection,
+				@ErrorMessage = @ErrorMessage;
 		END
 	END 
 	ELSE 
 	BEGIN 
 		RAISERROR(''No Report procedure found for Module: %s'',0,0,@Modulename,@Serverlist) WITH NOWAIT;
+
+		EXEC [Inspector].[ExecutionLogInsert] 
+			@RunDatetime = @ModuleReportStart, 
+			@Servername = @Serverlist, 
+			@ModuleConfigDesc = @ModuleConfig,
+			@Procname = @ReportProcedurename, 
+			@Frequency = @Frequency,
+			@Duration = 0,
+			@PSCollection = @PSCollection,
+			@ErrorMessage = ''No Report procedure found for Module'';
+
 	END 
 
 
@@ -11255,6 +11477,8 @@ END
 		SET @ReportSummary += ''ALL_SERVERS (''+@ModuleConfigDetermined+''):''+CHAR(13)+CHAR(10);
 	END
 
+	SET @ErrorMessage = NULL;
+
 	DECLARE OneoffsReportProc_cur CURSOR LOCAL STATIC
 	FOR 
 	SELECT 
@@ -11290,56 +11514,62 @@ END
 			--Get Module warning level 
 			SELECT @WarningLevel = [Inspector].[GetWarningLevel](@ModuleConfigDetermined, @Modulename);
 
-			SET @SQLstatement = N''
-			EXEC [Inspector].[''+@ReportProcedurename+'']
-				@Servername = @Serverlist, 
-				@Modulename = @Modulename,
-				@TableHeaderColour = @TableHeaderColour, 
-				@WarningHighlight = @WarningHighlight, 
-				@AdvisoryHighlight = @AdvisoryHighlight,
-				@InfoHighlight = @InfoHighlight,
-				@PSCollection = @PSCollection, 
-				@ModuleConfig = @ModuleConfigDetermined, 
-				@WarningLevel = @WarningLevel,
-				@ServerSpecific = @ServerSpecific,
-				@NoClutter = @NoClutter,
-				@TableTail = @TableTail,
-				@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
-				@HtmlOutput = @ReportModuleHtml OUTPUT,
-				@Debug = @Debug;''
+			BEGIN TRY
+				SET @SQLstatement = N''
+				EXEC [Inspector].[''+@ReportProcedurename+'']
+					@Servername = @Serverlist, 
+					@Modulename = @Modulename,
+					@TableHeaderColour = @TableHeaderColour, 
+					@WarningHighlight = @WarningHighlight, 
+					@AdvisoryHighlight = @AdvisoryHighlight,
+					@InfoHighlight = @InfoHighlight,
+					@PSCollection = @PSCollection, 
+					@ModuleConfig = @ModuleConfigDetermined, 
+					@WarningLevel = @WarningLevel,
+					@ServerSpecific = @ServerSpecific,
+					@NoClutter = @NoClutter,
+					@TableTail = @TableTail,
+					@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
+					@HtmlOutput = @ReportModuleHtml OUTPUT,
+					@Debug = @Debug;''
 
-			EXEC sp_executesql @SQLstatement,
-				N''@Serverlist NVARCHAR(128),
-				@Modulename VARCHAR(50),
-				@TableHeaderColour VARCHAR(7),
-				@WarningHighlight VARCHAR(7),
-				@AdvisoryHighlight VARCHAR(7),
-				@InfoHighlight VARCHAR(7),
-				@PSCollection BIT,
-				@ModuleConfigDetermined VARCHAR(20),
-				@WarningLevel TINYINT,
-				@ServerSpecific BIT,
-				@NoClutter BIT,
-				@TableTail VARCHAR(256),
-				@CollectionOutOfDate BIT OUTPUT,
-				@ReportModuleHtml VARCHAR(MAX) OUTPUT,
-				@Debug BIT'',
-				@Serverlist = @Serverlist, 
-				@Modulename = @Modulename,
-				@TableHeaderColour = @TableHeaderColour, 
-				@WarningHighlight = @WarningHighlight,
-				@AdvisoryHighlight = @AdvisoryHighlight,
-				@InfoHighlight = @InfoHighlight,
-				@PSCollection = @PSCollection, 
-				@ModuleConfigDetermined = @ModuleConfigDetermined, 
-				@WarningLevel = @WarningLevel,
-				@ServerSpecific = @ServerSpecific,
-				@NoClutter = @NoClutter,
-				@TableTail = @TableTail,
-				@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
-				@ReportModuleHtml = @ReportModuleHtml OUTPUT,
-				@Debug = @Debug;
+				EXEC sp_executesql @SQLstatement,
+					N''@Serverlist NVARCHAR(128),
+					@Modulename VARCHAR(50),
+					@TableHeaderColour VARCHAR(7),
+					@WarningHighlight VARCHAR(7),
+					@AdvisoryHighlight VARCHAR(7),
+					@InfoHighlight VARCHAR(7),
+					@PSCollection BIT,
+					@ModuleConfigDetermined VARCHAR(20),
+					@WarningLevel TINYINT,
+					@ServerSpecific BIT,
+					@NoClutter BIT,
+					@TableTail VARCHAR(256),
+					@CollectionOutOfDate BIT OUTPUT,
+					@ReportModuleHtml VARCHAR(MAX) OUTPUT,
+					@Debug BIT'',
+					@Serverlist = @Serverlist, 
+					@Modulename = @Modulename,
+					@TableHeaderColour = @TableHeaderColour, 
+					@WarningHighlight = @WarningHighlight,
+					@AdvisoryHighlight = @AdvisoryHighlight,
+					@InfoHighlight = @InfoHighlight,
+					@PSCollection = @PSCollection, 
+					@ModuleConfigDetermined = @ModuleConfigDetermined, 
+					@WarningLevel = @WarningLevel,
+					@ServerSpecific = @ServerSpecific,
+					@NoClutter = @NoClutter,
+					@TableTail = @TableTail,
+					@CollectionOutOfDate = @CollectionOutOfDate OUTPUT,
+					@ReportModuleHtml = @ReportModuleHtml OUTPUT,
+					@Debug = @Debug;
 
+				SET @ErrorMessage = NULL;
+				END TRY 
+				BEGIN CATCH 
+					SET @ErrorMessage = CAST(ERROR_MESSAGE() AS NVARCHAR(128));
+				END CATCH 			
 
 				SET @Duration = CAST(DATEDIFF(MILLISECOND,@ModuleReportStart,GETDATE()) AS MONEY)/1000;
 
@@ -11350,7 +11580,8 @@ END
 					@Procname = @ReportProcedurename, 
 					@Frequency = @Frequency,
 					@Duration = @Duration,
-					@PSCollection = @PSCollection;
+					@PSCollection = @PSCollection,
+					@ErrorMessage = @ErrorMessage;
 
 				
 				--Generate header information
@@ -11375,6 +11606,25 @@ END
 				@AdvisoryHeader = @AdvisoryHeaderOutput OUTPUT,
 				@InfoHeader = @InfoHeaderOutput OUTPUT,
 				@Debug = @Debug;
+
+				--Check @Importance and set to the highest Importance seen so far
+				SET @HighestImportance = (
+				SELECT
+				CASE 
+					WHEN @HighestImportance IS NULL THEN Importance
+					WHEN @HighestImportance > Importance THEN Importance
+					ELSE @HighestImportance
+				END
+				FROM 
+				(
+					SELECT
+					CASE @Importance
+						WHEN ''High'' THEN 1 
+						WHEN ''Normal'' THEN 2 
+						WHEN ''Low'' THEN 3 
+					END AS Importance
+				) Importance
+				);
 
 				IF (@DetailedSummary = 1)
 				BEGIN 
@@ -11416,6 +11666,16 @@ END
 		ELSE
 		BEGIN 
 			RAISERROR(''No Report procedure found for Module: %s'',0,0,@Modulename,@Serverlist) WITH NOWAIT;
+
+			EXEC [Inspector].[ExecutionLogInsert] 
+				@RunDatetime = @ModuleReportStart, 
+				@Servername = @Serverlist, 
+				@ModuleConfigDesc = @ModuleConfig,
+				@Procname = @ReportProcedurename, 
+				@Frequency = @Frequency,
+				@Duration = 0,
+				@PSCollection = @PSCollection,
+				@ErrorMessage = ''No Report procedure found for Module'';
 		END
 
 		FETCH NEXT FROM OneoffsReportProc_cur INTO @ModuleConfig,@Modulename,@ReportProcedurename,@ServerSpecific,@Frequency
@@ -11584,20 +11844,33 @@ END
 
 IF @ModuleDesc IS NULL BEGIN SET @ModuleDesc = ''NULL'' END;
 
+SET @Importance = (SELECT CASE @HighestImportance WHEN 1 THEN ''High'' WHEN 2 THEN ''Normal'' WHEN 3 THEN ''Low'' END);
+
 IF @TestMode = 1 OR (@RecipientsList IS NULL OR @RecipientsList = '''')
 BEGIN
-INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup)
-SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup;
+	IF (@ReportWarningsOnly > 0)
+	BEGIN
+		IF (@HighestImportance <= @ReportWarningsOnly)
+		BEGIN
+			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup,ReportWarningsOnly)
+			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup,@ReportWarningsOnly;
+		END
+	END
+	ELSE 
+	BEGIN
+		INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup,ReportWarningsOnly)
+		SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup,@ReportWarningsOnly;
+	END
 END
 ELSE
 BEGIN
-
-IF @EmailRedWarningsOnly = 1 
+BEGIN TRY
+IF (@ReportWarningsOnly > 0)
 	BEGIN
-		IF @Importance = ''High''
+		IF (@HighestImportance <= @ReportWarningsOnly)
 		BEGIN
-			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup)
-			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup;
+			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup,ReportWarningsOnly)
+			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup,@ReportWarningsOnly;
 
 			EXEC msdb.dbo.sp_send_dbmail 
 			@recipients = @RecipientsList,
@@ -11609,8 +11882,8 @@ IF @EmailRedWarningsOnly = 1
 	END
 	ELSE 
 	BEGIN
-			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup)
-			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup;
+			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup,ReportWarningsOnly)
+			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup,@ReportWarningsOnly;
 
 			EXEC msdb.dbo.sp_send_dbmail 
 			@recipients = @RecipientsList,
@@ -11619,6 +11892,13 @@ IF @EmailRedWarningsOnly = 1
 			@body=@EmailBody ,
 			@body_format = ''HTML'' 
 	END
+
+END TRY 
+BEGIN CATCH 
+	SET @ErrorMessage = N''Error occured whilst executing sp_send_dbmail: ''+ CAST(ERROR_MESSAGE() AS NVARCHAR(80));
+	RAISERROR(''%s'',0,0,@ErrorMessage); --Severity is 0 as we are logging the error in the next code block
+END CATCH 
+
 END
 
 SET @Duration = CAST(DATEDIFF(MILLISECOND,@ReportStart,GETDATE()) AS MONEY)/1000;
@@ -11630,7 +11910,8 @@ EXEC [Inspector].[ExecutionLogInsert]
 @ModuleConfigDesc = @ModuleDesc,
 @Procname = @Procname, 
 @Duration = @Duration,
-@PSCollection = @PSCollection;
+@PSCollection = @PSCollection,
+@ErrorMessage = @ErrorMessage;
 
 --Report Data cleanup
 DELETE FROM [Inspector].[ReportData]
@@ -11652,8 +11933,8 @@ END'
 
 EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+
-'-- =============================================
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+-- =============================================
 -- Get a list of all non server specific modules with DatabaseGrowth and BackupSpace modules forced to look at the Default 
 -- moduleconfig rows for report order , all custom non server specific modules 
 -- =============================================
@@ -11662,7 +11943,7 @@ CREATE FUNCTION [Inspector].[GetNonServerSpecificModules]
 @ModuleDesc VARCHAR(20),
 @DatabaseGrowthCheckRunEnabled BIT
 )
---Revision date: 25/10/2019
+--Revision date: 13/04/2020
 RETURNS TABLE 
 AS
 RETURN 
@@ -11699,6 +11980,7 @@ RETURN
 		) AS ActiveServers
 		INNER JOIN [Inspector].[Modules] ON ([ActiveServers].[ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] OR ActiveServers.ModuleConfig_Desc IS NULL)
 		WHERE [Modules].[IsActive] = 1
+		AND ReportProcedurename IS NOT NULL
 		AND [ServerSpecific] = 0
 		AND [Modules].[ModuleConfig_Desc] = @ModuleDesc 
 	) AS NonServerSpecificModules
@@ -11709,7 +11991,7 @@ EXEC(@SQLStatement);
 
 
 --Agent job creation
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
 USE [msdb];
 
 IF NOT EXISTS (SELECT name FROM sysjobs WHERE name = ''Inspector Auto ['+@Databasename+']'')
@@ -11780,7 +12062,7 @@ EXEC (@SQLStatement);
 
 --Update job command to use Collection stored procedure introduced with issue #13
 --Tidied Agent job descriptions and changed equality job searches to LIKE searches as some users may rename jobs slightly , such as prefixing or suffixing.
-SET @SQLStatement = CONVERT(VARCHAR(MAX), '')+'
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
 DECLARE @JobID UNIQUEIDENTIFIER = NULL
 
 SET @JobID = (SELECT job_id FROM msdb.dbo.sysjobs WHERE name LIKE ''%SQLUndercover Inspector Data Collection%'')
@@ -11825,7 +12107,7 @@ IF (@CurrentBuild < '2.00')
 BEGIN 
 RAISERROR('Transferring agent job shedules to the Modules and ModuleConfig tables',0,0) WITH NOWAIT;
 --Transfer schedules for existing Agent jobs and disable the existing Agent jobs.
-SELECT @SQLStatement =
+SELECT @SQLStatement = 
 (
 SELECT 
 'UPDATE [Inspector].['+[Tablename]+']
@@ -11940,13 +12222,14 @@ FOR XML PATH('') ,TYPE).value('.','nvarchar(max)');
 EXEC(@SQLStatement);
 END
 
+EXEC sp_executesql N'
 --Update any Tablenames in PSConfig for Report only modules issue #204 , PopulatePSConfig proc also updated to accomodate.
 UPDATE PSConfig 
 SET [Tablename] = NULL,[Procedurename] = [CollectionProcedurename]
 FROM [Inspector].[PSConfig] 
 INNER JOIN [Inspector].[Modules] ON [PSConfig].[ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] AND [PSConfig].[Modulename] = [Modules].[Modulename]
 WHERE [Modules].[CollectionProcedurename] IS NULL 
-AND [PSConfig].[Tablename] IS NOT NULL;
+AND [PSConfig].[Tablename] IS NOT NULL;';
 
 --Set Frequency based Insert action as the default
 EXEC sp_executesql N'

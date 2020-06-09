@@ -1,6 +1,6 @@
 --Undercover Catalogue
 --David Fowler
---Version 0.4.0 - 25 November 2019
+--Version 0.4.3 - 04 May 2020
 --Module: Tables
 --Script: Update
 
@@ -16,6 +16,9 @@ SET		ServerName = Tables_Stage.ServerName
 		,TableName = Tables_Stage.TableName
 		,Columns = Tables_Stage.Columns
 		,LastRecorded = GETDATE()
+		,Rows = Tables_Stage.Rows
+		,TotalSizeMB = Tables_Stage.TotalSizeMB
+		,UsedSizeMB = Tables_Stage.UsedSizeMB
 FROM	Catalogue.Tables_Stage
 WHERE	Tables.ServerName = Tables_Stage.ServerName
 		AND Tables.SchemaName = Tables_Stage.SchemaName
@@ -26,7 +29,7 @@ WHERE	Tables.ServerName = Tables_Stage.ServerName
 
 --insert tables that are unknown to the catlogue
 INSERT INTO Catalogue.Tables
-(ServerName,DatabaseName,SchemaName,TableName,Columns,FirstRecorded,LastRecorded)
+(ServerName,DatabaseName,SchemaName,TableName,Columns,FirstRecorded,LastRecorded, Rows, TotalSizeMB, UsedSizeMB)
 SELECT ServerName,
 		DatabaseName,
 		SchemaName,
@@ -34,6 +37,9 @@ SELECT ServerName,
 		Columns,
 		GETDATE(),
 		GETDATE()
+		,Rows
+		,TotalSizeMB
+		,UsedSizeMB
 FROM Catalogue.Tables_Stage
 WHERE NOT EXISTS 
 (SELECT 1 FROM Catalogue.Tables
