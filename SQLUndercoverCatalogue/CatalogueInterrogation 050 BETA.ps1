@@ -26,8 +26,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #>
 
 #configuration variables, change these to suit your setup
-$ConfigServer = "CDVALDBS01"
-$SQLUndercoverDatabase = "DBA_Careworks"
+$ConfigServer = "<central server>"
+$SQLUndercoverDatabase = "SQLUndercover"
 
 $ScriptVersion = "0.5.0"
 
