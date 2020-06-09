@@ -32,7 +32,7 @@ $SQLUndercoverDatabase = "SQLUndercover"
 $ScriptVersion = "0.5.0"
 
 #import dbatools
-Import-Module dbatools
+#Import-Module dbatools
 Clear-Host
 
 ####################     Get configuration parameters from catalogue.configPoSH   #######################################
