@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 24/05/2020
+Revision date: 11/06/2020
 Version: 2.3
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -10031,8 +10031,7 @@ IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'Inspector
 BEGIN
 	EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [Inspector].[InspectorReportMaster] AS';
 END
-ELSE 
-BEGIN
+
 	EXEC dbo.sp_executesql @statement = N'
 	ALTER PROCEDURE [Inspector].[InspectorReportMaster] (
 	@EmailGroup VARCHAR(50) = ''DBA'',
@@ -10105,7 +10104,7 @@ BEGIN
 	
 	CLOSE InspectorReportmaster_cur
 	DEALLOCATE InspectorReportmaster_cur';
-END
+
 
 
 SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
