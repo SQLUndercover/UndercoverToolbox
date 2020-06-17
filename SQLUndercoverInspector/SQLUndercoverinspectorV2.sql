@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 11/06/2020
+Revision date: 17/06/2020
 Version: 2.3
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200524';
+DECLARE @Revisiondate DATE = '20200617';
 DECLARE @Build VARCHAR(6) ='2.3'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -3670,7 +3670,7 @@ GETDATE(),
 FROM sys.dm_hadr_availability_group_states States
 INNER JOIN sys.availability_groups Groups ON States.group_id = Groups.group_id
 INNER JOIN (SELECT [Log_Date],[AGname]
-			FROM [Inspector].[AGCheck]
+			FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[AGCheck]
 			WHERE [ReplicaServername] = @Servername
 			AND [ReplicaRole] = N''SECONDARY''
 			) AS SecondaryCheck ON [Groups].[name] = [SecondaryCheck].[AGname] COLLATE DATABASE_DEFAULT
