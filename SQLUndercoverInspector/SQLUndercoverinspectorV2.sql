@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 17/06/2020
+Revision date: 24/06/2020
 Version: 2.3
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20200617';
+DECLARE @Revisiondate DATE = '20200624';
 DECLARE @Build VARCHAR(6) ='2.3'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -11876,7 +11876,8 @@ IF (@ReportWarningsOnly > 0)
 			@subject = @SubjectText,
 			@importance = @Importance,
 			@body=@EmailBody ,
-			@body_format = ''HTML'' 
+			@body_format = ''HTML'',
+			@profile_name = @EmailProfile;
 		END
 	END
 	ELSE 
@@ -11889,7 +11890,8 @@ IF (@ReportWarningsOnly > 0)
 			@subject = @SubjectText,
 			@importance = @Importance,
 			@body=@EmailBody ,
-			@body_format = ''HTML'' 
+			@body_format = ''HTML'',
+			@profile_name = @EmailProfile;
 	END
 
 END TRY 
