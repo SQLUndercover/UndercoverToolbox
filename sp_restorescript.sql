@@ -142,7 +142,8 @@ CREATE PROC sp_RestoreScript
 @BrokerOptions VARCHAR(30) = '',
 @StandBy VARCHAR(260) = NULL,
 @RestoreTimeEstimate BIT = 0,
-@Credential VARCHAR(128) = NULL
+@Credential VARCHAR(128) = NULL,
+@IncludeCopyOnly BIT = 1
 )
 
 AS
@@ -358,7 +359,8 @@ BEGIN
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
 			AND backupset.backup_start_date < @RestoreToDate
-			AND backupset.type = 'D')
+			AND backupset.type = 'D'
+            AND is_copy_only IN (0,@IncludeCopyOnly))
 
 		INSERT INTO #BackupCommands
 		SELECT DISTINCT  backup_start_date, @DatabaseName AS DBName,
@@ -416,7 +418,8 @@ BEGIN
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
 			AND backupset.backup_start_date < @RestoreToDate
-			AND backupset.type = 'I')
+			AND backupset.type = 'I'
+            AND is_copy_only IN (0,@IncludeCopyOnly))
 
 		INSERT INTO #BackupCommands
 		SELECT DISTINCT  backup_start_date, @DatabaseName AS DBName,
@@ -440,7 +443,8 @@ BEGIN
 			AND backupset.backup_start_date >
 				(SELECT COALESCE(MAX(backup_start_date),@FirstLogToRestore) FROM #BackupCommands)
 			AND backupset.backup_start_date < @RestoreToDate
-			AND backupset.type = 'L')
+			AND backupset.type = 'L'
+            AND is_copy_only IN (0,@IncludeCopyOnly))
 
 		INSERT INTO #BackupCommands
 		SELECT DISTINCT  backup_start_date, @DatabaseName AS DBName,
@@ -463,7 +467,8 @@ BEGIN
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
 			AND backupset.backup_start_date > @RestoreToDate
-			AND backupset.type = 'L')
+			AND backupset.type = 'L'
+            AND is_copy_only IN (0,@IncludeCopyOnly))
 
 		INSERT INTO #BackupCommands
 		SELECT DISTINCT  backup_start_date, @DatabaseName AS DBName,
