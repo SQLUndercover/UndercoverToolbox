@@ -388,7 +388,12 @@ BEGIN
 
 		SET @WithMoveCmd = ','
 
-		SELECT @WithMoveCmd = @WithMoveCmd + STUFF((SELECT ',' + ' MOVE ''' + name + ''' TO ''' + REPLACE(physical_name,REVERSE(SUBSTRING(REVERSE(physical_name),CHARINDEX('\',REVERSE(physical_name),0), LEN(physical_name))),@WithMoveDataPath) + ''''
+		SELECT @WithMoveCmd = @WithMoveCmd + STUFF((SELECT ',' + ' MOVE ''' + name + ''' TO ''' + 
+		CASE 
+			WHEN @RestoreAsName IS NULL THEN REPLACE(physical_name,REVERSE(SUBSTRING(REVERSE(physical_name),CHARINDEX('\',REVERSE(physical_name),0), LEN(physical_name))),@WithMoveDataPath) + ''''
+			ELSE REPLACE(LEFT(physical_name,(LEN(physical_name)-CHARINDEX('\',REVERSE(physical_name),0)+1)),LEFT(physical_name,(LEN(physical_name)-CHARINDEX('\',REVERSE(physical_name),0)+1)),@WithMoveDataPath) /* Base Path */ 
+				+REPLACE(RIGHT(physical_name,(CHARINDEX('\',REVERSE(physical_name))-1)),@DatabaseName,@RestoreAsName) + '''' /* append new filename and extension */
+		END
 		FROM sys.master_files
 		WHERE database_id = DB_ID(@DatabaseName)
 		AND type_desc = 'ROWS'
@@ -396,7 +401,12 @@ BEGIN
 
 		SET @WithMoveCmd = @WithMoveCmd + ','
 
-		SELECT @WithMoveCmd = @WithMoveCmd + STUFF((SELECT ',' +  'MOVE ''' + name + ''' TO ''' + REPLACE(physical_name,REVERSE(SUBSTRING(REVERSE(physical_name),CHARINDEX('\',REVERSE(physical_name),0), LEN(physical_name))),@WithMoveLogPath) + ''''
+		SELECT @WithMoveCmd = @WithMoveCmd + STUFF((SELECT ',' +  'MOVE ''' + name + ''' TO ''' +
+		CASE 
+			WHEN @RestoreAsName IS NULL THEN REPLACE(physical_name,REVERSE(SUBSTRING(REVERSE(physical_name),CHARINDEX('\',REVERSE(physical_name),0), LEN(physical_name))),@WithMoveLogPath) + ''''
+			ELSE REPLACE(LEFT(physical_name,(LEN(physical_name)-CHARINDEX('\',REVERSE(physical_name),0)+1)),LEFT(physical_name,(LEN(physical_name)-CHARINDEX('\',REVERSE(physical_name),0)+1)),@WithMoveLogPath) /* Base Path */ 
+				+REPLACE(RIGHT(physical_name,(CHARINDEX('\',REVERSE(physical_name))-1)),@DatabaseName,@RestoreAsName) + '''' /* append new filename and extension */
+		END
 		FROM sys.master_files
 		WHERE database_id = DB_ID(@DatabaseName)
 		AND type_desc = 'LOG'
