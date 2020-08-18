@@ -393,6 +393,15 @@ BEGIN
 	--if WithMove parameters are set, create WITH MOVE statements
 	IF (@WithMoveDataPath IS NOT NULL) AND (@WithMoveLogPath IS NOT NULL) 
 	BEGIN
+
+		--append \ to the end of path if it's not already
+
+		IF (SELECT SUBSTRING(@WithMoveDataPath,LEN(@WithMoveDataPath), 1)) != '\'
+			SET @WithMoveDataPath =  @WithMoveDataPath + '\'
+
+		IF (SELECT SUBSTRING(@WithMoveLogPath,LEN(@WithMoveLogPath), 1)) != '\'
+			SET @WithMoveLogPath =  @WithMoveLogPath + '\'
+
 		--generate MOVE statement
 		DECLARE @WithMoveCmd VARCHAR(3000)
 
