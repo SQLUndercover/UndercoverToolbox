@@ -62,6 +62,7 @@ Backup type added to the output
 29 August 2019
 @Credential parameter added
 
+
 MIT License
 ------------
 
@@ -143,7 +144,8 @@ CREATE PROC sp_RestoreScript
 @StandBy VARCHAR(260) = NULL,
 @RestoreTimeEstimate BIT = 0,
 @Credential VARCHAR(128) = NULL,
-@IncludeCopyOnly BIT = 1
+@IncludeCopyOnly BIT = 1,
+@SingleUser BIT = 0
 )
 
 AS
@@ -348,6 +350,14 @@ FETCH NEXT FROM DatabaseCur INTO @DatabaseName, @RestoreAsName
 
 WHILE @@FETCH_STATUS = 0 
 BEGIN
+
+	--Insert single user command
+	IF @SingleUser = 1
+	BEGIN
+		INSERT INTO #BackupCommands (DBName, command)
+		VALUES (@DatabaseName, 'ALTER DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' SET SINGLE_USER WITH ROLLBACK IMMEDIATE')
+	END
+
 
 	--Get last full backup for required timeframe
 	IF (@RestoreOptions IN ('PointInTime','ToLog','ToDiff','ToFull','DiffOnly'))
