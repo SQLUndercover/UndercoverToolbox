@@ -35,7 +35,7 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-sp_RestoreScript 1.6                                                                                                             
+sp_RestoreScript 1.7 BETA                                                                                                             
 Written By David Fowler
 29 June 2017
 Generate a set of backup commands to restore a database(s) to a specified time         
@@ -62,6 +62,8 @@ Backup type added to the output
 29 August 2019
 @Credential parameter added
 
+18 August 2020
+changes to be added
 
 MIT License
 ------------
@@ -364,7 +366,11 @@ BEGIN
 	BEGIN		
 		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
 		AS
-			(SELECT 'DISK = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, backup_finish_date
+			(SELECT CASE	WHEN device_type = 2 THEN 'DISK'
+							WHEN device_type = 5 THEN 'TAPE'
+							WHEN device_type = 9 THEN 'URL'
+							ELSE '***UNSUPPORTED DEVICE***'
+					END + ' = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, backup_finish_date
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
@@ -442,7 +448,11 @@ BEGIN
 	BEGIN
 		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
 		AS
-			(SELECT 'DISK = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, backup_finish_date
+			(SELECT CASE	WHEN device_type = 2 THEN 'DISK'
+							WHEN device_type = 5 THEN 'TAPE'
+							WHEN device_type = 9 THEN 'URL'
+							ELSE '***UNSUPPORTED DEVICE***'
+					END + ' = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, backup_finish_date
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
@@ -465,7 +475,11 @@ BEGIN
 	IF (@RestoreOptions IN ('ToLog','LogsOnly'))
 		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
 		AS
-			(SELECT 'DISK = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, backup_finish_date
+			(SELECT CASE	WHEN device_type = 2 THEN 'DISK'
+							WHEN device_type = 5 THEN 'TAPE'
+							WHEN device_type = 9 THEN 'URL'
+							ELSE '***UNSUPPORTED DEVICE***'
+					END + ' = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, backup_finish_date
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
@@ -491,7 +505,11 @@ BEGIN
 	BEGIN
 		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
 		AS
-			(SELECT 'DISK = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_finish_date ASC) AS StartDateRank, backup_finish_date
+			(SELECT CASE	WHEN device_type = 2 THEN 'DISK'
+							WHEN device_type = 5 THEN 'TAPE'
+							WHEN device_type = 9 THEN 'URL'
+							ELSE '***UNSUPPORTED DEVICE***'
+					END + ' = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_finish_date ASC) AS StartDateRank, backup_finish_date
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
@@ -561,6 +579,10 @@ END
 SELECT backup_finish_date, DBName, command, BackupType
 FROM #BackupCommandsFinal
 ORDER BY DBName,backup_finish_date
+
+--check for unsupported backup device and raise alert
+IF EXISTS (SELECT command FROM #BackupCommandsFinal WHERE command LIKE '%***UNSUPPORTED DEVICE***%')
+RAISERROR (N'One or more backups were taken to an unsupported device, possibly by a third party backup tool' , 15, 1)
 
 END
 
