@@ -62,8 +62,13 @@ Backup type added to the output
 29 August 2019
 @Credential parameter added
 
-18 August 2020
-changes to be added
+19 August 2020
+@IncludeCopyOnly parameter added
+@SingleUser parameter added
+File names changed to match db names when WITH MOVE is used
+Fix to prevent log backups that were too early from being selected
+Fix to add \ at the end of file paths if not already there
+Support for DISK, TAPE, LOGICAL DEVICES and Azure blob store backups added
 
 MIT License
 ------------
@@ -119,6 +124,11 @@ Parameters
 @StandBy -			Path for undo file, restores database in standby mode
 
 @Credential -		Credential to access Azure blob storage
+
+@IncludeCopyOnly -	1 - Copy only backups are included
+					0 - Copy only backups are excluded
+
+@SingleUser -		Put the database into single user mode before restoring
 
 Full documentation and examples can be found at www.sqlundercover.com
 
@@ -366,11 +376,15 @@ BEGIN
 	BEGIN		
 		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
 		AS
-			(SELECT CASE	WHEN device_type = 2 THEN 'DISK'
-							WHEN device_type = 5 THEN 'TAPE'
-							WHEN device_type = 9 THEN 'URL'
+			(SELECT CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 5 THEN 'TAPE = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 9 THEN 'URL = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 102 THEN  mediafamily.logical_device_name
 							ELSE '***UNSUPPORTED DEVICE***'
-					END + ' = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, backup_finish_date
+					END, 
+			position, 
+			RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, 
+			backup_finish_date
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
@@ -448,11 +462,15 @@ BEGIN
 	BEGIN
 		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
 		AS
-			(SELECT CASE	WHEN device_type = 2 THEN 'DISK'
-							WHEN device_type = 5 THEN 'TAPE'
-							WHEN device_type = 9 THEN 'URL'
+			(SELECT CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 5 THEN 'TAPE = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 9 THEN 'URL = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 102 THEN  mediafamily.logical_device_name
 							ELSE '***UNSUPPORTED DEVICE***'
-					END + ' = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, backup_finish_date
+					END,
+			position, 
+			RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, 
+			backup_finish_date
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
@@ -475,11 +493,15 @@ BEGIN
 	IF (@RestoreOptions IN ('ToLog','LogsOnly'))
 		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
 		AS
-			(SELECT CASE	WHEN device_type = 2 THEN 'DISK'
-							WHEN device_type = 5 THEN 'TAPE'
-							WHEN device_type = 9 THEN 'URL'
+			(SELECT CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 5 THEN 'TAPE = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 9 THEN 'URL = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 102 THEN  mediafamily.logical_device_name
 							ELSE '***UNSUPPORTED DEVICE***'
-					END + ' = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, backup_finish_date
+					END, 
+			position, 
+			RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, 
+			backup_finish_date
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
@@ -505,11 +527,15 @@ BEGIN
 	BEGIN
 		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
 		AS
-			(SELECT CASE	WHEN device_type = 2 THEN 'DISK'
-							WHEN device_type = 5 THEN 'TAPE'
-							WHEN device_type = 9 THEN 'URL'
+			(SELECT CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 5 THEN 'TAPE = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 9 THEN 'URL = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 102 THEN  mediafamily.logical_device_name
 							ELSE '***UNSUPPORTED DEVICE***'
-					END + ' = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_finish_date ASC) AS StartDateRank, backup_finish_date
+					END, 
+			position, 
+			RANK() OVER (ORDER BY backup_finish_date ASC) AS StartDateRank, 
+			backup_finish_date
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
