@@ -62,13 +62,14 @@ Backup type added to the output
 29 August 2019
 @Credential parameter added
 
-19 August 2020
+23 September 2020
 @IncludeCopyOnly parameter added
 @SingleUser parameter added
 File names changed to match db names when WITH MOVE is used
 Fix to prevent log backups that were too early from being selected
 Fix to add \ at the end of file paths if not already there
 Support for DISK, TAPE, LOGICAL DEVICES and Azure blob store backups added
+Support for STOPATMARK and STOPBEFOREMARK added
 
 MIT License
 ------------
@@ -130,6 +131,10 @@ Parameters
 
 @SingleUser -		Put the database into single user mode before restoring
 
+@StopAtMark -		Append stopatmark clause to any log restores
+
+@StopBeforeMark -	Append stopbeforemark clause to any log restores
+
 Full documentation and examples can be found at www.sqlundercover.com
 
 */
@@ -157,7 +162,9 @@ CREATE PROC sp_RestoreScript
 @RestoreTimeEstimate BIT = 0,
 @Credential VARCHAR(128) = NULL,
 @IncludeCopyOnly BIT = 1,
-@SingleUser BIT = 0
+@SingleUser BIT = 0,
+@StopAtMark VARCHAR(128) = NULL,
+@StopBeforeMark VARCHAR(128) = NULL
 )
 
 AS
@@ -227,6 +234,14 @@ BEGIN
 RAISERROR (N'Point in time restore is not possible with selected restore options.  @PointInTime has been changed to 0', 15,1) 
 SET @PointInTime = 0
 END
+
+--@PointInTime can only be true if @StopAtMark or @StopBeforeMark is false
+IF(@PointInTime = 1) AND (@StopAtMark IS NOT NULL OR @StopBeforeMark IS NOT NULL)
+RAISERROR (N'@PointInTime cannot be 1 when @StopAtMark or @StopBeforeMark is set', 15,1) 
+
+--Both @StopAtMark and @StopBeforeMark can't be set
+IF (@StopAtMark IS NOT NULL AND @StopBeforeMark IS NOT NULL)
+RAISERROR (N'Only @StopAtMark or @StopBeforeMark can be set, not both', 15,1) 
 
 --If @RestoreOptions is 'LogsOnly', a RestoreToDate value must be specified
 IF (@RestoreOptions = 'LogsOnly') AND (@FirstLogToRestore IS NULL)
@@ -518,7 +533,11 @@ BEGIN
 							FROM BackupFilesCTE a
 							WHERE a.backup_finish_date = b.backup_finish_date
 							FOR XML PATH('')),1,1,'') 
-						+ ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'LOG'
+						+ ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) 
+						+ CASE  WHEN @StopAtMark IS NOT NULL THEN ', STOPATMARK = ''' + @StopAtMark + ''''
+								WHEN @StopBeforeMark IS NOT NULL THEN ', STOPBEFOREMARK = ''' + @StopBeforeMark + ''''
+								ELSE ''
+						 END AS Command, 'LOG'
 		FROM BackupFilesCTE b
 		ORDER BY backup_finish_date ASC
 
