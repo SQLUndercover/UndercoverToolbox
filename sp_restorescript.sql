@@ -35,7 +35,7 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-sp_RestoreScript 1.7 BETA                                                                                                             
+sp_RestoreScript 1.7                                                                                                             
 Written By David Fowler
 29 June 2017
 Generate a set of backup commands to restore a database(s) to a specified time         
@@ -62,9 +62,9 @@ Backup type added to the output
 29 August 2019
 @Credential parameter added
 
-23 September 2020
-@IncludeCopyOnly parameter added
-@SingleUser parameter added
+29 September 2020
+@IncludeCopyOnly parameter added 
+@SingleUser parameter added 
 File names changed to match db names when WITH MOVE is used
 Fix to prevent log backups that were too early from being selected
 Fix to add \ at the end of file paths if not already there
