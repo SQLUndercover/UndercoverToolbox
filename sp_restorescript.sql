@@ -35,7 +35,7 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-sp_RestoreScript 1.6                                                                                                             
+sp_RestoreScript 1.7                                                                                                             
 Written By David Fowler
 29 June 2017
 Generate a set of backup commands to restore a database(s) to a specified time         
@@ -61,6 +61,15 @@ Backup type added to the output
 
 29 August 2019
 @Credential parameter added
+
+29 September 2020
+@IncludeCopyOnly parameter added 
+@SingleUser parameter added 
+File names changed to match db names when WITH MOVE is used
+Fix to prevent log backups that were too early from being selected
+Fix to add \ at the end of file paths if not already there
+Support for DISK, TAPE, LOGICAL DEVICES and Azure blob store backups added
+Support for STOPATMARK and STOPBEFOREMARK added
 
 MIT License
 ------------
@@ -117,6 +126,15 @@ Parameters
 
 @Credential -		Credential to access Azure blob storage
 
+@IncludeCopyOnly -	1 - Copy only backups are included
+					0 - Copy only backups are excluded
+
+@SingleUser -		Put the database into single user mode before restoring
+
+@StopAtMark -		Append stopatmark clause to any log restores
+
+@StopBeforeMark -	Append stopbeforemark clause to any log restores
+
 Full documentation and examples can be found at www.sqlundercover.com
 
 */
@@ -142,7 +160,11 @@ CREATE PROC sp_RestoreScript
 @BrokerOptions VARCHAR(30) = '',
 @StandBy VARCHAR(260) = NULL,
 @RestoreTimeEstimate BIT = 0,
-@Credential VARCHAR(128) = NULL
+@Credential VARCHAR(128) = NULL,
+@IncludeCopyOnly BIT = 1,
+@SingleUser BIT = 0,
+@StopAtMark VARCHAR(128) = NULL,
+@StopBeforeMark VARCHAR(128) = NULL
 )
 
 AS
@@ -183,12 +205,12 @@ WHERE name = DB_NAME()
 IF  OBJECT_ID('tempdb..#BackupCommands') IS NOT NULL
 	DROP TABLE #BackupCommands
 CREATE TABLE #BackupCommands
-(backup_start_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4))
+(backup_finish_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4))
 
 IF OBJECT_ID('tempdb..#BackupCommandsFinal') IS NOT NULL
 	DROP TABLE #BackupCommandsFinal
 CREATE TABLE #BackupCommandsFinal
-(backup_start_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4))
+(backup_finish_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4))
 
 IF OBJECT_ID('tempdb..#RestoreDatabases') IS NOT NULL
 	DROP TABLE #RestoreDatabases
@@ -200,7 +222,7 @@ IF OBJECT_ID('tempdb..#LatestBackups') IS NOT NULL
 	DROP TABLE #LatestBackups
 CREATE TABLE #LatestBackups
 (LatestDBName SYSNAME,
-backup_start_date DATETIME)
+backup_finish_date DATETIME)
 
 --remove any spaces in list of databases
 SET @DatabaseName = REPLACE(@DatabaseName, ' ','')
@@ -212,6 +234,14 @@ BEGIN
 RAISERROR (N'Point in time restore is not possible with selected restore options.  @PointInTime has been changed to 0', 15,1) 
 SET @PointInTime = 0
 END
+
+--@PointInTime can only be true if @StopAtMark or @StopBeforeMark is false
+IF(@PointInTime = 1) AND (@StopAtMark IS NOT NULL OR @StopBeforeMark IS NOT NULL)
+RAISERROR (N'@PointInTime cannot be 1 when @StopAtMark or @StopBeforeMark is set', 15,1) 
+
+--Both @StopAtMark and @StopBeforeMark can't be set
+IF (@StopAtMark IS NOT NULL AND @StopBeforeMark IS NOT NULL)
+RAISERROR (N'Only @StopAtMark or @StopBeforeMark can be set, not both', 15,1) 
 
 --If @RestoreOptions is 'LogsOnly', a RestoreToDate value must be specified
 IF (@RestoreOptions = 'LogsOnly') AND (@FirstLogToRestore IS NULL)
@@ -348,20 +378,37 @@ FETCH NEXT FROM DatabaseCur INTO @DatabaseName, @RestoreAsName
 WHILE @@FETCH_STATUS = 0 
 BEGIN
 
+	--Insert single user command
+	IF @SingleUser = 1
+	BEGIN
+		INSERT INTO #BackupCommands (DBName, command)
+		VALUES (@DatabaseName, 'ALTER DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' SET SINGLE_USER WITH ROLLBACK IMMEDIATE')
+	END
+
+
 	--Get last full backup for required timeframe
 	IF (@RestoreOptions IN ('PointInTime','ToLog','ToDiff','ToFull','DiffOnly'))
 	BEGIN		
-		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_start_date)
+		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
 		AS
-			(SELECT 'DISK = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_start_date DESC) AS StartDateRank, backup_start_date
+			(SELECT CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 5 THEN 'TAPE = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 9 THEN 'URL = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 102 THEN  mediafamily.logical_device_name
+							ELSE '***UNSUPPORTED DEVICE***'
+					END, 
+			position, 
+			RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, 
+			backup_finish_date
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
-			AND backupset.backup_start_date < @RestoreToDate
-			AND backupset.type = 'D')
+			AND backupset.backup_finish_date < @RestoreToDate
+			AND backupset.type = 'D'
+            AND is_copy_only IN (0,@IncludeCopyOnly))
 
 		INSERT INTO #BackupCommands
-		SELECT DISTINCT  backup_start_date, @DatabaseName AS DBName,
+		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
 						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
@@ -381,12 +428,26 @@ BEGIN
 	--if WithMove parameters are set, create WITH MOVE statements
 	IF (@WithMoveDataPath IS NOT NULL) AND (@WithMoveLogPath IS NOT NULL) 
 	BEGIN
+
+		--append \ to the end of path if it's not already
+
+		IF (SELECT SUBSTRING(@WithMoveDataPath,LEN(@WithMoveDataPath), 1)) != '\'
+			SET @WithMoveDataPath =  @WithMoveDataPath + '\'
+
+		IF (SELECT SUBSTRING(@WithMoveLogPath,LEN(@WithMoveLogPath), 1)) != '\'
+			SET @WithMoveLogPath =  @WithMoveLogPath + '\'
+
 		--generate MOVE statement
 		DECLARE @WithMoveCmd VARCHAR(3000)
 
 		SET @WithMoveCmd = ','
 
-		SELECT @WithMoveCmd = @WithMoveCmd + STUFF((SELECT ',' + ' MOVE ''' + name + ''' TO ''' + REPLACE(physical_name,REVERSE(SUBSTRING(REVERSE(physical_name),CHARINDEX('\',REVERSE(physical_name),0), LEN(physical_name))),@WithMoveDataPath) + ''''
+		SELECT @WithMoveCmd = @WithMoveCmd + STUFF((SELECT ',' + ' MOVE ''' + name + ''' TO ''' + 
+		CASE 
+			WHEN @RestoreAsName IS NULL THEN REPLACE(physical_name,REVERSE(SUBSTRING(REVERSE(physical_name),CHARINDEX('\',REVERSE(physical_name),0), LEN(physical_name))),@WithMoveDataPath) + ''''
+			ELSE REPLACE(LEFT(physical_name,(LEN(physical_name)-CHARINDEX('\',REVERSE(physical_name),0)+1)),LEFT(physical_name,(LEN(physical_name)-CHARINDEX('\',REVERSE(physical_name),0)+1)),@WithMoveDataPath) /* Base Path */ 
+				+REPLACE(RIGHT(physical_name,(CHARINDEX('\',REVERSE(physical_name))-1)),@DatabaseName,@RestoreAsName) + '''' /* append new filename and extension */
+		END
 		FROM sys.master_files
 		WHERE database_id = DB_ID(@DatabaseName)
 		AND type_desc = 'ROWS'
@@ -394,7 +455,12 @@ BEGIN
 
 		SET @WithMoveCmd = @WithMoveCmd + ','
 
-		SELECT @WithMoveCmd = @WithMoveCmd + STUFF((SELECT ',' +  'MOVE ''' + name + ''' TO ''' + REPLACE(physical_name,REVERSE(SUBSTRING(REVERSE(physical_name),CHARINDEX('\',REVERSE(physical_name),0), LEN(physical_name))),@WithMoveLogPath) + ''''
+		SELECT @WithMoveCmd = @WithMoveCmd + STUFF((SELECT ',' +  'MOVE ''' + name + ''' TO ''' +
+		CASE 
+			WHEN @RestoreAsName IS NULL THEN REPLACE(physical_name,REVERSE(SUBSTRING(REVERSE(physical_name),CHARINDEX('\',REVERSE(physical_name),0), LEN(physical_name))),@WithMoveLogPath) + ''''
+			ELSE REPLACE(LEFT(physical_name,(LEN(physical_name)-CHARINDEX('\',REVERSE(physical_name),0)+1)),LEFT(physical_name,(LEN(physical_name)-CHARINDEX('\',REVERSE(physical_name),0)+1)),@WithMoveLogPath) /* Base Path */ 
+				+REPLACE(RIGHT(physical_name,(CHARINDEX('\',REVERSE(physical_name))-1)),@DatabaseName,@RestoreAsName) + '''' /* append new filename and extension */
+		END
 		FROM sys.master_files
 		WHERE database_id = DB_ID(@DatabaseName)
 		AND type_desc = 'LOG'
@@ -409,64 +475,95 @@ BEGIN
 	--Get last diff for required timeframe
 	IF (@RestoreOptions IN ('PointInTime','ToLog','ToDiff','DiffOnly'))
 	BEGIN
-		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_start_date)
+		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
 		AS
-			(SELECT 'DISK = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_start_date DESC) AS StartDateRank, backup_start_date
+			(SELECT CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 5 THEN 'TAPE = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 9 THEN 'URL = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 102 THEN  mediafamily.logical_device_name
+							ELSE '***UNSUPPORTED DEVICE***'
+					END,
+			position, 
+			RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, 
+			backup_finish_date
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
-			AND backupset.backup_start_date < @RestoreToDate
-			AND backupset.type = 'I')
+			AND backupset.backup_finish_date < @RestoreToDate
+			AND backupset.type = 'I'
+            AND is_copy_only IN (0,@IncludeCopyOnly))
 
 		INSERT INTO #BackupCommands
-		SELECT DISTINCT  backup_start_date, @DatabaseName AS DBName,
+		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
 						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
 		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'DIFF'
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
-		AND backup_start_date > (SELECT MAX(backup_start_date) FROM #BackupCommands)
+		AND backup_finish_date > (SELECT MAX(backup_finish_date) FROM #BackupCommands)
 	END
 
 	--Get all log backups since last full or diff
 	IF (@RestoreOptions IN ('ToLog','LogsOnly'))
-		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_start_date)
+		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
 		AS
-			(SELECT 'DISK = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_start_date DESC) AS StartDateRank, backup_start_date
+			(SELECT CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 5 THEN 'TAPE = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 9 THEN 'URL = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 102 THEN  mediafamily.logical_device_name
+							ELSE '***UNSUPPORTED DEVICE***'
+					END, 
+			position, 
+			RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, 
+			backup_finish_date
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
-			AND backupset.backup_start_date >
-				(SELECT COALESCE(MAX(backup_start_date),@FirstLogToRestore) FROM #BackupCommands)
-			AND backupset.backup_start_date < @RestoreToDate
-			AND backupset.type = 'L')
+			AND backupset.backup_finish_date >
+				(SELECT COALESCE(MAX(backup_finish_date),@FirstLogToRestore) FROM #BackupCommands)
+			AND backupset.backup_finish_date < @RestoreToDate
+			AND backupset.type = 'L'
+            AND is_copy_only IN (0,@IncludeCopyOnly))
 
 		INSERT INTO #BackupCommands
-		SELECT DISTINCT  backup_start_date, @DatabaseName AS DBName,
+		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
 						'RESTORE LOG ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + 
 							STUFF ((SELECT DISTINCT ',' + physical_device_name
 							FROM BackupFilesCTE a
-							WHERE a.backup_start_date = b.backup_start_date
+							WHERE a.backup_finish_date = b.backup_finish_date
 							FOR XML PATH('')),1,1,'') 
-						+ ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'LOG'
+						+ ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) 
+						+ CASE  WHEN @StopAtMark IS NOT NULL THEN ', STOPATMARK = ''' + @StopAtMark + ''''
+								WHEN @StopBeforeMark IS NOT NULL THEN ', STOPBEFOREMARK = ''' + @StopBeforeMark + ''''
+								ELSE ''
+						 END AS Command, 'LOG'
 		FROM BackupFilesCTE b
-		ORDER BY backup_start_date ASC
+		ORDER BY backup_finish_date ASC
 
 	--Get point in time if enabled
 	IF (@PointInTime = 1) AND (EXISTS (SELECT * FROM #BackupCommands))
 	BEGIN
-		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_start_date)
+		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
 		AS
-			(SELECT 'DISK = ''' + mediafamily.physical_device_name + '''', position, RANK() OVER (ORDER BY backup_start_date ASC) AS StartDateRank, backup_start_date
+			(SELECT CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 5 THEN 'TAPE = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 9 THEN 'URL = ''' + mediafamily.physical_device_name + ''''
+							WHEN device_type = 102 THEN  mediafamily.logical_device_name
+							ELSE '***UNSUPPORTED DEVICE***'
+					END, 
+			position, 
+			RANK() OVER (ORDER BY backup_finish_date ASC) AS StartDateRank, 
+			backup_finish_date
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
-			AND backupset.backup_start_date > @RestoreToDate
-			AND backupset.type = 'L')
+			AND backupset.backup_finish_date > @RestoreToDate
+			AND backupset.type = 'L'
+            AND is_copy_only IN (0,@IncludeCopyOnly))
 
 		INSERT INTO #BackupCommands
-		SELECT DISTINCT  backup_start_date, @DatabaseName AS DBName,
+		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
 						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
@@ -487,8 +584,8 @@ CLOSE DatabaseCur
 DEALLOCATE DatabaseCur
 
 --get list of latest backups for each database
-INSERT INTO #LatestBackups(LatestDBName,backup_start_date)
-SELECT DBName, MAX(backup_start_date)
+INSERT INTO #LatestBackups(LatestDBName,backup_finish_date)
+SELECT DBName, MAX(backup_finish_date)
 FROM #BackupCommandsFinal
 GROUP BY DBName
 
@@ -497,14 +594,14 @@ BEGIN
 
 	UPDATE #BackupCommandsFinal
 	SET command = REPLACE(command,'NORECOVERY','RECOVERY') + @BrokerOptions
-	WHERE backup_start_date = (SELECT backup_start_date FROM #LatestBackups WHERE DBName = LatestDBName)
+	WHERE backup_finish_date = (SELECT backup_finish_date FROM #LatestBackups WHERE DBName = LatestDBName)
 
 END
 ELSE IF @StandBy IS NOT NULL
 BEGIN
 	UPDATE #BackupCommandsFinal
 	SET command = REPLACE(command,'NORECOVERY','STANDBY =''' + @StandBy + '''') 
-	WHERE backup_start_date = (SELECT backup_start_date FROM #LatestBackups WHERE DBName = LatestDBName)
+	WHERE backup_finish_date = (SELECT backup_finish_date FROM #LatestBackups WHERE DBName = LatestDBName)
 END
 
 --if Credential is set, add to statement
@@ -519,14 +616,18 @@ END
 IF (@RestoreOptions = 'DiffOnly')
 BEGIN
 	DELETE FROM #BackupCommandsFinal
-	WHERE backup_start_date = 
-					(SELECT MIN(backup_start_date)
+	WHERE backup_finish_date = 
+					(SELECT MIN(backup_finish_date)
 					FROM #BackupCommandsFinal)
 END
 
-SELECT backup_start_date, DBName, command, BackupType
+SELECT backup_finish_date, DBName, command, BackupType
 FROM #BackupCommandsFinal
-ORDER BY DBName,backup_start_date
+ORDER BY DBName,backup_finish_date
+
+--check for unsupported backup device and raise alert
+IF EXISTS (SELECT command FROM #BackupCommandsFinal WHERE command LIKE '%***UNSUPPORTED DEVICE***%')
+RAISERROR (N'One or more backups were taken to an unsupported device, possibly by a third party backup tool' , 15, 1)
 
 END
 
