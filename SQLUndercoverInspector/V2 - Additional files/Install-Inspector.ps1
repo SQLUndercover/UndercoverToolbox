@@ -26,11 +26,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if you are using a Github URL this must be the raw URL.
 
 #Set a URL or local path where the SQLUndercoverinspectorV2.sql file exists
-$ScriptPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverInspector/SQLUndercoverinspectorV2.sql"
+$ScriptPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Inspector-Dev/SQLUndercoverInspector/SQLUndercoverinspectorV2.sql"
 #$ScriptPath = "C:\Temp\SQLUndercoverinspectorV2.sql"
 
 #Set a URL or local path of where the Manifest.csv file exists
-$ManifestPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverInspector/V2%20-%20Additional%20files/Manifest.csv";
+$ManifestPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/Inspector-Dev/SQLUndercoverInspector/V2%20-%20Additional%20files/Manifest.csv";
 #$ManifestPath = "C:\Temp\Manifest.csv"
 
 $SQLInstances = "CATACLYSM\SQL01,CATACLYSM\SQL02,CATACLYSM\SQL03CS" #if this is a linked server install ensure that the central server appears first in the list
