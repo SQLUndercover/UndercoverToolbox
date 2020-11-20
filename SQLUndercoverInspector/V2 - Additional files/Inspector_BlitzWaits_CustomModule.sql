@@ -10,7 +10,7 @@ Description: BlitzWaits Custom module for the Inspector
 			 it is up to you how much you want to see.
 
 Author: Adrian Buckman
-Revision date: 24/05/2020
+Revision date: 20/11/2020
 Credit: Brent Ozar unlimited and its contributors, part of the code used in [Inspector].[BlitzWaitsReport] is a revision of the view [dbo].[BlitzFirst_WaitStats_Deltas].
 
 © www.sqlundercover.com 
@@ -77,7 +77,7 @@ THREADPOOL
 
 
 
-DECLARE @Revisiondate DATE = '20200524';
+DECLARE @Revisiondate DATE = '20201120';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 
@@ -276,7 +276,7 @@ ALTER PROCEDURE [Inspector].[BlitzWaitsReport] (
 )
 AS
 BEGIN
---Revision date: 24/05/2020
+--Revision date: 20/11/2020
 /*
 Explanation of the logic used here:
 DATEADD(HOUR,(DATEPART(HOUR,CheckDate)%@HourlyBucketSize)/-1,DATEADD(HOUR, DATEDIFF(HOUR, 0, CheckDate), 0))
@@ -472,11 +472,19 @@ INTO #InspectorModuleReport
 FROM
 (
 	SELECT
-	CASE 
-		WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 1 AND [IsActive] = 1 THEN @WarningHighlight
-		WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 2 AND [IsActive] = 1 THEN @AdvisoryHighlight
-		WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 3 AND [IsActive] = 1 THEN @InfoHighlight
-		ELSE ''#FFFFFF''
+	CASE /* If WatchedWaitType is Active check for a breach */
+		WHEN [IsActive] = 1 THEN CASE /* If breached */
+									WHEN ((ThresholdDirection = ''>'' AND wait_time_ms_per_wait > Threshold)
+											OR (ThresholdDirection = ''<'' AND wait_time_ms_per_wait < Threshold))
+									THEN CASE /* Choose the correct color for the warning */
+											WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 1 THEN @WarningHighlight
+											WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 2 THEN @AdvisoryHighlight
+											WHEN [BlitzWaits_WatchedWaitTypes].[WarningLevel] = 3 THEN @InfoHighlight
+											ELSE ''#FFFFFF''
+										 END
+									ELSE ''#FFFFFF''
+								END
+		ELSE ''#FFFFFF''	
 	END AS [@bgcolor],
 	[BucketWaits].[ServerName],
 	ISNULL([BlitzWaits_WatchedWaitTypes].[IsActive],0) AS Watched,
