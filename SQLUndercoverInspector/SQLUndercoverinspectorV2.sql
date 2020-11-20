@@ -65,8 +65,8 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 24/06/2020
-Version: 2.3
+Revision date: 20/11/2020
+Version: 2.4
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -10664,7 +10664,7 @@ EXEC(@SQLStatement);
 SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+ N'
 /*********************************************
 --Author: Adrian Buckman
---Revision date: 15/05/2020
+--Revision date: 20/11/2020
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 --V2.3
 
@@ -10788,9 +10788,9 @@ DECLARE @EmailHeader VARCHAR(1000) = CASE
 										THEN ''<img src="''+(SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''EmailBannerURL'')+''">''
 										ELSE ''<img src="''+(SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''PSEmailBannerURL'')+''">''
 									 END
-DECLARE @SubjectText VARCHAR(255) 
-DECLARE @AlertSubjectText VARCHAR(255) 
-DECLARE @Importance VARCHAR(6) = ''Low'';
+DECLARE @SubjectText VARCHAR(255);
+DECLARE @AlertSubjectText VARCHAR(255);
+DECLARE @Importance VARCHAR(6);
 DECLARE @HighestImportance TINYINT;
 DECLARE @EmailBody VARCHAR(MAX) = '''';
 DECLARE @AlertHeader VARCHAR(MAX) = '''';
@@ -11843,7 +11843,7 @@ END
 
 IF @ModuleDesc IS NULL BEGIN SET @ModuleDesc = ''NULL'' END;
 
-SET @Importance = (SELECT CASE @HighestImportance WHEN 1 THEN ''High'' WHEN 2 THEN ''Normal'' WHEN 3 THEN ''Low'' END);
+SET @Importance = (SELECT CASE @HighestImportance WHEN 1 THEN ''High'' WHEN 2 THEN ''Normal'' WHEN 3 THEN ''Low'' ELSE ''Low'' END);
 
 IF @TestMode = 1 OR (@RecipientsList IS NULL OR @RecipientsList = '''')
 BEGIN
