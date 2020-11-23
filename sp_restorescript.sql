@@ -35,7 +35,7 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-sp_RestoreScript 1.7                                                                                                             
+sp_RestoreScript 1.8                                                                                                             
 Written By David Fowler
 29 June 2017
 Generate a set of backup commands to restore a database(s) to a specified time         
@@ -70,6 +70,9 @@ Fix to prevent log backups that were too early from being selected
 Fix to add \ at the end of file paths if not already there
 Support for DISK, TAPE, LOGICAL DEVICES and Azure blob store backups added
 Support for STOPATMARK and STOPBEFOREMARK added
+
+23 November 2020 
+Fix bug with @SingleUser generating the wrong ALTER statement
 
 MIT License
 ------------
@@ -205,12 +208,12 @@ WHERE name = DB_NAME()
 IF  OBJECT_ID('tempdb..#BackupCommands') IS NOT NULL
 	DROP TABLE #BackupCommands
 CREATE TABLE #BackupCommands
-(backup_finish_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4))
+(backup_finish_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4), AlterCommand BIT)
 
 IF OBJECT_ID('tempdb..#BackupCommandsFinal') IS NOT NULL
 	DROP TABLE #BackupCommandsFinal
 CREATE TABLE #BackupCommandsFinal
-(backup_finish_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4))
+(backup_finish_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4), AlterCommand BIT)
 
 IF OBJECT_ID('tempdb..#RestoreDatabases') IS NOT NULL
 	DROP TABLE #RestoreDatabases
@@ -381,8 +384,8 @@ BEGIN
 	--Insert single user command
 	IF @SingleUser = 1
 	BEGIN
-		INSERT INTO #BackupCommands (DBName, command)
-		VALUES (@DatabaseName, 'ALTER DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' SET SINGLE_USER WITH ROLLBACK IMMEDIATE')
+		INSERT INTO #BackupCommands (DBName, command, AlterCommand)
+		VALUES (@DatabaseName, 'ALTER DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' SET SINGLE_USER WITH ROLLBACK IMMEDIATE', 1)
 	END
 
 
@@ -407,12 +410,13 @@ BEGIN
 			AND backupset.type = 'D'
             AND is_copy_only IN (0,@IncludeCopyOnly))
 
-		INSERT INTO #BackupCommands
+		INSERT INTO #BackupCommands (backup_finish_date, DBName, command, BackupType, AlterCommand)
 		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
-						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name
+						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name,
+						0
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
-		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'FULL'
+		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'FULL',0
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
 	END
@@ -423,6 +427,7 @@ BEGIN
 		UPDATE #BackupCommands
 		SET command = command + ', REPLACE'
 		WHERE DBName = @DatabaseName
+		AND AlterCommand = 0;
 	END
 
 	--if WithMove parameters are set, create WITH MOVE statements
@@ -470,6 +475,7 @@ BEGIN
 		UPDATE #BackupCommands
 		SET command = command + @WithMoveCmd
 		WHERE DBName = @DatabaseName
+		AND AlterCommand = 0;
 	END
 
 	--Get last diff for required timeframe
@@ -493,12 +499,13 @@ BEGIN
 			AND backupset.type = 'I'
             AND is_copy_only IN (0,@IncludeCopyOnly))
 
-		INSERT INTO #BackupCommands
+		INSERT INTO #BackupCommands (backup_finish_date, DBName, command, BackupType, AlterCommand)
 		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
-						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name
+						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name,
+						0
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
-		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'DIFF'
+		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'DIFF',0
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
 		AND backup_finish_date > (SELECT MAX(backup_finish_date) FROM #BackupCommands)
@@ -526,7 +533,7 @@ BEGIN
 			AND backupset.type = 'L'
             AND is_copy_only IN (0,@IncludeCopyOnly))
 
-		INSERT INTO #BackupCommands
+		INSERT INTO #BackupCommands (backup_finish_date, DBName, command, BackupType, AlterCommand)
 		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
 						'RESTORE LOG ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + 
 							STUFF ((SELECT DISTINCT ',' + physical_device_name
@@ -537,12 +544,12 @@ BEGIN
 						+ CASE  WHEN @StopAtMark IS NOT NULL THEN ', STOPATMARK = ''' + @StopAtMark + ''''
 								WHEN @StopBeforeMark IS NOT NULL THEN ', STOPBEFOREMARK = ''' + @StopBeforeMark + ''''
 								ELSE ''
-						 END AS Command, 'LOG'
+						 END AS Command, 'LOG',0
 		FROM BackupFilesCTE b
 		ORDER BY backup_finish_date ASC
 
 	--Get point in time if enabled
-	IF (@PointInTime = 1) AND (EXISTS (SELECT * FROM #BackupCommands))
+	IF (@PointInTime = 1) AND (EXISTS (SELECT * FROM #BackupCommands WHERE AlterCommand = 0))
 	BEGIN
 		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
 		AS
@@ -562,18 +569,18 @@ BEGIN
 			AND backupset.type = 'L'
             AND is_copy_only IN (0,@IncludeCopyOnly))
 
-		INSERT INTO #BackupCommands
+		INSERT INTO #BackupCommands (backup_finish_date, DBName, command, BackupType, AlterCommand)
 		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
 						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
-		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR)  + ', STOPAT = ''' + CAST(@RestoreToDate AS VARCHAR) + '''' AS Command, 'LOG'
+		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR)  + ', STOPAT = ''' + CAST(@RestoreToDate AS VARCHAR) + '''' AS Command, 'LOG',0
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
 	END
 
-	INSERT INTO #BackupCommandsFinal
-	SELECT * FROM #BackupCommands
+	INSERT INTO #BackupCommandsFinal (backup_finish_date, DBName, command, BackupType, AlterCommand)
+	SELECT backup_finish_date, DBName, command, BackupType, AlterCommand FROM #BackupCommands;
 
 	TRUNCATE TABLE #BackupCommands
 
@@ -587,21 +594,21 @@ DEALLOCATE DatabaseCur
 INSERT INTO #LatestBackups(LatestDBName,backup_finish_date)
 SELECT DBName, MAX(backup_finish_date)
 FROM #BackupCommandsFinal
-GROUP BY DBName
+GROUP BY DBName;
 
 IF @NoRecovery = 0 AND @StandBy IS NULL  --if restore with no recovery is off, remove NORECOVERY from the last restore command
 BEGIN
 
 	UPDATE #BackupCommandsFinal
 	SET command = REPLACE(command,'NORECOVERY','RECOVERY') + @BrokerOptions
-	WHERE backup_finish_date = (SELECT backup_finish_date FROM #LatestBackups WHERE DBName = LatestDBName)
+	WHERE backup_finish_date = (SELECT backup_finish_date FROM #LatestBackups WHERE DBName = LatestDBName);
 
 END
 ELSE IF @StandBy IS NOT NULL
 BEGIN
 	UPDATE #BackupCommandsFinal
 	SET command = REPLACE(command,'NORECOVERY','STANDBY =''' + @StandBy + '''') 
-	WHERE backup_finish_date = (SELECT backup_finish_date FROM #LatestBackups WHERE DBName = LatestDBName)
+	WHERE backup_finish_date = (SELECT backup_finish_date FROM #LatestBackups WHERE DBName = LatestDBName);
 END
 
 --if Credential is set, add to statement
@@ -610,6 +617,7 @@ BEGIN
     UPDATE #BackupCommandsFinal
     SET command = command + ', CREDENTIAL = '''+@Credential+''''
     WHERE DBName = @DatabaseName
+	AND AlterCommand = 0;
 END
 
 --if DiffOnly, delete full backup file from #BackupCommandsFinal
