@@ -35,7 +35,7 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-sp_RestoreScript 1.7                                                                                                             
+sp_RestoreScript 1.8                                                                                                             
 Written By David Fowler
 29 June 2017
 Generate a set of backup commands to restore a database(s) to a specified time         
@@ -70,6 +70,9 @@ Fix to prevent log backups that were too early from being selected
 Fix to add \ at the end of file paths if not already there
 Support for DISK, TAPE, LOGICAL DEVICES and Azure blob store backups added
 Support for STOPATMARK and STOPBEFOREMARK added
+
+23 November 2020 
+Fix bug with @SingleUser generating the wrong ALTER statement
 
 MIT License
 ------------
