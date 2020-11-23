@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 20/11/2020
+Revision date: 23/11/2020
 Version: 2.4
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20201120';
+DECLARE @Revisiondate DATE = '20201123';
 DECLARE @Build VARCHAR(6) ='2.4'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -151,7 +151,7 @@ IF @Help = 1
 BEGIN 
 PRINT '
 
---Inspector V2.3
+--Inspector V'+@Build+'
 --Revision date: '+CONVERT(VARCHAR(17),@Revisiondate,113)+'
 
 --You specified @Help = 1 - No setup has been carried out , here is an example command:
@@ -1903,6 +1903,22 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			END
 
 
+			IF OBJECT_ID('Inspector.ServerSettingThresholds',N'U') IS NULL 
+			BEGIN 
+				CREATE TABLE [Inspector].[ServerSettingThresholds] (
+				ID INT IDENTITY(1,1),
+				Servername NVARCHAR(128) NOT NULL,
+				Modulename VARCHAR(50) NOT NULL,
+				ThresholdName VARCHAR(100) NOT NULL,
+				ThresholdInt INT NULL,
+				ThresholdString VARCHAR(255) NULL,
+				IsActive BIT NOT NULL
+				);
+
+				EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [ServerSettingThresholds_Servername_Modulename] ON [Inspector].[ServerSettingThresholds] ([Servername],[Modulename],[ThresholdName]);';
+			END
+
+
 		    IF OBJECT_ID('Inspector.PSConfig') IS NULL 
 			BEGIN
 				CREATE TABLE [Inspector].[PSConfig](
@@ -2110,9 +2126,9 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		
 IF NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfig])
 BEGIN 
-	INSERT INTO [Inspector].[ModuleConfig] ([ModuleConfig_Desc], [IsActive],[Frequency], [StartTime], [EndTime], [ReportWarningsOnly], [NoClutter],[ShowDisabledModules])
-	VALUES(''Default'',1,1440,''09:00'',''17:30'',0,0,1),
-	(''PeriodicBackupCheck'',1,120,''11:00'',''17:30'',1,1,1);
+	INSERT INTO [Inspector].[ModuleConfig] ([ModuleConfig_Desc], [IsActive],[Frequency], [StartTime], [EndTime], [ReportWarningsOnly], [RunDay], [NoClutter],[ShowDisabledModules])
+	VALUES(''Default'',1,1440,''09:00'',''17:30'',0,''Monday,Tuesday,Wednesday,Thursday,Friday'',0,1),
+	(''PeriodicBackupCheck'',1,120,''11:00'',''17:30'',1,''Monday,Tuesday,Wednesday,Thursday,Friday'',1,1);
 END
 
 INSERT INTO [Inspector].[Modules] ([ModuleConfig_Desc], [Modulename], [CollectionProcedurename], [ReportProcedurename], [ReportOrder], [IsActive], [Debug], [ServerSpecific], [WarningLevel], [HeaderText], [Frequency], [StartTime], [EndTime])
@@ -2285,6 +2301,52 @@ END
 	  ORDER BY RowNum;
 	' 
 	END
+
+	IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[GetServerModuleThreshold]') AND type in (N'FN', N'IF', N'TF', N'FS', N'FT'))
+	BEGIN
+		EXECUTE dbo.sp_executesql @statement = N'CREATE FUNCTION [Inspector].[GetServerModuleThreshold] (@Servername NVARCHAR(128)) RETURNS VARCHAR(255) AS BEGIN DECLARE @ThresholdValue VARCHAR(20); RETURN @ThresholdValue; END';
+	END 
+
+	EXECUTE dbo.sp_executesql @statement = N'ALTER FUNCTION [Inspector].[GetServerModuleThreshold]
+	(
+	@Servername NVARCHAR(128),
+	@ModuleName VARCHAR(100),
+	@SettingName VARCHAR(100)
+	)
+	RETURNS VARCHAR(255)
+	AS
+	BEGIN
+	
+		DECLARE @ThresholdValue VARCHAR(255);
+	
+		SELECT 
+		@ThresholdValue = COALESCE(CAST([ThresholdInt] AS VARCHAR(20)),[ThresholdString],[Value])
+		FROM 
+		(
+			SELECT 
+			[Servername],
+			[Description] AS ThresholdName,
+			[Value]
+			FROM [Inspector].[Settings]
+			CROSS JOIN (SELECT [Servername] FROM [Inspector].[CurrentServers] WHERE [IsActive] = 1) ActiveServers
+			WHERE [Description] = @SettingName
+		) GlobalSettings
+		LEFT JOIN (SELECT 
+						[Servername],
+						[Modulename],
+						[ThresholdName],
+						[ThresholdInt],
+						[ThresholdString] 
+					FROM [Inspector].[ServerSettingThresholds] 
+					WHERE [IsActive] = 1) [ServerSettingThresholds] ON GlobalSettings.[Servername] = ServerSettingThresholds.[Servername]
+														AND GlobalSettings.[ThresholdName] = ServerSettingThresholds.[ThresholdName]
+		WHERE (ServerSettingThresholds.[Modulename] = @ModuleName OR ServerSettingThresholds.[Modulename] IS NULL)
+		AND GlobalSettings.[Servername] = @Servername;
+	
+	
+		RETURN @ThresholdValue;
+	
+	END';
 
 
 	IF NOT EXISTS (SELECT * FROM sys.views WHERE object_id = OBJECT_ID(N'[Inspector].[ModuleSchedulesDue]'))
@@ -5207,7 +5269,7 @@ BEGIN
 
 SET NOCOUNT ON;
 
-DECLARE @TransactionDurationThreshold INT = (SELECT CAST([Value] AS INT) FROM [Inspector].[Settings] WHERE [Description] = ''LongRunningTransactionThreshold'');
+DECLARE @TransactionDurationThreshold INT = (SELECT CAST([Value] AS INT) FROM '+CAST(ISNULL(NULLIF(@LinkedServername,'')+'['+@Databasename+'].','') AS NVARCHAR(MAX))+N'[Inspector].[Settings] WHERE [Description] = ''LongRunningTransactionThreshold'');
 DECLARE @Now DATETIME = GETDATE();
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 
@@ -7077,11 +7139,11 @@ CREATE PROCEDURE [Inspector].[BackupsCheckReport]
 )
 AS
 BEGIN
---Revision date: 05/09/2019
+--Revision date: 20/11/2020
 
-DECLARE @FullBackupThreshold INT = (SELECT ISNULL(CAST([Value] AS INT),8) FROM [Inspector].[Settings] WHERE [Description] = ''FullBackupThreshold'')
-DECLARE @DiffBackupThreshold INT = (SELECT CAST([Value] AS INT) FROM [Inspector].[Settings] WHERE [Description] = ''DiffBackupThreshold'')
-DECLARE @LogBackupThreshold	INT = (SELECT ISNULL(CAST([Value] AS INT),60) FROM [Inspector].[Settings] WHERE [Description] = ''LogBackupThreshold'')
+DECLARE @FullBackupThreshold INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''FullBackupThreshold'') AS INT),8));
+DECLARE @DiffBackupThreshold INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''DiffBackupThreshold'') AS INT),2));
+DECLARE @LogBackupThreshold	INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''LogBackupThreshold'') AS INT),20));
 
 --Excluded from Warning level control
 	IF OBJECT_ID(''tempdb.dbo.#RawData'') IS NOT NULL 
@@ -7685,8 +7747,8 @@ BEGIN
 --Excluded from Warning level control
 	
 	DECLARE @HtmlTableHead VARCHAR(2000);
-	DECLARE @DatabaseGrowthsAllowedPerDay INT = (SELECT ISNULL(CAST([Value] AS INT),1) FROM [Inspector].[Settings] WHERE [Description] = ''DatabaseGrowthsAllowedPerDay'');
-	DECLARE @MAXDatabaseGrowthsAllowedPerDay INT = (SELECT ISNULL(CAST([Value] AS INT),10) FROM [Inspector].[Settings] WHERE [Description] = ''MAXDatabaseGrowthsAllowedPerDay'');
+	DECLARE @DatabaseGrowthsAllowedPerDay INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''DatabaseGrowthsAllowedPerDay'') AS INT),1));
+	DECLARE @MAXDatabaseGrowthsAllowedPerDay INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''MAXDatabaseGrowthsAllowedPerDay'') AS INT),10));
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -8301,8 +8363,6 @@ CREATE PROCEDURE [Inspector].[DriveSpaceReport]
 @WarningHighlight VARCHAR(7),
 @AdvisoryHighlight VARCHAR(7),
 @InfoHighlight VARCHAR(7),
-@DaysUntilDriveFullThreshold INT,
-@FreeSpaceRemainingPercent INT,
 @DriveLetterExcludes VARCHAR(10),
 @ServerSpecific BIT,
 @ModuleConfig VARCHAR(20),
@@ -8317,10 +8377,12 @@ CREATE PROCEDURE [Inspector].[DriveSpaceReport]
 )
 AS
 
---Revision date: 08/09/2019
+--Revision date: 23/11/2020
 BEGIN
 --Excluded from Warning level control
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @DaysUntilDriveFullThreshold INT;
+	DECLARE @FreeSpaceRemainingPercent INT;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -8334,7 +8396,8 @@ BEGIN
 	''Server name,Drive,Total GB,Available GB,% Free,Est.Daily Growth GB,Days Until Disk Full,Days Recorded,Usage Trend,Usage Trend AVG GB,Calculation method'') --comma delimited column list.
 	);
 
-
+	SET @DaysUntilDriveFullThreshold = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''DaysUntilDriveFullThreshold'') AS INT),56));
+	SET @FreeSpaceRemainingPercent = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''FreeSpaceRemainingPercent'') AS INT),10));
 
 	IF (SELECT MAX(Log_Date) 
 	FROM [Inspector].[DriveSpace]
@@ -10184,15 +10247,17 @@ CREATE PROCEDURE [Inspector].[BackupSpaceReport]
 )
 AS
 BEGIN
---Revision date: 18/12/2019
+--Revision date: 23/11/2020
 --Excluded from Warning level control
 	DECLARE @BackupPathToCheck VARCHAR(256)
 	DECLARE @BackupPaths NVARCHAR(1000) 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @Server NVARCHAR(128);
-	DECLARE @WeekdayOffset INT = (SELECT TRY_CAST([Value] AS INT) FROM Inspector.Settings WHERE [Description] = ''BackupSpaceWeekdayOffset'');
+	DECLARE @WeekdayOffset INT;
 
 	SET @HtmlOutput = '''';
+
+	SET @WeekdayOffset = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''BackupSpaceWeekdayOffset'') AS INT),0));
 
 	IF @WeekdayOffset IS NULL BEGIN SET @WeekdayOffset = 0 END;
 	IF @WeekdayOffset > 1 BEGIN SET @WeekdayOffset = 1 END;
@@ -10749,8 +10814,6 @@ SET @Theme = UPPER(@Theme);
 DECLARE @Procname NVARCHAR(128) = OBJECT_NAME(@@PROCID);
 DECLARE @ModuleConfig VARCHAR(20) 
 DECLARE @ModuleConfigDetermined VARCHAR(20)
-DECLARE @FreeSpaceRemainingPercent INT = (SELECT ISNULL(CAST([Value] AS INT),10) FROM [Inspector].[Settings] WHERE [Description] = ''FreeSpaceRemainingPercent'')
-DECLARE @DaysUntilDriveFullThreshold INT = (SELECT ISNULL(CAST([Value] AS INT),56) FROM [Inspector].[Settings] WHERE [Description] = ''DaysUntilDriveFullThreshold'')
 DECLARE @InspectorBuild	VARCHAR(6) = (SELECT ISNULL([Value],'''') FROM [Inspector].[Settings] WHERE [Description] = ''InspectorBuild'')
 DECLARE @ReportStart DATETIME = GETDATE();
 DECLARE @ModuleReportStart DATETIME;
@@ -11080,8 +11143,6 @@ BEGIN
 						@WarningHighlight = @WarningHighlight, 
 						@AdvisoryHighlight = @AdvisoryHighlight,
 						@InfoHighlight = @InfoHighlight,
-						@DaysUntilDriveFullThreshold = @DaysUntilDriveFullThreshold,
-						@FreeSpaceRemainingPercent = @FreeSpaceRemainingPercent,
 						@DriveLetterExcludes = @DriveLetterExcludes,
 						@ServerSpecific = @ServerSpecific,
 						@PSCollection = @PSCollection, 

@@ -1,5 +1,5 @@
-﻿#Script version 1
-#Revision date: 17/07/2020
+﻿#Script version 2
+#Revision date: 23/11/2020
 #Minimum Inspector version 2.2
 
 function InspectorAutoUpdate {
@@ -25,7 +25,7 @@ function InspectorAutoUpdate {
         )
 
         [double]$RequiredInspectorBuild = 2.1
-        $Branch = "master" #"Inspector-Dev"
+        $Branch = "Inspector-Dev" #"Inspector-Dev"
 
         $Serverlist = @();
 

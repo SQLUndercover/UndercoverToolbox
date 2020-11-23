@@ -10,7 +10,7 @@ Description: BlitzWaits Custom module for the Inspector
 			 it is up to you how much you want to see.
 
 Author: Adrian Buckman
-Revision date: 20/11/2020
+Revision date: 23/11/2020
 Credit: Brent Ozar unlimited and its contributors, part of the code used in [Inspector].[BlitzWaitsReport] is a revision of the view [dbo].[BlitzFirst_WaitStats_Deltas].
 
 © www.sqlundercover.com 
@@ -77,8 +77,8 @@ THREADPOOL
 
 
 
-DECLARE @Revisiondate DATE = '20201120';
-DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
+DECLARE @Revisiondate DATE = '20201123';
+DECLARE @InspectorBuild DECIMAL(4,2);
 
 
 --Ensure that Blitz tables exist
@@ -91,6 +91,76 @@ END
 --Ensure that the Inspector schema exists
 IF SCHEMA_ID(N'Inspector') IS NOT NULL
 BEGIN 
+	IF OBJECT_ID('Inspector.Settings') IS NULL 
+	BEGIN 
+		RAISERROR('Inspector settings table not found - please double check you are using the correct database',11,0);
+		RETURN;
+	END 
+
+SET @InspectorBuild = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
+
+/* Create ServerSettingsThreshold table */
+IF OBJECT_ID('Inspector.ServerSettingThresholds',N'U') IS NULL 
+BEGIN 
+	CREATE TABLE [Inspector].[ServerSettingThresholds] (
+	ID INT IDENTITY(1,1),
+	Servername NVARCHAR(128) NOT NULL,
+	Modulename VARCHAR(50) NOT NULL,
+	ThresholdName VARCHAR(100) NOT NULL,
+	ThresholdInt INT NULL,
+	ThresholdString VARCHAR(255) NULL,
+	IsActive BIT NOT NULL
+	);
+
+	EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [ServerSettingThresholds_Servername_Modulename] ON [Inspector].[ServerSettingThresholds] ([Servername],[Modulename],[ThresholdName]);';
+END
+
+/* Create new Inspector GetServerModuleThreshold function */
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[GetServerModuleThreshold]') AND type in (N'FN', N'IF', N'TF', N'FS', N'FT'))
+BEGIN
+	EXECUTE dbo.sp_executesql @statement = N'CREATE FUNCTION [Inspector].[GetServerModuleThreshold] (@Servername NVARCHAR(128)) RETURNS VARCHAR(255) AS BEGIN DECLARE @ThresholdValue VARCHAR(20); RETURN @ThresholdValue; END';
+END
+
+EXECUTE dbo.sp_executesql @statement = N'ALTER FUNCTION [Inspector].[GetServerModuleThreshold]
+(
+@Servername NVARCHAR(128),
+@ModuleName VARCHAR(100),
+@SettingName VARCHAR(100)
+)
+RETURNS VARCHAR(255)
+AS
+BEGIN
+
+	DECLARE @ThresholdValue VARCHAR(255);
+
+	SELECT 
+	@ThresholdValue = COALESCE(CAST([ThresholdInt] AS VARCHAR(20)),[ThresholdString],[Value])
+	FROM 
+	(
+		SELECT 
+		[Servername],
+		[Description] AS ThresholdName,
+		[Value]
+		FROM [Inspector].[Settings]
+		CROSS JOIN (SELECT [Servername] FROM [Inspector].[CurrentServers] WHERE [IsActive] = 1) ActiveServers
+		WHERE [Description] = @SettingName
+	) GlobalSettings
+	LEFT JOIN (SELECT 
+					[Servername],
+					[Modulename],
+					[ThresholdName],
+					[ThresholdInt],
+					[ThresholdString] 
+				FROM [Inspector].[ServerSettingThresholds] 
+				WHERE [IsActive] = 1) [ServerSettingThresholds] ON GlobalSettings.[Servername] = ServerSettingThresholds.[Servername]
+													AND GlobalSettings.[ThresholdName] = ServerSettingThresholds.[ThresholdName]
+	WHERE (ServerSettingThresholds.[Modulename] = @ModuleName OR ServerSettingThresholds.[Modulename] IS NULL)
+	AND GlobalSettings.[Servername] = @Servername;
+
+
+	RETURN @ThresholdValue;
+
+END';
 
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[BlitzWaits_WatchedWaitTypes]') AND type in (N'U'))
 BEGIN
@@ -276,7 +346,7 @@ ALTER PROCEDURE [Inspector].[BlitzWaitsReport] (
 )
 AS
 BEGIN
---Revision date: 20/11/2020
+--Revision date: 23/11/2020
 /*
 Explanation of the logic used here:
 DATEADD(HOUR,(DATEPART(HOUR,CheckDate)%@HourlyBucketSize)/-1,DATEADD(HOUR, DATEDIFF(HOUR, 0, CheckDate), 0))
@@ -293,11 +363,11 @@ DATEADD(HOUR,(DATEPART(HOUR,CheckDate)%@HourlyBucketSize)/-1,DATEADD(HOUR, DATED
 	DECLARE @MonitorHourStart INT;
 	DECLARE @MonitorHourEnd INT;
 	DECLARE @Frequency INT;
-	DECLARE @Top INT = (SELECT ISNULL(TRY_CAST([Value] AS INT),3) FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsTopXRows''); 
-	DECLARE @HourlyBucketSize INT = (SELECT ISNULL(TRY_CAST([Value] AS INT),3) FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsHourlyBucketSize''); 
-	DECLARE @AlwaysShowBreached BIT = (SELECT ISNULL(TRY_CAST([Value] AS BIT),0) FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsAlwaysShowBreached'');
-	DECLARE @BlitzWaitsBucketColourOdd VARCHAR(7) = (SELECT ISNULL(TRY_CAST([Value] AS VARCHAR(7)),''#FFFFFF'') FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsBucketColourOdd'');
-	DECLARE @BlitzWaitsBucketColourEven VARCHAR(7) = (SELECT ISNULL(TRY_CAST([Value] AS VARCHAR(7)),''#FFFFFF'') FROM [Inspector].[Settings] WHERE [Description] = ''BlitzWaitsBucketColourEven'');
+	DECLARE @Top INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''BlitzWaitsTopXRows'') AS INT),3));
+	DECLARE @HourlyBucketSize INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''BlitzWaitsHourlyBucketSize'') AS INT),3));
+	DECLARE @AlwaysShowBreached BIT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''BlitzWaitsAlwaysShowBreached'') AS BIT),0));
+	DECLARE @BlitzWaitsBucketColourOdd VARCHAR(7) = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''BlitzWaitsBucketColourOdd'') AS VARCHAR(7)),''#FFFFFF''));
+	DECLARE @BlitzWaitsBucketColourEven VARCHAR(7) = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''BlitzWaitsBucketColourEven'') AS VARCHAR(7)),''#FFFFFF''));
 	DECLARE @CheckDate DATETIMEOFFSET(7);
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
