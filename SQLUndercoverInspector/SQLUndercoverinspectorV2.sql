@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 23/11/2020
+Revision date: 24/11/2020
 Version: 2.4
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20201123';
+DECLARE @Revisiondate DATE = '20201124';
 DECLARE @Build VARCHAR(6) ='2.4'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -6300,7 +6300,7 @@ CREATE PROCEDURE [Inspector].[PSGetSettingsTables]
 @PSCollection BIT = 0 --If its a powershell collection ensure that the WarningLevel table is populated
 )
 AS 
---Revision date: 24/03/2020
+--Revision date: 24/11/2020
 
 --Config for Powershell collection use only
 --TruncateTable - 0 Delete contents, 1 Truncate table
@@ -6331,7 +6331,8 @@ BEGIN
 			(4,''EmailConfig'',0,0),
 			(5,''CatalogueModules'',0,0),
 			(6,''ModuleWarningLevel'',0,0),
-			(7,''AGCheckConfig'',1,0)
+			(7,''AGCheckConfig'',1,0),
+			(8,''ServerSettingThresholds'',1,0)
 		) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder ASC;
 	END
@@ -6346,7 +6347,8 @@ BEGIN
 			(4,''EmailConfig'',0,0),
 			(5,''CatalogueModules'',0,0),
 			(6,''ModuleWarningLevel'',0,0),
-			(7,''AGCheckConfig'',1,0)
+			(7,''AGCheckConfig'',1,0),
+			(8,''ServerSettingThresholds'',1,0)
 		) SettingsTables(TableOrder,Tablename,TruncateTable,ReseedTable)
 		ORDER BY TableOrder DESC;
 	END
