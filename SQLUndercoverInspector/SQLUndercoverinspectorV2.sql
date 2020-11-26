@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 24/11/2020
+Revision date: 26/11/2020
 Version: 2.4
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20201124';
+DECLARE @Revisiondate DATE = '20201126';
 DECLARE @Build VARCHAR(6) ='2.4'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -2081,7 +2081,8 @@ UPDATE [Inspector].[ModuleConfig] SET [EmailGroup] = NULL WHERE [EmailGroup] IS 
 UPDATE [Inspector].[ModuleConfig] SET [EmailProfile] = NULL WHERE [EmailProfile] IS NOT NULL;
 DELETE FROM [Inspector].[EmailRecipients];
 TRUNCATE TABLE [Inspector].[CatalogueModules];
-TRUNCATE TABLE [Inspector].[DefaultHeaderText];';
+TRUNCATE TABLE [Inspector].[DefaultHeaderText];
+TRUNCATE TABLE [Inspector].[ServerSettingThresholds];';
 
 UPDATE [Inspector].[CurrentServers]
 SET ModuleConfig_Desc = NULL
@@ -2320,7 +2321,10 @@ END
 		DECLARE @ThresholdValue VARCHAR(255);
 	
 		SELECT 
-		@ThresholdValue = COALESCE(CAST([ThresholdInt] AS VARCHAR(20)),[ThresholdString],[Value])
+		@ThresholdValue = CASE /* If there is an override then use it even if it is a NULL value as this may be intended */
+							WHEN [ServerSettingThresholds].[Modulename] IS NOT NULL THEN ISNULL(CAST([ThresholdInt] AS VARCHAR(255)),[ThresholdString])
+							ELSE [GlobalSettings].[Value]
+						  END
 		FROM 
 		(
 			SELECT 
