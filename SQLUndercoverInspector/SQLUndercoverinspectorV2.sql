@@ -10340,10 +10340,15 @@ BEGIN
 						FOR XML PATH('''')
 						) IdentifyDriveSpace (BytesFree))
 				
-				IF @ExtractedInformation LIKE ''%File Not Found%'' 
+				IF (@ExtractedInformation LIKE ''%File Not Found%'')
 				BEGIN 
 					SET @ErrorEncountered = 1;
 					SET @ErrorEncounteredText = ''Invalid Backup Path Specified in [Inspector].[Settings]'';
+				END
+				ELSE IF (@ExtractedInformation LIKE ''%Access is denied%'') 
+				BEGIN 
+					SET @ErrorEncountered = 1;
+					SET @ErrorEncounteredText = ''Access denied to Backup Path Specified in [Inspector].[Settings]'';
 				END
 				ELSE
 				BEGIN
