@@ -1,5 +1,5 @@
-﻿#Script version 1
-#Revision date: 26/03/2020
+﻿#Script version 2
+#Revision date: 23/11/2020
 #Minimum Inspector version 2.2
 
 function InspectorAutoUpdate {
@@ -268,7 +268,23 @@ function InspectorAutoUpdate {
                             write-host "    No history of $Modulename installed, skipping this module" -ForegroundColor DarkYellow
                             Continue;
                         }
+
+                        #If local region is not en-GB then convert the dates
+                        $RegionSetting = (Get-culture).Name;
+
+                        IF($RegionSetting -ne "en-GB") {
+                            write-host "    Converting dates for your region"
+                            $UKCulture = [Globalization.CultureInfo]"en-GB" #Base region setting
+                            $LocalCulture = [Globalization.CultureInfo]$RegionSetting #Culture to be converted to
                         
+                            $LocalRevisionDateToDatetime = [datetime]::Parse($LocalRevisionDate, $UKCulture);
+                            $LocalRevisionDate = $LocalRevisionDateToDatetime.ToString('d', $LocalCulture);
+
+                            $LastUpdatedToDatetime = [datetime]::Parse($LastUpdated, $UKCulture);
+                            $LastUpdated = $LastUpdatedToDatetime.ToString('d', $LocalCulture);
+                        }
+       
+
                         #If the module is found check the revision date and if it is older than the latest or it is null (01/01/1900) then update it
                         IF((get-date $LocalRevisionDate -Format yyyyMMddHHmmss) -lt (get-date $LastUpdated -Format yyyyMMddHHmmss)) {
                             write-host "    Updates found for $Modulename, installing update..." -ForegroundColor Cyan

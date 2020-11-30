@@ -2,7 +2,7 @@
 Description: CPU Custom module for the Inspector
 			 Collect CPU % and report when % over CPU Thresholds which can be configured by changing the values for CPUThreshold in [Inspector].[Settings]
 Author: Adrian Buckman
-Revision date: 06/05/2020
+Revision date: 23/11/2020
 Credit: David Fowler for the CPU collection query body as this was a snippt taken from a stored procedure he had called sp_CPU_Time
 
 � www.sqlundercover.com 
@@ -32,7 +32,7 @@ SET NOCOUNT ON;
 
 DECLARE @MonitorHourStart INT = 0; -- 0 to 23
 DECLARE @MonitorHourEnd INT = 23; -- 0 to 23
-DECLARE @Revisiondate DATETIME = '20200506';
+DECLARE @Revisiondate DATETIME = '20201123';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 DECLARE @LinkedServername NVARCHAR(128) = (SELECT UPPER(TRY_CAST([Value] AS NVARCHAR(128))) FROM [Inspector].[Settings] WHERE [Description] = 'LinkedServername');
 DECLARE @SQLstmt NVARCHAR(4000);
@@ -53,6 +53,69 @@ END
 
 IF SCHEMA_ID(N'Inspector') IS NOT NULL
 BEGIN 
+	/* Create ServerSettingsThreshold table */
+	IF OBJECT_ID('Inspector.ServerSettingThresholds',N'U') IS NULL 
+	BEGIN 
+		CREATE TABLE [Inspector].[ServerSettingThresholds] (
+		ID INT IDENTITY(1,1),
+		Servername NVARCHAR(128) NOT NULL,
+		Modulename VARCHAR(50) NOT NULL,
+		ThresholdName VARCHAR(100) NOT NULL,
+		ThresholdInt INT NULL,
+		ThresholdString VARCHAR(255) NULL,
+		IsActive BIT NOT NULL
+		);
+
+		EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [ServerSettingThresholds_Servername_Modulename] ON [Inspector].[ServerSettingThresholds] ([Servername],[Modulename],[ThresholdName]);';
+	END
+
+	/* Create new Inspector GetServerModuleThreshold function */
+	IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[GetServerModuleThreshold]') AND type in (N'FN', N'IF', N'TF', N'FS', N'FT'))
+	BEGIN
+		EXECUTE dbo.sp_executesql @statement = N'CREATE FUNCTION [Inspector].[GetServerModuleThreshold] (@Servername NVARCHAR(128)) RETURNS VARCHAR(255) AS BEGIN DECLARE @ThresholdValue VARCHAR(20); RETURN @ThresholdValue; END';
+	END
+
+	EXECUTE dbo.sp_executesql @statement = N'ALTER FUNCTION [Inspector].[GetServerModuleThreshold]
+	(
+	@Servername NVARCHAR(128),
+	@ModuleName VARCHAR(100),
+	@SettingName VARCHAR(100)
+	)
+	RETURNS VARCHAR(255)
+	AS
+	BEGIN
+	
+		DECLARE @ThresholdValue VARCHAR(255);
+	
+		SELECT 
+		@ThresholdValue = COALESCE(CAST([ThresholdInt] AS VARCHAR(20)),[ThresholdString],[Value])
+		FROM 
+		(
+			SELECT 
+			[Servername],
+			[Description] AS ThresholdName,
+			[Value]
+			FROM [Inspector].[Settings]
+			CROSS JOIN (SELECT [Servername] FROM [Inspector].[CurrentServers] WHERE [IsActive] = 1) ActiveServers
+			WHERE [Description] = @SettingName
+		) GlobalSettings
+		LEFT JOIN (SELECT 
+						[Servername],
+						[Modulename],
+						[ThresholdName],
+						[ThresholdInt],
+						[ThresholdString] 
+					FROM [Inspector].[ServerSettingThresholds] 
+					WHERE [IsActive] = 1) [ServerSettingThresholds] ON GlobalSettings.[Servername] = ServerSettingThresholds.[Servername]
+														AND GlobalSettings.[ThresholdName] = ServerSettingThresholds.[ThresholdName]
+		WHERE (ServerSettingThresholds.[Modulename] = @ModuleName OR ServerSettingThresholds.[Modulename] IS NULL)
+		AND GlobalSettings.[Servername] = @Servername;
+	
+	
+		RETURN @ThresholdValue;
+	
+	END
+	' 
 
 IF OBJECT_ID('Inspector.CPU',N'U') IS NULL 
 BEGIN 
@@ -229,7 +292,7 @@ BEGIN
 	DECLARE @Frequency INT 
 	DECLARE @CPUHistoryRetentionInDays INT 
 	
-	SET @CPUHistoryRetentionInDays = (SELECT ISNULL(TRY_CAST([Value] AS INT),7) FROM [Inspector].[Settings] WHERE [Description] = ''CPUHistoryRetentionInDays'');
+	SET @CPUHistoryRetentionInDays = (SELECT ISNULL(TRY_CAST([Value] AS INT),7) FROM '+QUOTENAME(@LinkedServername)+N'.'+QUOTENAME(DB_NAME())+N'.[Inspector].[Settings] WHERE [Description] = ''CPUHistoryRetentionInDays'');
 	SET @Frequency = (SELECT MAX([Frequency]) FROM Inspector.Modules WHERE Modulename = ''CPU''); 
 	SET @ts_now = (SELECT cpu_ticks / (cpu_ticks/ms_ticks)  FROM sys.dm_os_sys_info);
 
@@ -322,7 +385,7 @@ EXEC('ALTER PROCEDURE [Inspector].[CPUReport] (
 )
 AS
 
---Revision date: 06/05/2020
+--Revision date: 23/11/2020
 BEGIN
 --Excluded from Warning level control
 	DECLARE @HtmlTableHead VARCHAR(4000);
@@ -335,13 +398,13 @@ BEGIN
 	DECLARE @MonitorHourStart INT;
 	DECLARE @MonitorHourEnd INT;
 
-	SET @MonitorHourStart = (SELECT [MonitorHourStart] FROM [Inspector].[MonitorHours] WHERE [Servername] = @Servername AND [Modulename] = ''CPU'');
-	SET @MonitorHourEnd = (SELECT [MonitorHourEnd] FROM [Inspector].[MonitorHours] WHERE [Servername] = @Servername AND [Modulename] = ''CPU'');
-	SET @CPUThresholdWarningHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),90) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdWarningHighlight'');
-	SET @CPUThresholdAdvisoryHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),85) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdAdvisoryHighlight'');
-	SET @CPUThresholdInfoHighlight = (SELECT ISNULL(TRY_CAST([Value] AS INT),75) FROM [Inspector].[Settings] WHERE [Description] = ''CPUThresholdInfoHighlight'');
+	SET @MonitorHourStart = (SELECT [MonitorHourStart] FROM [Inspector].[MonitorHours] WHERE [Servername] = @Servername AND [Modulename] = @Modulename);
+	SET @MonitorHourEnd = (SELECT [MonitorHourEnd] FROM [Inspector].[MonitorHours] WHERE [Servername] = @Servername AND [Modulename] = @Modulename);
+	SET @CPUThresholdWarningHighlight = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''CPUThresholdWarningHighlight'') AS INT),90));
+	SET @CPUThresholdAdvisoryHighlight = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''CPUThresholdAdvisoryHighlight'') AS INT),85));
+	SET @CPUThresholdInfoHighlight = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''CPUThresholdInfoHighlight'') AS INT),75));
 	SET @Frequency = (SELECT [Frequency] FROM Inspector.ModuleConfig WHERE ModuleConfig_Desc = @ModuleConfig); 
-
+	
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
 	--Set defaults if NULL
@@ -521,21 +584,4 @@ BEGIN
 	RAISERROR('Inspector schema not found, ensure that the Inspector is installed then try running this script again',11,0);
 END
 
-
-/*
-SELECT 
-CASE 
-	WHEN SystemCPUUtilization >= 90 THEN 'RED'
-	WHEN SystemCPUUtilization > 80 AND SystemCPUUtilization < 90 THEN 'YELLOW'
-	WHEN SystemCPUUtilization > 75 AND SystemCPUUtilization < 80 THEN 'WHITE'
-END AS [@BGColor],
-Servername,
-CONVERT(VARCHAR(21),EventTime,113) AS EventTime,
-SystemCPUUtilization,
-SQLCPUUtilization,
-OtherCPU
-FROM [Inspector].[CPU]
-WHERE SystemCPUUtilization > 75
-ORDER BY EventTime ASC 
-*/
 GO

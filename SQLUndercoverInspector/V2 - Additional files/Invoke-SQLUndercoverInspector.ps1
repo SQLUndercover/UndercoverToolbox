@@ -1,8 +1,8 @@
 #requires -Modules dbatools
 # SON: We'll create a .psm1 a .psd1 file and put the above into the $RequiredModules field there.
 
-#Script version 1.5
-#Revision date: 10/02/2020
+#Script version 1.6
+#Revision date: 24/11/2020
 #Minimum Inspector version 2.1
 
 <#
@@ -181,9 +181,9 @@ function Invoke-SQLUndercoverInspector {
                      $InstallStatus = $ConnectionCurrent.Query($ValidateInstallQry)
   
                      if($InstallStatus[0] -ne 1) {      
-                        Write-Warning "[$CentralServer] [$($_)] - Settings table exists in database [$LoggingDb] - but no config is present please install/reinstall the Inspector."
-                        $InvalidServers += $($_);
-                     Return
+                        Write-Warning "[$CentralServer] [$($_)] - Settings table exists in database [$LoggingDb] - but no config is present, this should be resynced automatically during this run"
+                        #$InvalidServers += $($_);
+                     #Return
                      }
 
                  Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$($_)] - Database: $LoggingDb exists, validating Inspector installation OK"
