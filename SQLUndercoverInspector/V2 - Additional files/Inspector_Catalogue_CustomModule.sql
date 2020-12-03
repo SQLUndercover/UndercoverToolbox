@@ -583,8 +583,6 @@ END
 
 END
 ' 
-END
-
 
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[ModuleConfig] WHERE [ModuleConfig_Desc] = @ModuleConfig)
 BEGIN 
