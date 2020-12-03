@@ -10,7 +10,7 @@ Description: BlitzWaits Custom module for the Inspector
 			 it is up to you how much you want to see.
 
 Author: Adrian Buckman
-Revision date: 23/11/2020
+Revision date: 03/12/2020
 Credit: Brent Ozar unlimited and its contributors, part of the code used in [Inspector].[BlitzWaitsReport] is a revision of the view [dbo].[BlitzFirst_WaitStats_Deltas].
 
 © www.sqlundercover.com 
@@ -77,7 +77,7 @@ THREADPOOL
 
 
 
-DECLARE @Revisiondate DATE = '20201123';
+DECLARE @Revisiondate DATE = '20201203';
 DECLARE @InspectorBuild DECIMAL(4,2);
 
 
@@ -97,70 +97,37 @@ BEGIN
 		RETURN;
 	END 
 
+	IF OBJECT_ID('Inspector.ServerSettingThresholds') IS NULL 
+	BEGIN 
+		RAISERROR('Inspector ServerSettingThresholds table not found - please double check you are using the correct database and the Inspector base install is up to date',11,0);
+		RETURN;
+	END 
+	
+	IF OBJECT_ID('Inspector.GetServerModuleThreshold') IS NULL 
+	BEGIN 
+		RAISERROR('GetServerModuleThreshold function not found - please double check you are using the correct database and the Inspector base install is up to date',11,0);
+		RETURN;
+	END 
+	
+	IF OBJECT_ID('Inspector.MonitorHours') IS NULL 
+	BEGIN 
+		RAISERROR('Inspector MonitorHours table not found - please double check you are using the correct database and the Inspector base install is up to date',11,0);
+		RETURN;
+	END 	
+
+	IF OBJECT_ID('Inspector.GetMonitorHours') IS NULL 
+	BEGIN 
+		RAISERROR('Inspector GetMonitorHours procedure not found - please double check you are using the correct database and the Inspector base install is up to date',11,0);
+		RETURN;
+	END 	
+
+	IF OBJECT_ID('Inspector.GetModuleConfigFrequency') IS NULL 
+	BEGIN 
+		RAISERROR('Inspector GetModuleConfigFrequency procedure not found - please double check you are using the correct database and the Inspector base install is up to date',11,0);
+		RETURN;
+	END 
+	
 SET @InspectorBuild = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
-
-/* Create ServerSettingsThreshold table */
-IF OBJECT_ID('Inspector.ServerSettingThresholds',N'U') IS NULL 
-BEGIN 
-	CREATE TABLE [Inspector].[ServerSettingThresholds] (
-	ID INT IDENTITY(1,1),
-	Servername NVARCHAR(128) NOT NULL,
-	Modulename VARCHAR(50) NOT NULL,
-	ThresholdName VARCHAR(100) NOT NULL,
-	ThresholdInt INT NULL,
-	ThresholdString VARCHAR(255) NULL,
-	IsActive BIT NOT NULL
-	);
-
-	EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [ServerSettingThresholds_Servername_Modulename] ON [Inspector].[ServerSettingThresholds] ([Servername],[Modulename],[ThresholdName]);';
-END
-
-/* Create new Inspector GetServerModuleThreshold function */
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[GetServerModuleThreshold]') AND type in (N'FN', N'IF', N'TF', N'FS', N'FT'))
-BEGIN
-	EXECUTE dbo.sp_executesql @statement = N'CREATE FUNCTION [Inspector].[GetServerModuleThreshold] (@Servername NVARCHAR(128)) RETURNS VARCHAR(255) AS BEGIN DECLARE @ThresholdValue VARCHAR(20); RETURN @ThresholdValue; END';
-END
-
-EXECUTE dbo.sp_executesql @statement = N'ALTER FUNCTION [Inspector].[GetServerModuleThreshold]
-(
-@Servername NVARCHAR(128),
-@ModuleName VARCHAR(100),
-@SettingName VARCHAR(100)
-)
-RETURNS VARCHAR(255)
-AS
-BEGIN
-
-	DECLARE @ThresholdValue VARCHAR(255);
-
-	SELECT 
-	@ThresholdValue = COALESCE(CAST([ThresholdInt] AS VARCHAR(20)),[ThresholdString],[Value])
-	FROM 
-	(
-		SELECT 
-		[Servername],
-		[Description] AS ThresholdName,
-		[Value]
-		FROM [Inspector].[Settings]
-		CROSS JOIN (SELECT [Servername] FROM [Inspector].[CurrentServers] WHERE [IsActive] = 1) ActiveServers
-		WHERE [Description] = @SettingName
-	) GlobalSettings
-	LEFT JOIN (SELECT 
-					[Servername],
-					[Modulename],
-					[ThresholdName],
-					[ThresholdInt],
-					[ThresholdString] 
-				FROM [Inspector].[ServerSettingThresholds] 
-				WHERE [IsActive] = 1) [ServerSettingThresholds] ON GlobalSettings.[Servername] = ServerSettingThresholds.[Servername]
-													AND GlobalSettings.[ThresholdName] = ServerSettingThresholds.[ThresholdName]
-	WHERE (ServerSettingThresholds.[Modulename] = @ModuleName OR ServerSettingThresholds.[Modulename] IS NULL)
-	AND GlobalSettings.[Servername] = @Servername;
-
-
-	RETURN @ThresholdValue;
-
-END';
 
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[BlitzWaits_WatchedWaitTypes]') AND type in (N'U'))
 BEGIN
@@ -209,19 +176,6 @@ CROSS APPLY (
 WHERE NOT EXISTS (SELECT 1 FROM [Inspector].[BlitzWaits_WatchedWaitTypes] WatchedWaits WHERE [WatchedWaits].[Servername] = [CurrentServers].[Servername] AND [WatchedWaits].[Wait_type] = [Waits].[WaitType]);
 
 
-IF OBJECT_ID('Inspector.MonitorHours',N'U') IS NULL 
-BEGIN 
-	CREATE TABLE [Inspector].[MonitorHours](
-	[Servername] NVARCHAR(128) NULL,
-	[Modulename] VARCHAR(50) NULL,
-	[MonitorHourStart] INT NOT NULL,
-	[MonitorHourEnd] INT NOT NULL
-	);
-
-	EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_Servername_Modulename] ON [Inspector].[MonitorHours] ([Servername],[Modulename]);';
-END
-
-
 EXEC sp_executesql N'
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[MonitorHours] WHERE Servername = @@SERVERNAME AND Modulename = ''BlitzWaits'') 
 BEGIN 
@@ -229,50 +183,6 @@ BEGIN
 	VALUES(@@SERVERNAME,''BlitzWaits'',0,23);
 END';
 
-IF OBJECT_ID('Inspector.GetMonitorHours') IS NULL
-BEGIN 
-	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[GetMonitorHours] AS;';
-END 
-
-EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[GetMonitorHours] (
-@Servername NVARCHAR(128),
-@Modulename VARCHAR(50),
-@MonitorHourStart INT OUTPUT,
-@MonitorHourEnd INT OUTPUT	
-)
-AS 
-BEGIN 
-	/* Revision date: 01/05/2020 */
-
-	SELECT 
-	@MonitorHourStart = [MonitorHourStart],
-	@MonitorHourEnd = [MonitorHourEnd]
-	FROM [Inspector].[MonitorHours] 
-	WHERE [Servername] = @Servername 
-	AND [Modulename] = @Modulename;
-
-END';
-
-
-IF OBJECT_ID('Inspector.GetModuleConfigFrequency') IS NULL
-BEGIN 
-	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[GetModuleConfigFrequency] AS;';
-END 
-
-EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[GetModuleConfigFrequency] (
-@ModuleConfig VARCHAR(20),
-@Frequency INT OUTPUT
-)
-AS 
-BEGIN 
-	/* Revision date: 01/05/2020 */
-
-	SELECT 
-	@Frequency = [Frequency] 
-	FROM [Inspector].[ModuleConfig]
-	WHERE ModuleConfig_Desc = @ModuleConfig;
-
-END';
 
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'BlitzWaitsTopXRows')
 BEGIN 
