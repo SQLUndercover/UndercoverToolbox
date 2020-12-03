@@ -15,7 +15,7 @@ DECLARE @EnableModule BIT = 1;
 
 
 
-DECLARE @Revisiondate DATETIME = '20200207';
+DECLARE @Revisiondate DATETIME = '20201203';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 --Ensure that Blitz tables exist
@@ -432,8 +432,11 @@ END
 END';
 
 
-IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[CatalogueAgentAuditReport]') AND type in (N'P', N'PC'))
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[CatalogueAgentAuditReport]') AND type in (N'P', N'PC'))
 BEGIN
+	EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [Inspector].[CatalogueAgentAuditReport] AS';
+END
+
 EXEC dbo.sp_executesql @statement = N'ALTER PROCEDURE [Inspector].[CatalogueAgentAuditReport]
 (
 @Servername NVARCHAR(128),
@@ -580,8 +583,6 @@ END
 
 END
 ' 
-END
-
 
 IF NOT EXISTS(SELECT 1 FROM [Inspector].[ModuleConfig] WHERE [ModuleConfig_Desc] = @ModuleConfig)
 BEGIN 

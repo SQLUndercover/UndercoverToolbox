@@ -6,7 +6,7 @@ SET QUOTED_IDENTIFIER ON;
 Description: 
 
 Author: Adrian Buckman
-Revision date: 24/05/2020
+Revision date: 03/12/2020
 
 © www.sqlundercover.com 
 
@@ -44,7 +44,7 @@ DECLARE @EnableModule BIT = 1;
 
 
 
-DECLARE @Revisiondate DATE = '20200524';
+DECLARE @Revisiondate DATE = '20201203';
 DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
 
 --Ensure that Blitz tables exist
@@ -64,19 +64,23 @@ END
 IF SCHEMA_ID(N'Inspector') IS NOT NULL
 BEGIN 
 
-	IF OBJECT_ID('Inspector.MonitorHours',N'U') IS NULL 
+	IF OBJECT_ID('Inspector.MonitorHours') IS NULL 
 	BEGIN 
-		CREATE TABLE [Inspector].[MonitorHours](
-		[Servername] [nvarchar](128) NULL,
-		[Modulename] VARCHAR(50) NULL,
-		[MonitorHourStart] INT NOT NULL,
-		[MonitorHourEnd] INT NOT NULL
-		);
+		RAISERROR('Inspector MonitorHours table not found - please double check you are using the correct database and the Inspector base install is up to date',11,0);
+		RETURN;
+	END 
+
+	IF OBJECT_ID('Inspector.GetMonitorHours') IS NULL 
+	BEGIN 
+		RAISERROR('Inspector GetMonitorHours procedure not found - please double check you are using the correct database and the Inspector base install is up to date',11,0);
+		RETURN;
+	END 
 	
-		EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_Servername_Modulename] ON [Inspector].[MonitorHours] ([Servername],[Modulename]);';
-	END
-	
-	
+	IF OBJECT_ID('Inspector.GetModuleConfigFrequency') IS NULL 
+	BEGIN 
+		RAISERROR('Inspector GetModuleConfigFrequency procedure not found - please double check you are using the correct database and the Inspector base install is up to date',11,0);
+		RETURN;
+	END 
 	
 	EXEC sp_executesql N'
 	IF NOT EXISTS(SELECT 1 FROM [Inspector].[MonitorHours] WHERE Servername = @@SERVERNAME AND Modulename = ''BlitzFileStats'') 
@@ -106,53 +110,6 @@ BEGIN
 		VALUES(@@SERVERNAME,100,100);
 	END ';
 	
-	IF OBJECT_ID('Inspector.GetMonitorHours') IS NULL
-	BEGIN 
-		EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[GetMonitorHours] AS;';
-	END 
-	
-	EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[GetMonitorHours] (
-	@Servername NVARCHAR(128),
-	@Modulename VARCHAR(50),
-	@MonitorHourStart INT OUTPUT,
-	@MonitorHourEnd INT OUTPUT	
-	)
-	AS 
-	BEGIN 
-		/* Revision date: 01/05/2020 */
-	
-		SELECT 
-		@MonitorHourStart = [MonitorHourStart],
-		@MonitorHourEnd = [MonitorHourEnd]
-		FROM [Inspector].[MonitorHours] 
-		WHERE [Servername] = @Servername 
-		AND [Modulename] = @Modulename;
-	
-	END';
-	
-	
-	IF OBJECT_ID('Inspector.GetModuleConfigFrequency') IS NULL
-	BEGIN 
-		EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[GetModuleConfigFrequency] AS;';
-	END 
-	
-	EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[GetModuleConfigFrequency] (
-	@ModuleConfig VARCHAR(20),
-	@Frequency INT OUTPUT
-	)
-	AS 
-	BEGIN 
-		/* Revision date: 01/05/2020 */
-	
-		SELECT 
-		@Frequency = [Frequency] 
-		FROM [Inspector].[ModuleConfig]
-		WHERE ModuleConfig_Desc = @ModuleConfig;
-	
-	END';
-	
-
-
 IF OBJECT_ID('Inspector.BlitzFileStatsReport',N'P') IS NULL 
 BEGIN 
 	EXEC('CREATE PROCEDURE [Inspector].[BlitzFileStatsReport] AS');
