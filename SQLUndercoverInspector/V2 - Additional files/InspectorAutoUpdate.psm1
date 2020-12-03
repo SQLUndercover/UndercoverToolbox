@@ -25,7 +25,7 @@ function InspectorAutoUpdate {
         )
 
         [double]$RequiredInspectorBuild = 2.1
-        $Branch = "master" #"Inspector-Dev"
+        $Branch = "Inspector-Dev" #"Inspector-Dev"
 
         $Serverlist = @();
 

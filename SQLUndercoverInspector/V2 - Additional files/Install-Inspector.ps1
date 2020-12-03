@@ -25,7 +25,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #set variables
 #if you are using a Github URL this must be the raw URL.
 
-$Branch = "master" #Inspector-Dev
+$Branch = "Inspector-Dev" #Inspector-Dev
 
 #Set a URL or local path where the SQLUndercoverinspectorV2.sql file exists
 $ScriptPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/$Branch/SQLUndercoverInspector/SQLUndercoverinspectorV2.sql"
