@@ -2,7 +2,7 @@
 Description: CPU Custom module for the Inspector
 			 Collect CPU % and report when % over CPU Thresholds which can be configured by changing the values for CPUThreshold in [Inspector].[Settings]
 Author: Adrian Buckman
-Revision date: 23/11/2020
+Revision date: 10/12/2020
 Credit: David Fowler for the CPU collection query body as this was a snippt taken from a stored procedure he had called sp_CPU_Time
 
 � www.sqlundercover.com 
@@ -32,27 +32,41 @@ SET NOCOUNT ON;
 
 DECLARE @MonitorHourStart INT = 0; -- 0 to 23
 DECLARE @MonitorHourEnd INT = 23; -- 0 to 23
-DECLARE @Revisiondate DATETIME = '20201203';
-DECLARE @InspectorBuild DECIMAL(4,2) = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
-DECLARE @LinkedServername NVARCHAR(128) = (SELECT UPPER(TRY_CAST([Value] AS NVARCHAR(128))) FROM [Inspector].[Settings] WHERE [Description] = 'LinkedServername');
+DECLARE @Revisiondate DATETIME = '20201210';
+DECLARE @InspectorBuild DECIMAL(4,2);
+DECLARE @LinkedServername NVARCHAR(128);
 DECLARE @SQLstmt NVARCHAR(4000);
+DECLARE @InspectorBuildString VARCHAR(6); 
 
 
-IF ((@MonitorHourStart NOT BETWEEN 0 AND 23) OR (@MonitorHourEnd NOT BETWEEN 0 AND 23))
-BEGIN 
-	RAISERROR('@MonitorHourStart and @MonitorHourEnd must be between 0 and 23',11,0);
-	RETURN;
-END
-
-
-IF (@LinkedServername IS NOT NULL) AND NOT EXISTS(SELECT 1 FROM sys.servers WHERE [name] = @LinkedServername)
-BEGIN 
-	RAISERROR('Linked server name is incorrect',11,0,@LinkedServername);
-	RETURN;
-END 
 
 IF SCHEMA_ID(N'Inspector') IS NOT NULL
 BEGIN 
+
+	SET @InspectorBuild = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
+	SET @LinkedServername = (SELECT UPPER(TRY_CAST([Value] AS NVARCHAR(128))) FROM [Inspector].[Settings] WHERE [Description] = 'LinkedServername');
+
+	SET @InspectorBuildString = CAST(@InspectorBuild AS VARCHAR(6));
+
+	/* Minimum Inspector version check */
+	IF (@InspectorBuild < 2.4)
+	BEGIN 
+		RAISERROR('Your Inspector version (%s) does not meet the minimum build required required: 2.4',11,0,@InspectorBuildString);
+		RETURN;
+	END 
+	
+	IF ((@MonitorHourStart NOT BETWEEN 0 AND 23) OR (@MonitorHourEnd NOT BETWEEN 0 AND 23))
+	BEGIN 
+		RAISERROR('@MonitorHourStart and @MonitorHourEnd must be between 0 and 23',11,0);
+		RETURN;
+	END
+	
+	
+	IF (@LinkedServername IS NOT NULL) AND NOT EXISTS(SELECT 1 FROM sys.servers WHERE [name] = @LinkedServername)
+	BEGIN 
+		RAISERROR('Linked server name is incorrect',11,0,@LinkedServername);
+		RETURN;
+	END 
 
 	IF OBJECT_ID('Inspector.ServerSettingThresholds') IS NULL 
 	BEGIN 
@@ -137,6 +151,11 @@ BEGIN
 	VALUES('CPUThresholdInfoHighlight','75');
 END
 
+IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'CPUBreachedConsecutiveCount')
+BEGIN
+	INSERT INTO [Inspector].[Settings] ([Description],[Value])
+	VALUES ('CPUBreachedConsecutiveCount',NULL);
+END
 
 /* We want to make sure your previous config is copied to the new table otherwise we will pop a default row in the new MonitorHours table, we will be dropping CPUConfig */
 IF OBJECT_ID('Inspector.CPUConfig') IS NOT NULL 
@@ -330,7 +349,7 @@ EXEC('ALTER PROCEDURE [Inspector].[CPUReport] (
 )
 AS
 
---Revision date: 23/11/2020
+--Revision date: 10/12/2020
 BEGIN
 --Excluded from Warning level control
 	DECLARE @HtmlTableHead VARCHAR(4000);
@@ -339,14 +358,28 @@ BEGIN
 	DECLARE @CPUThresholdWarningHighlight INT
 	DECLARE @CPUThresholdAdvisoryHighlight INT
 	DECLARE @CPUThresholdInfoHighlight INT
+	DECLARE @CPUBreachedConsecutiveCount INT
 	DECLARE @Frequency INT
 	DECLARE @MonitorHourStart INT;
 	DECLARE @MonitorHourEnd INT;
+
+	IF OBJECT_ID(''tempdb.dbo.#InspectorModuleReport'') IS NOT NULL 
+	DROP TABLE #InspectorModuleReport;
+	
+	CREATE TABLE #InspectorModuleReport (
+	[@bgcolor] VARCHAR(7),
+	[Servername] NVARCHAR(128), 
+	[EventTime] VARCHAR(20),
+	[SystemCPUUtilization] INT, 
+	[SQLCPUUtilization] INT, 
+	[OtherCPU] INT
+	);
 
 	SET @MonitorHourStart = (SELECT [MonitorHourStart] FROM [Inspector].[MonitorHours] WHERE [Servername] = @Servername AND [Modulename] = @Modulename);
 	SET @MonitorHourEnd = (SELECT [MonitorHourEnd] FROM [Inspector].[MonitorHours] WHERE [Servername] = @Servername AND [Modulename] = @Modulename);
 	SET @CPUThresholdWarningHighlight = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''CPUThresholdWarningHighlight'') AS INT),90));
 	SET @CPUThresholdAdvisoryHighlight = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''CPUThresholdAdvisoryHighlight'') AS INT),85));
+	SET @CPUBreachedConsecutiveCount = (SELECT TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,''CPU'',''CPUBreachedConsecutiveCount'') AS INT));
 	SET @CPUThresholdInfoHighlight = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''CPUThresholdInfoHighlight'') AS INT),75));
 	SET @Frequency = (SELECT [Frequency] FROM Inspector.ModuleConfig WHERE ModuleConfig_Desc = @ModuleConfig); 
 	
@@ -366,24 +399,100 @@ BEGIN
 	--the ModuleWarningLevel table and your Case expression And/or Where clause will determine which rows get the highlight
 	--query example:
 
-SELECT 
-CASE 
-	WHEN SystemCPUUtilization >= @CPUThresholdWarningHighlight THEN @WarningHighlight
-	WHEN SystemCPUUtilization >= @CPUThresholdAdvisoryHighlight AND SystemCPUUtilization < @CPUThresholdWarningHighlight THEN @AdvisoryHighlight
-	WHEN SystemCPUUtilization > @CPUThresholdInfoHighlight AND SystemCPUUtilization < @CPUThresholdAdvisoryHighlight THEN @InfoHighlight
-END AS [@bgcolor],
-Servername,
-CONVERT(VARCHAR(17),EventTime,113) AS EventTime,
-SystemCPUUtilization,
-SQLCPUUtilization,
-OtherCPU
-INTO #InspectorModuleReport
-FROM [Inspector].[CPU]
-WHERE SystemCPUUtilization > @CPUThresholdInfoHighlight
-AND EventTime >= DATEADD(MINUTE,-@Frequency,GETDATE())
-AND Servername = @Servername
-AND DATEPART(HOUR,EventTime) BETWEEN @MonitorHourStart AND @MonitorHourEnd
-ORDER BY EventTime ASC 
+/* If you have not enabled the consecutive counts threshold then use the original code to just check for any breaches regardless of consecutive duration */
+IF (@CPUBreachedConsecutiveCount IS NULL)
+BEGIN
+	INSERT INTO #InspectorModuleReport ([@bgcolor],[Servername],[EventTime],[SystemCPUUtilization],[SQLCPUUtilization],[OtherCPU])
+	SELECT 
+	CASE 
+		WHEN SystemCPUUtilization >= @CPUThresholdWarningHighlight THEN @WarningHighlight
+		WHEN SystemCPUUtilization >= @CPUThresholdAdvisoryHighlight AND SystemCPUUtilization < @CPUThresholdWarningHighlight THEN @AdvisoryHighlight
+		WHEN SystemCPUUtilization > @CPUThresholdInfoHighlight AND SystemCPUUtilization < @CPUThresholdAdvisoryHighlight THEN @InfoHighlight
+	END AS [@bgcolor],
+	Servername,
+	CONVERT(VARCHAR(17),EventTime,113) AS EventTime,
+	SystemCPUUtilization,
+	SQLCPUUtilization,
+	OtherCPU
+	FROM [Inspector].[CPU]
+	WHERE SystemCPUUtilization > @CPUThresholdInfoHighlight
+	AND EventTime >= DATEADD(MINUTE,-@Frequency,GETDATE())
+	AND Servername = @Servername
+	AND DATEPART(HOUR,EventTime) BETWEEN @MonitorHourStart AND @MonitorHourEnd
+END 
+ELSE /* Otherwise let crack on and work out how many consecutive CPU recordings there are for the server and if greater than or equal to your threshold then show the results */
+BEGIN 
+INSERT INTO #InspectorModuleReport ([@bgcolor],[Servername],[EventTime],[SystemCPUUtilization],[SQLCPUUtilization],[OtherCPU])
+EXEC sp_executesql N''WITH CPUForFrequency
+     AS (SELECT [Servername], 
+                [Log_Date], 
+                [EventTime], 
+                [SystemCPUUtilization], 
+                [SQLCPUUtilization], 
+                [OtherCPU], 
+                ROW_NUMBER() OVER(
+                ORDER BY [EventTime] ASC) AS [EventTimeOrderRN], 
+                ROW_NUMBER() OVER(PARTITION BY(CASE
+                                                   WHEN [SystemCPUUtilization] > @CPUThresholdInfoHighlight
+                                                   THEN 1
+                                                   ELSE 0
+                                               END)
+                ORDER BY [EventTime] ASC) AS [EventTimeOrderByThreshold]
+         FROM [Inspector].[CPU]
+         WHERE [EventTime] >= DATEADD(MINUTE, -@Frequency, GETDATE())
+               AND [Servername] = @Servername
+			   AND DATEPART(HOUR,EventTime) BETWEEN @MonitorHourStart AND @MonitorHourEnd),
+     Consecutives
+     AS (SELECT([EventTimeOrderRN]
+                - [EventTimeOrderByThreshold]) AS [ConsecutiveBucketID], 
+               COUNT(*) AS [TotalConsecutives]
+         FROM [CPUForFrequency]
+         WHERE [SystemCPUUtilization] > @CPUThresholdInfoHighlight
+         GROUP BY([EventTimeOrderRN]
+                  - [EventTimeOrderByThreshold]))
+     SELECT CASE
+                WHEN [SystemCPUUtilization] >= @CPUThresholdWarningHighlight THEN @WarningHighlight
+                WHEN [SystemCPUUtilization] >= @CPUThresholdAdvisoryHighlight AND [SystemCPUUtilization] < @CPUThresholdWarningHighlight THEN @AdvisoryHighlight
+                WHEN [SystemCPUUtilization] > @CPUThresholdInfoHighlight AND [SystemCPUUtilization] < @CPUThresholdAdvisoryHighlight THEN @InfoHighlight
+            END AS [@bgcolor], 
+            [Servername], 
+            CONVERT(VARCHAR(20), [EventTime], 113) AS [EventTime], 
+            [SystemCPUUtilization], 
+            [SQLCPUUtilization], 
+            [OtherCPU]
+     FROM [CPUForFrequency]
+     WHERE EXISTS
+     (
+         SELECT 1
+         FROM [Consecutives]
+         WHERE [ConsecutiveBucketID] = ([CPUForFrequency].[EventTimeOrderRN]
+                                        - [CPUForFrequency].[EventTimeOrderByThreshold])
+               AND [TotalConsecutives] >= @CPUBreachedConsecutiveCount
+               AND [SystemCPUUtilization] > @CPUThresholdInfoHighlight
+     );'',
+	 N''@Frequency INT,
+	 @Servername NVARCHAR(128),
+	 @MonitorHourStart INT,
+	 @MonitorHourEnd INT,
+	 @CPUThresholdWarningHighlight INT,
+	 @CPUThresholdAdvisoryHighlight INT,
+	 @CPUThresholdInfoHighlight INT,
+	 @WarningHighlight VARCHAR(7),
+	 @AdvisoryHighlight VARCHAR(7),
+	 @InfoHighlight VARCHAR(7),
+	 @CPUBreachedConsecutiveCount INT'',
+	 @Frequency = @Frequency,
+	 @Servername = @Servername,
+	 @MonitorHourStart = @MonitorHourStart,
+	 @MonitorHourEnd = @MonitorHourEnd,
+	 @CPUThresholdWarningHighlight = @CPUThresholdWarningHighlight,
+	 @CPUThresholdAdvisoryHighlight = @CPUThresholdAdvisoryHighlight,
+	 @CPUThresholdInfoHighlight = @CPUThresholdInfoHighlight,
+	 @WarningHighlight = @WarningHighlight,
+	 @AdvisoryHighlight = @AdvisoryHighlight,
+	 @InfoHighlight = @InfoHighlight,
+	 @CPUBreachedConsecutiveCount = @CPUBreachedConsecutiveCount;
+END
 
 /********************************************************/
 
@@ -413,7 +522,8 @@ ORDER BY EventTime ASC
 	+''mins between the hours of ''
 	+CAST(@MonitorHourStart AS VARCHAR(10))
 	+'' and ''
-	+CAST(@MonitorHourEnd AS VARCHAR(10)), --Title for the HTML table, you can use a string here instead such as ''My table title here'' if you want to
+	+CAST(@MonitorHourEnd AS VARCHAR(10))
+	+ISNULL('' with consecutive recorded breaches of ''+CAST(@CPUBreachedConsecutiveCount AS VARCHAR(10))+'' or more'',''''), --Title for the HTML table, you can use a string here instead such as ''My table title here'' if you want to
 	@TableHeaderColour,
 	@Columnnames)
 	);
