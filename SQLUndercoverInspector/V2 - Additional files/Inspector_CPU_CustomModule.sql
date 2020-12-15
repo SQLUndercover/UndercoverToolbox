@@ -2,7 +2,7 @@
 Description: CPU Custom module for the Inspector
 			 Collect CPU % and report when % over CPU Thresholds which can be configured by changing the values for CPUThreshold in [Inspector].[Settings]
 Author: Adrian Buckman
-Revision date: 10/12/2020
+Revision date: 15/12/2020
 Credit: David Fowler for the CPU collection query body as this was a snippt taken from a stored procedure he had called sp_CPU_Time
 
 � www.sqlundercover.com 
@@ -32,7 +32,7 @@ SET NOCOUNT ON;
 
 DECLARE @MonitorHourStart INT = 0; -- 0 to 23
 DECLARE @MonitorHourEnd INT = 23; -- 0 to 23
-DECLARE @Revisiondate DATETIME = '20201210';
+DECLARE @Revisiondate DATETIME = '20201215';
 DECLARE @InspectorBuild DECIMAL(4,2);
 DECLARE @LinkedServername NVARCHAR(128);
 DECLARE @SQLstmt NVARCHAR(4000);
@@ -349,7 +349,7 @@ EXEC('ALTER PROCEDURE [Inspector].[CPUReport] (
 )
 AS
 
---Revision date: 10/12/2020
+--Revision date: 15/12/2020
 BEGIN
 --Excluded from Warning level control
 	DECLARE @HtmlTableHead VARCHAR(4000);
@@ -379,8 +379,8 @@ BEGIN
 	SET @MonitorHourEnd = (SELECT [MonitorHourEnd] FROM [Inspector].[MonitorHours] WHERE [Servername] = @Servername AND [Modulename] = @Modulename);
 	SET @CPUThresholdWarningHighlight = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''CPUThresholdWarningHighlight'') AS INT),90));
 	SET @CPUThresholdAdvisoryHighlight = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''CPUThresholdAdvisoryHighlight'') AS INT),85));
-	SET @CPUBreachedConsecutiveCount = (SELECT TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,''CPU'',''CPUBreachedConsecutiveCount'') AS INT));
 	SET @CPUThresholdInfoHighlight = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''CPUThresholdInfoHighlight'') AS INT),75));
+	SET @CPUBreachedConsecutiveCount = (SELECT TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''CPUBreachedConsecutiveCount'') AS INT));
 	SET @Frequency = (SELECT [Frequency] FROM Inspector.ModuleConfig WHERE ModuleConfig_Desc = @ModuleConfig); 
 	
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
@@ -572,6 +572,10 @@ BEGIN
 	@WarningHighlight AS ''@WarningHighlight'',
 	@AdvisoryHighlight AS ''@AdvisoryHighlight'',
 	@InfoHighlight AS ''@InfoHighlight'',
+	@CPUThresholdWarningHighlight AS ''CPUThresholdWarningHighlight'',
+	@CPUThresholdAdvisoryHighlight AS ''CPUThresholdAdvisoryHighlight'',
+	@CPUThresholdInfoHighlight AS ''CPUThresholdInfoHighlight'',
+	@CPUBreachedConsecutiveCount AS ''CPUBreachedConsecutiveCount'',
 	@ModuleConfig AS ''@ModuleConfig'',
 	@WarningLevel AS ''@WarningLevel'',
 	@NoClutter AS ''@NoClutter'',
