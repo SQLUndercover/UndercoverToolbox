@@ -523,7 +523,7 @@ END
 	+CAST(@MonitorHourStart AS VARCHAR(10))
 	+'' and ''
 	+CAST(@MonitorHourEnd AS VARCHAR(10))
-	+ISNULL('' with consecutive recorded breaches of ''+CAST(@CPUBreachedConsecutiveCount AS VARCHAR(10))+'' or more'',''''), --Title for the HTML table, you can use a string here instead such as ''My table title here'' if you want to
+	+ISNULL('' with consecutive breaches of ''+CAST(@CPUBreachedConsecutiveCount AS VARCHAR(10))+'' or more'',''''), --Title for the HTML table, you can use a string here instead such as ''My table title here'' if you want to
 	@TableHeaderColour,
 	@Columnnames)
 	);
