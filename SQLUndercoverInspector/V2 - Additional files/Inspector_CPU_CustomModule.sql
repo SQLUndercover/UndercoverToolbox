@@ -410,7 +410,7 @@ BEGIN
 		WHEN SystemCPUUtilization > @CPUThresholdInfoHighlight AND SystemCPUUtilization < @CPUThresholdAdvisoryHighlight THEN @InfoHighlight
 	END AS [@bgcolor],
 	Servername,
-	CONVERT(VARCHAR(17),EventTime,113) AS EventTime,
+	CONVERT(VARCHAR(24),EventTime,113) AS EventTime,
 	SystemCPUUtilization,
 	SQLCPUUtilization,
 	OtherCPU
@@ -456,7 +456,7 @@ EXEC sp_executesql N''WITH CPUForFrequency
                 WHEN [SystemCPUUtilization] > @CPUThresholdInfoHighlight AND [SystemCPUUtilization] < @CPUThresholdAdvisoryHighlight THEN @InfoHighlight
             END AS [@bgcolor], 
             [Servername], 
-            CONVERT(VARCHAR(20), [EventTime], 113) AS [EventTime], 
+            CONVERT(VARCHAR(24), [EventTime], 113) AS [EventTime], 
             [SystemCPUUtilization], 
             [SQLCPUUtilization], 
             [OtherCPU]
