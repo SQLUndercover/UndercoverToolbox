@@ -65,8 +65,8 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 03/12/2020
-Version: 2.4
+Revision date: 08/02/2021
+Version: 2.5
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -129,8 +129,8 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20201203';
-DECLARE @Build VARCHAR(6) ='2.4'
+DECLARE @Revisiondate DATE = '20210208';
+DECLARE @Build VARCHAR(6) ='2.5'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
 DECLARE @JobsWithoutSchedules VARCHAR(1000);
@@ -1918,6 +1918,18 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [ServerSettingThresholds_Servername_Modulename] ON [Inspector].[ServerSettingThresholds] ([Servername],[Modulename],[ThresholdName]);';
 			END
 
+			IF OBJECT_ID('Inspector.DriveSpaceThresholds',N'U') IS NULL 
+			BEGIN 
+				CREATE TABLE [Inspector].[DriveSpaceThresholds](
+					[Servername] NVARCHAR(128) NULL,
+					[Drive] NVARCHAR(128) NULL,
+					[FreeSpaceRemainingPercent] DECIMAL(5,2) NULL,
+					[MinAvailableSpace_GB] INT NULL,
+					[DaysUntilDriveFull] INT NULL
+				);
+				
+				EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [DriveSpaceThresholds_Servername_Drive] ON [Inspector].[DriveSpaceThresholds] ([Servername],[Drive]);';
+			END
 
 		    IF OBJECT_ID('Inspector.PSConfig') IS NULL 
 			BEGIN
@@ -2263,9 +2275,9 @@ END
 
 END
 
-	IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[GetIntervals]') AND type in (N'FN', N'IF', N'TF', N'FS', N'FT'))
+	IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[GetIntervals]') AND type in (N'FN', N'IF', N'TF', N'FS', N'FT'))
 	BEGIN
-	EXECUTE dbo.sp_executesql @statement = N'CREATE FUNCTION [dbo].[GetIntervals](@top AS BIGINT) RETURNS TABLE
+	EXECUTE dbo.sp_executesql @statement = N'CREATE FUNCTION [Inspector].[GetIntervals](@top AS BIGINT) RETURNS TABLE
 	AS
 	RETURN
 	  WITH
@@ -2283,9 +2295,9 @@ END
 	' 
 	END
 	
-	IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[GetIntervals]') AND type in (N'FN', N'IF', N'TF', N'FS', N'FT'))
+	IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[GetIntervals]') AND type in (N'FN', N'IF', N'TF', N'FS', N'FT'))
 	BEGIN
-	EXECUTE dbo.sp_executesql @statement = N'ALTER FUNCTION [dbo].[GetIntervals](@top AS BIGINT) RETURNS TABLE
+	EXECUTE dbo.sp_executesql @statement = N'ALTER FUNCTION [Inspector].[GetIntervals](@top AS BIGINT) RETURNS TABLE
 	AS
 	RETURN
 	  WITH
@@ -2390,7 +2402,7 @@ END
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
-		CROSS APPLY (SELECT RowNum FROM dbo.GetIntervals(DATEDIFF(MINUTE,Schedules.StartDatetime,Schedules.EndDatetime))) AS MinuteIntervals
+		CROSS APPLY (SELECT RowNum FROM [Inspector].GetIntervals(DATEDIFF(MINUTE,Schedules.StartDatetime,Schedules.EndDatetime))) AS MinuteIntervals
 		WHERE 
 		--Check the that he time now falls into a scheduled interval
 		((GETDATE() >= DATEADD(MINUTE,RowNum,Schedules.StartDatetime) AND GETDATE() <= DATEADD(MINUTE,RowNum+1,Schedules.StartDatetime)))
@@ -2436,7 +2448,7 @@ END
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
-		CROSS APPLY (SELECT RowNum FROM dbo.GetIntervals(DATEDIFF(MINUTE,Schedules.StartDatetime,Schedules.EndDatetime))) AS MinuteIntervals
+		CROSS APPLY (SELECT RowNum FROM [Inspector].GetIntervals(DATEDIFF(MINUTE,Schedules.StartDatetime,Schedules.EndDatetime))) AS MinuteIntervals
 		WHERE 
 		--Check the that he time now falls into a scheduled interval
 		((GETDATE() >= DATEADD(MINUTE,RowNum,Schedules.StartDatetime) AND GETDATE() <= DATEADD(MINUTE,RowNum+1,Schedules.StartDatetime)))
@@ -2488,7 +2500,7 @@ END
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
-		CROSS APPLY (SELECT RowNum FROM dbo.GetIntervals(DATEDIFF(MINUTE,Schedules.StartDatetime,Schedules.EndDatetime))) AS MinuteIntervals
+		CROSS APPLY (SELECT RowNum FROM [Inspector].GetIntervals(DATEDIFF(MINUTE,Schedules.StartDatetime,Schedules.EndDatetime))) AS MinuteIntervals
 		WHERE 
 		--RunDay (delimited) is like today''s day name or RunDay is not specified (Every day)
 		(RunDay LIKE ''%''+CAST(DATENAME(WEEKDAY,GETDATE()) AS VARCHAR(10))+''%'' OR RunDay IS NULL)
@@ -2540,7 +2552,7 @@ END
 			) Modules
 			WHERE CAST(GETDATE() AS TIME(0)) >= StartTime AND CAST(GETDATE() AS TIME(0)) <= EndTime
 		) AS Schedules
-		CROSS APPLY (SELECT RowNum FROM dbo.GetIntervals(DATEDIFF(MINUTE,Schedules.StartDatetime,Schedules.EndDatetime))) AS MinuteIntervals
+		CROSS APPLY (SELECT RowNum FROM [Inspector].GetIntervals(DATEDIFF(MINUTE,Schedules.StartDatetime,Schedules.EndDatetime))) AS MinuteIntervals
 		WHERE 
 		--RunDay (delimited) is like today''s day name or RunDay is not specified (Every day)
 		(RunDay LIKE ''%''+CAST(DATENAME(WEEKDAY,GETDATE()) AS VARCHAR(10))+''%'' OR RunDay IS NULL)
@@ -8383,12 +8395,12 @@ CREATE PROCEDURE [Inspector].[DriveSpaceReport]
 )
 AS
 
---Revision date: 23/11/2020
+--Revision date: 08/02/2021
 BEGIN
 --Excluded from Warning level control
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @DaysUntilDriveFullThreshold INT;
-	DECLARE @FreeSpaceRemainingPercent INT;
+	DECLARE @FreeSpaceRemainingPercent DECIMAL(5,2);
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -8399,11 +8411,11 @@ BEGIN
 	@ServerSpecific,
 	''Drive space Report:'', --Title for the HTML table
 	@TableHeaderColour,
-	''Server name,Drive,Total GB,Available GB,% Free,Est.Daily Growth GB,Days Until Disk Full,Days Recorded,Usage Trend,Usage Trend AVG GB,Calculation method'') --comma delimited column list.
+	''Server name,Drive,Total GB,Available GB,% Free,Est.Daily Growth GB,Days Until Disk Full,Days Recorded,Usage Trend,Usage Trend AVG GB,Calculation method,Thresholds'') --comma delimited column list.
 	);
 
 	SET @DaysUntilDriveFullThreshold = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''DaysUntilDriveFullThreshold'') AS INT),56));
-	SET @FreeSpaceRemainingPercent = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''FreeSpaceRemainingPercent'') AS INT),10));
+	SET @FreeSpaceRemainingPercent = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''FreeSpaceRemainingPercent'') AS DECIMAL(5,2)),10.00));
 
 	IF (SELECT MAX(Log_Date) 
 	FROM [Inspector].[DriveSpace]
@@ -8474,9 +8486,9 @@ BEGIN
 	SELECT 
 	CASE 
 		WHEN AverageDailyGrowth_GB > 0 
-		AND CAST(COALESCE((LastRecordedFreeSpace.AvailableSpace_GB)/NULLIF(AverageDailyGrowth_GB,0),0) AS DECIMAL(20,2)) < @DaysUntilDriveFullThreshold
+		AND CAST(COALESCE((LastRecordedFreeSpace.AvailableSpace_GB)/NULLIF(AverageDailyGrowth_GB,0),0) AS DECIMAL(20,2)) < ISNULL(Overrides.[DaysUntilDriveFull],@DaysUntilDriveFullThreshold)
 		THEN @WarningHighlight 
-		WHEN CAST((LastRecordedFreeSpace.AvailableSpace_GB/LastRecordedFreeSpace.Capacity_GB)*100 AS DECIMAL(10,2)) < @FreeSpaceRemainingPercent 
+		WHEN CAST((LastRecordedFreeSpace.AvailableSpace_GB/LastRecordedFreeSpace.Capacity_GB)*100 AS DECIMAL(10,2)) < COALESCE(CAST((Overrides.[MinAvailableSpace_GB]/LastRecordedFreeSpace.Capacity_GB)*100.00 AS DECIMAL(5,2)),Overrides.[FreeSpaceRemainingPercent],@FreeSpaceRemainingPercent) 
 		AND AverageDailyGrowth.Drive COLLATE DATABASE_DEFAULT NOT IN (SELECT [StringElement]+'':\''FROM [master].[dbo].fn_SplitString(@DriveLetterExcludes,'','') DriveLetterExcludes)
 		THEN @AdvisoryHighlight
 		ELSE ''#FFFFFF'' 
@@ -8487,10 +8499,10 @@ BEGIN
 	LastRecordedFreeSpace.AvailableSpace_GB AS ''td'','''', + 
 	CAST((AvailableSpace_GB/LastRecordedFreeSpace.Capacity_GB)*100 AS DECIMAL(10,2)) AS ''td'','''', + 
 	ISNULL(AverageDailyGrowth.AverageDailyGrowth_GB,0.00) AS ''td'','''', + 
-	CASE WHEN AverageDailyGrowth_GB <= 0 
-	THEN ''N/A''
-	ELSE
-	CAST(CAST(COALESCE((LastRecordedFreeSpace.AvailableSpace_GB)/NULLIF(AverageDailyGrowth_GB,0),0) AS DECIMAL(20,2)) AS VARCHAR(10))
+	CASE 
+		WHEN AverageDailyGrowth_GB <= 0 
+		THEN ''N/A''
+		ELSE CAST(CAST(COALESCE((LastRecordedFreeSpace.AvailableSpace_GB)/NULLIF(AverageDailyGrowth_GB,0),0) AS DECIMAL(20,2)) AS VARCHAR(10))
 	END AS ''td'','''', + 
 	TotalDriveEntries.TotalEntries  AS ''td'','''', + 
 	ISNULL(STUFF((SELECT TOP 5 '', ['' + DATENAME(WEEKDAY,DATEADD(DAY,-1,SpaceVariation.Log_Date)) + '' '' + CASE WHEN laggedUsedSpace-UsedSpace_GB > 0 THEN ''0.00''  --DATEADD is used here to display the previous day as the collection date is a day ahead.
@@ -8499,9 +8511,20 @@ BEGIN
 	CASE 
 		WHEN MedianCalc = 1 THEN ''Median'' 
 		WHEN MedianCalc = 0 THEN ''Average''
-	END AS ''td'',''''
+	END AS ''td'','''', +
+	''Minimum available space: ''+
+	ISNULL(CAST(CAST(CASE 
+		WHEN Overrides.[MinAvailableSpace_GB] IS NOT NULL THEN Overrides.[MinAvailableSpace_GB]
+		ELSE (LastRecordedFreeSpace.Capacity_GB*1.00)*(CAST(ISNULL(Overrides.[FreeSpaceRemainingPercent],@FreeSpaceRemainingPercent) AS DECIMAL(5,2))/100.00)
+	END AS DECIMAL(10,2)) AS VARCHAR(128))+'' GB'',''Not set'') + 
+	'' ('' +
+	ISNULL(CAST(COALESCE(CAST((Overrides.[MinAvailableSpace_GB]/LastRecordedFreeSpace.Capacity_GB)*100.00 AS DECIMAL(5,2)),Overrides.[FreeSpaceRemainingPercent],@FreeSpaceRemainingPercent) AS VARCHAR(128))+''%'',''Not set'') +
+	''), '' +
+	''Estimated days remaining: '' +
+	ISNULL(CAST(ISNULL(Overrides.[DaysUntilDriveFull],@DaysUntilDriveFullThreshold) AS VARCHAR(128)),''Not set'') AS ''td'',''''
 	FROM AverageDailyGrowth
 	INNER JOIN TotalDriveEntries ON TotalDriveEntries.Drive =  AverageDailyGrowth.Drive AND TotalDriveEntries.Servername =  AverageDailyGrowth.Servername
+	LEFT JOIN [Inspector].[DriveSpaceThresholds] Overrides ON TotalDriveEntries.Drive = Overrides.Drive AND TotalDriveEntries.Servername = Overrides.Servername
 	CROSS APPLY (SELECT TOP 1 Capacity_GB,AvailableSpace_GB
 				FROM [Inspector].[DriveSpace] DriveSpace
 				WHERE DriveSpace.Drive = TotalDriveEntries.Drive
@@ -8538,9 +8561,8 @@ BEGIN
 		SET @HtmlOutput = 
 		@HtmlTableHead
 		+ @HtmlOutput
-		+ ''</table><p><b><font style="color: Black; background-color: ''+@AdvisoryHighlight+''">Advisory Highlight</font> - Drive remaining percent below ''+CAST(@FreeSpaceRemainingPercent AS VARCHAR(3))+''%''+ ISNULL('' (Drives being excluded are: ''+ @DriveLetterExcludes +'')'','''') +''<br>
-		 <font style="color: Black; background-color: ''+@WarningHighlight+''">Warning Highlight</font> - Estimated days remaining until drive is full, is below ''+CAST(@DaysUntilDriveFullThreshold AS VARCHAR(3))+ '' Days </p></b>''
-		+ @TableTail +''<p><BR><p>'';
+		+ @TableTail 
+		+''<p><BR><p>'';
 	END
 
 	END
@@ -8556,6 +8578,7 @@ BEGIN
 		''N/A'' AS ''td'','''', + 
 		''N/A'' AS ''td'','''', + 
 		''N/A'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', +
 		''N/A'' AS ''td'','''', + 
 		''N/A'' AS ''td'','''', + 
 		''N/A'' AS ''td'','''', +
@@ -8565,9 +8588,8 @@ BEGIN
 		SET @HtmlOutput = 
 		@HtmlTableHead
 		+ @HtmlOutput
-		+ ''</table><p><b><font style="color: Black; background-color: ''+@AdvisoryHighlight+''">Advisory Highlight</font> - Drive remaining percent below ''+CAST(@FreeSpaceRemainingPercent AS VARCHAR(3))+''%''+ ISNULL('' (Drives being excluded are: ''+ @DriveLetterExcludes +'')'','''') +''<br>
-		 <font style="color: Black; background-color: ''+@WarningHighlight+''">Warning Highlight</font> - Estimated days remaining until drive is full, is below ''+CAST(@DaysUntilDriveFullThreshold AS VARCHAR(3))+ '' Days </p></b>''
-		 + @TableTail +''<p><BR><p>'';
+		+ @TableTail 
+		+''<p><BR><p>'';
 		
 		SET @CollectionOutOfDate = 1;
 
