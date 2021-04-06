@@ -65,8 +65,8 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 08/02/2021
-Version: 2.5
+Revision date: 06/04/2021
+Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -129,8 +129,8 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210208';
-DECLARE @Build VARCHAR(6) ='2.5'
+DECLARE @Revisiondate DATE = '20210406';
+DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
 DECLARE @JobsWithoutSchedules VARCHAR(1000);
@@ -8472,8 +8472,13 @@ BEGIN
 	Drive,
 	MedianCalc,
 	CASE 
-		WHEN MedianCalc = 1 THEN (SELECT VarianceCalc FROM ApplyMedianRowNum Median WHERE Median.Drive = SpaceVariation.Drive AND (Median.TotalEntries/2) = Median.RowNum)
-		--WHEN @UseMedian = 1 THEN (SELECT VarianceCalc FROM ApplyMedianRowNum Median WHERE Median.Drive = SpaceVariation.Drive AND (Median.TotalEntries/2) = Median.RowNum)
+		WHEN MedianCalc = 1 THEN
+     CAST(
+	 (
+         SELECT TOP 1 PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY VarianceCalc) OVER(PARTITION BY Drive)
+         FROM ApplyMedianRowNum Median
+         WHERE Median.Drive = SpaceVariation.Drive
+     ) AS DECIMAL(10,2))
 		ELSE CAST(SUM((VarianceCalc)/TotalEntries) AS DECIMAL(10,2)) 
 	END AS AverageDailyGrowth_GB
 	FROM ApplyMedianRowNum SpaceVariation
