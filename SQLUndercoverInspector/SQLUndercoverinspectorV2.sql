@@ -8451,7 +8451,7 @@ BEGIN
 
 SET @Debug = [Inspector].[GetDebugFlag](@Debug, @ModuleConfig, @Modulename);
 SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
-EXEC [Inspector].[GetModuleConfigFrequency] ''Default'', @Frequency = @ReportFrequency OUTPUT;
+EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
 SET @ReportFrequency *= -1;
 
 /*Set columns names for the Html table*/
