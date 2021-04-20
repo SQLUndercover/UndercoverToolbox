@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 08/04/2021
+Revision date: 20/04/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210408';
+DECLARE @Revisiondate DATE = '20210420';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -6709,9 +6709,15 @@ CREATE PROCEDURE [Inspector].[ADHocDatabaseCreationsReport]
 )
 AS
 BEGIN
---Revision date: 17/09/2019
+--Revision date: 20/04/2021
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @LastCollection DATETIME;
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -6725,9 +6731,8 @@ BEGIN
 		''Database name,Create date,Suppress database'')
 	);
 
-	IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[ADHocDatabaseCreations] 
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SET @HtmlOutput =
 		(SELECT 
@@ -6844,11 +6849,16 @@ CREATE PROCEDURE [Inspector].[AGCheckReport]
 )
 AS
 BEGIN
---Revision date: 05/09/2019
+--Revision date: 20/04/2021
 
 	DECLARE @HtmlTableHeadAG VARCHAR(2000);
 	DECLARE @HtmlTableHeadFailover VARCHAR(2000);
 	DECLARE @FailoverCheckHTML VARCHAR(MAX);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -6870,9 +6880,8 @@ BEGIN
 		''Previously checked,Last checked,AG name,Primary Replica'')
 	);
 
-IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[AGCheck]
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SET @HtmlOutput = (
 		SELECT 
@@ -6919,9 +6928,8 @@ IF (SELECT MAX(Log_Date)
 		FOR XML PATH(''tr''),ELEMENTS);
 		
 		--Failover check added in V1.4
-		IF (SELECT MAX(CollectionDateTime)
-		FROM [Inspector].[AGPrimaryHistory]
-		WHERE [Servername] = @Servername) >= CAST(GETDATE() AS DATE) 
+		/* if there has been a data collection since the last report frequency minutes ago then run the report */
+		IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 		BEGIN 			
 			SET @FailoverCheckHTML +=
 			(SELECT 
@@ -7058,9 +7066,14 @@ CREATE PROCEDURE [Inspector].[AGDatabasesReport]
 )
 AS
 BEGIN
---Revision date: 05/09/2019
+--Revision date: 20/04/2021
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -7075,9 +7088,8 @@ BEGIN
 	);
 
 
-IF (SELECT MAX(LastUpdated) 
-	FROM [Inspector].[AGDatabases] 
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SET @HtmlOutput =(
 		SELECT
@@ -7201,11 +7213,16 @@ CREATE PROCEDURE [Inspector].[BackupsCheckReport]
 )
 AS
 BEGIN
---Revision date: 27/11/2020
+--Revision date: 20/04/2021	
 
-DECLARE @FullBackupThreshold INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''FullBackupThreshold'') AS INT),8));
-DECLARE @DiffBackupThreshold INT = (SELECT TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''DiffBackupThreshold'') AS INT));
-DECLARE @LogBackupThreshold	INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''LogBackupThreshold'') AS INT),20));
+	DECLARE @FullBackupThreshold INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''FullBackupThreshold'') AS INT),8));
+	DECLARE @DiffBackupThreshold INT = (SELECT TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''DiffBackupThreshold'') AS INT));
+	DECLARE @LogBackupThreshold	INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''LogBackupThreshold'') AS INT),20));
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 --Excluded from Warning level control
 	IF OBJECT_ID(''tempdb.dbo.#RawData'') IS NOT NULL 
@@ -7278,9 +7295,8 @@ DECLARE @LogBackupThreshold	INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServer
 	SET @HtmlTableHead = (SELECT [Inspector].[GenerateHtmlTableheader] (@Servername,@Modulename,@ServerSpecific,''The following Databases are missing database backups:'',@TableHeaderColour,''Servername,Database name,AG name,Last Full,Last Diff,Last Log,Full Recovery,AG Backup Pref,Preferred Servers''));
 
 
-	IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[BackupsCheck] 
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		INSERT INTO #RawData (Log_Date,Databasename,LastFull,LastDiff,LastLog,AGname,GroupingMethod,Servername,IsFullRecovery,IsSystemDB,primary_replica,backup_preference)
 		SELECT 
@@ -7534,8 +7550,13 @@ CREATE PROCEDURE [Inspector].[BackupSizesByDayReport]
 )
 AS
 BEGIN
---Revision date: 09/09/2019
+--Revision date: 20/04/2021	
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -7544,9 +7565,8 @@ BEGIN
 
 
 --Excluded from Warning level control
-	IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[BackupSizesByDay]
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SET @HtmlOutput =   
 		(SELECT 
@@ -7661,9 +7681,14 @@ CREATE PROCEDURE [Inspector].[DatabaseFilesReport]
 )
 AS
 BEGIN
---Revision date: 12/09/2019
+--Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -7679,9 +7704,8 @@ BEGIN
 	);
 
 
-	IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[DatabaseFiles] 
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SET @HtmlOutput = 
 		(SELECT 
@@ -7925,10 +7949,15 @@ CREATE PROCEDURE [Inspector].[DatabaseOwnershipReport]
 )
 AS
 BEGIN
---Revision date: 04/12/2019
+--Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @DatabaseOwnerExclusions VARCHAR(255) = (SELECT REPLACE([Value],'' '' ,'''') FROM [Inspector].[Settings] WHERE [Description] = ''DatabaseOwnerExclusions'')
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -7945,9 +7974,8 @@ BEGIN
 	SET @DatabaseOwnerExclusions = REPLACE(REPLACE(@DatabaseOwnerExclusions,'' '',''''),'','','', '');
 
 
-	IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[DatabaseOwnership]
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SET @HtmlOutput = 
 		(SELECT 
@@ -8066,10 +8094,15 @@ CREATE PROCEDURE [Inspector].[DatabaseSettingsReport]
 )
 AS
 BEGIN
---Revision date: 16/09/2019
+--Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @ReportFrequency INT;
+
 	SET @HtmlOutput = '''';
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -8084,9 +8117,8 @@ BEGIN
 	);
 
 
-	IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[DatabaseSettings] 
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SELECT @HtmlOutput = @HtmlOutput +
 		(SELECT 
@@ -8320,9 +8352,14 @@ CREATE PROCEDURE [Inspector].[DatabaseStatesReport]
 )
 AS
 BEGIN
---Revision date: 16/09/2019
+--Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -8339,9 +8376,8 @@ BEGIN
 
 
 
-	IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[DatabaseStates] 
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SET @HtmlOutput =(
 		SELECT 
@@ -8449,10 +8485,10 @@ BEGIN
 	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
-SET @Debug = [Inspector].[GetDebugFlag](@Debug, @ModuleConfig, @Modulename);
-SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
-EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
-SET @ReportFrequency *= -1;
+	SET @Debug = [Inspector].[GetDebugFlag](@Debug, @ModuleConfig, @Modulename);
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 /*Set columns names for the Html table*/
 
@@ -8791,9 +8827,14 @@ CREATE PROCEDURE [Inspector].[FailedAgentJobsReport]
 )
 AS
 BEGIN
---Revision date: 16/09/2019
+--Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -8808,9 +8849,8 @@ BEGIN
 		)
 	);
 
-	IF (SELECT MAX(Log_Date)   
-	FROM [Inspector].[FailedAgentJobs]
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE) 
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SET @HtmlOutput = 
 		(SELECT 
@@ -9200,10 +9240,15 @@ CREATE PROCEDURE [Inspector].[JobOwnerReport]
 )
 AS
 BEGIN
---Revision date: 16/09/2019
+--Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @AgentJobOwnerExclusions VARCHAR(255);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @AgentJobOwnerExclusions = (SELECT REPLACE([Value],'' '' ,'''') FROM [Inspector].[Settings] WHERE [Description] = ''AgentJobOwnerExclusions'');
 
@@ -9220,9 +9265,8 @@ BEGIN
 		)
 	);
 
-	IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[JobOwner] 
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SET @HtmlOutput = 
 		(SELECT 
@@ -9333,9 +9377,14 @@ CREATE PROCEDURE [Inspector].[LoginAttemptsReport]
 )
 AS
 BEGIN
---Revision date: 16/09/2019
+--Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -9350,9 +9399,8 @@ BEGIN
 		)
 	);
 
-	IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[LoginAttempts]
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SET @HtmlOutput = 
 		(SELECT
@@ -9468,11 +9516,16 @@ CREATE PROCEDURE [Inspector].[LongRunningTransactionsReport]
 )
 AS
 BEGIN
---Revision date: 16/09/2019
+--Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @AgentJobOwnerExclusions VARCHAR(255);
 	DECLARE @LongRunningTransactionThreshold VARCHAR(255);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 	
 	SET @LongRunningTransactionThreshold = (SELECT CAST([Value] AS INT) FROM [Inspector].[Settings] WHERE [Description] = ''LongRunningTransactionThreshold'');
 
@@ -9495,9 +9548,8 @@ BEGIN
 		)
 	);
 
-	IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[LongRunningTransactions] 
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SET @HtmlOutput = (SELECT 
 		CASE
@@ -9631,11 +9683,16 @@ CREATE PROCEDURE [Inspector].[ModuleReportProcTemplate] (
 )
 AS
 
---Revision date: 13/11/2019
+--Revision date: 20/04/2021	
 BEGIN
 	DECLARE @HtmlTableHead VARCHAR(4000);
 	DECLARE @Columnnames VARCHAR(2000);
 	DECLARE @SQLtext NVARCHAR(4000);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -9796,9 +9853,14 @@ CREATE PROCEDURE [Inspector].[ServerSettingsReport]
 )
 AS
 BEGIN
---Revision date: 16/09/2019
+--Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -9813,9 +9875,8 @@ BEGIN
 	);
 
 	
-	IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[ServerSettings] 
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SELECT @HtmlOutput = 
 		(SELECT 
@@ -9930,9 +9991,14 @@ CREATE PROCEDURE [Inspector].[SuspectPagesReport]
 )
 AS
 BEGIN
---Revision date: 17/09/2019
+--Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -9947,9 +10013,8 @@ BEGIN
 		)
 	);
 		
-		IF (SELECT MAX(Log_Date) 
-		FROM [Inspector].[SuspectPages] 
-		WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)	
+		/* if there has been a data collection since the last report frequency minutes ago then run the report */
+		IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 		BEGIN
 			SELECT @HtmlOutput =
 			(SELECT 
@@ -10058,9 +10123,14 @@ CREATE PROCEDURE [Inspector].[TopFiveDatabasesReport]
 )
 AS
 BEGIN
---Revision date: 17/09/2019
+--Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -10075,9 +10145,8 @@ BEGIN
 		)
 	);
 		
-	IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[TopFiveDatabases] 
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 	SET @HtmlOutput = 
 		(SELECT 
@@ -10155,9 +10224,14 @@ CREATE PROCEDURE [Inspector].[UnusedLogshipConfigReport]
 )
 AS
 BEGIN
---Revision date: 17/09/2019
+--Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @ReportFrequency INT;
+
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -10172,9 +10246,8 @@ BEGIN
 		)
 	);
 
-	IF (SELECT MAX(Log_Date) 
-	FROM [Inspector].[ADHocDatabaseCreations] 
-	WHERE Servername = @Servername) >= CAST(GETDATE() AS DATE)
+	/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SET @HtmlOutput =
 		(SELECT 
