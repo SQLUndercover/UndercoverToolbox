@@ -6854,6 +6854,7 @@ BEGIN
 	DECLARE @HtmlTableHeadAG VARCHAR(2000);
 	DECLARE @HtmlTableHeadFailover VARCHAR(2000);
 	DECLARE @FailoverCheckHTML VARCHAR(MAX);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -7069,6 +7070,7 @@ BEGIN
 --Revision date: 20/04/2021
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -7218,6 +7220,7 @@ BEGIN
 	DECLARE @FullBackupThreshold INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''FullBackupThreshold'') AS INT),8));
 	DECLARE @DiffBackupThreshold INT = (SELECT TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''DiffBackupThreshold'') AS INT));
 	DECLARE @LogBackupThreshold	INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''LogBackupThreshold'') AS INT),20));
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -7552,6 +7555,7 @@ AS
 BEGIN
 --Revision date: 20/04/2021	
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -7684,6 +7688,7 @@ BEGIN
 --Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -7953,6 +7958,7 @@ BEGIN
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @DatabaseOwnerExclusions VARCHAR(255) = (SELECT REPLACE([Value],'' '' ,'''') FROM [Inspector].[Settings] WHERE [Description] = ''DatabaseOwnerExclusions'')
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -8097,6 +8103,7 @@ BEGIN
 --Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @HtmlOutput = '''';
@@ -8355,6 +8362,7 @@ BEGIN
 --Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -8830,6 +8838,7 @@ BEGIN
 --Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -9244,6 +9253,7 @@ BEGIN
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @AgentJobOwnerExclusions VARCHAR(255);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -9380,6 +9390,7 @@ BEGIN
 --Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -9521,6 +9532,7 @@ BEGIN
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @AgentJobOwnerExclusions VARCHAR(255);
 	DECLARE @LongRunningTransactionThreshold VARCHAR(255);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -9688,6 +9700,7 @@ BEGIN
 	DECLARE @HtmlTableHead VARCHAR(4000);
 	DECLARE @Columnnames VARCHAR(2000);
 	DECLARE @SQLtext NVARCHAR(4000);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -9856,6 +9869,7 @@ BEGIN
 --Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -9994,6 +10008,7 @@ BEGIN
 --Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -10126,6 +10141,7 @@ BEGIN
 --Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -10227,6 +10243,7 @@ BEGIN
 --Revision date: 20/04/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
+	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
