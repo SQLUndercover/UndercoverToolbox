@@ -112,7 +112,7 @@ CREATE PROCEDURE [Inspector].[InspectorSetup]
 @MAXDatabaseGrowthsAllowedPerDay  TINYINT = 10, -- MAX Database Growths for a 24 hour period If equal or exceeded a Red Warning condition will be shown
 @AgentJobOwnerExclusions VARCHAR(255) = 'sa',  --Exclude agent jobs with these owners (Comma delimited)
 @FullBackupThreshold TINYINT = 8,		-- X Days older than Getdate()
-@DiffBackupThreshold TINYINT = 2,		-- X Days older than Getdate() 
+@DiffBackupThreshold TINYINT = 24,		-- X Hours older than Getdate() 
 @LogBackupThreshold  TINYINT = 20,		-- X Minutes older than Getdate()
 @DatabaseOwnerExclusions VARCHAR(255) = 'sa',  --Exclude databases with these owners (Comma delimited)
 @LongRunningTransactionThreshold INT = 300,	-- Threshold in seconds, display running transactions that exceed this duration during collection
@@ -172,7 +172,7 @@ EXEC [Inspector].[InspectorSetup]
 @MAXDatabaseGrowthsAllowedPerDay = 10, 
 @AgentJobOwnerExclusions = ''sa'', 
 @FullBackupThreshold = 8,		
-@DiffBackupThreshold = 2,		
+@DiffBackupThreshold = 24,		
 @LogBackupThreshold = 20,		
 @DatabaseOwnerExclusions = ''sa'',  
 @StartTime = ''08:55'',
@@ -2061,6 +2061,18 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				DELETE FROM [Inspector].[Settings]
 				WHERE [Description] = 'LinkedServername';
 			END 
+
+			IF (EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'DiffBackupThreshold') AND @CurrentBuild < 2.6)
+			BEGIN 
+				RAISERROR('Updating your diff threshold from days to hours if required',0,0) WITH NOWAIT;
+
+				UPDATE [Inspector].[Settings]
+				SET [Value] = [Value]*24
+				WHERE [Description] = 'DiffBackupThreshold'
+				AND [Value] IS NOT NULL;
+
+			END
+			
 
 --Populate config
 IF @InitialSetup = 1 
@@ -7297,7 +7309,7 @@ BEGIN
 			WHEN @DiffBackupThreshold IS NOT NULL 
 			THEN CASE
 					WHEN [LastDiff] = ''19000101'' AND IsSystemDB = 0 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
-					WHEN ([LastDiff] >= ''19000101'' AND [LastDiff] < DATEADD(DAY,-@DiffBackupThreshold,[Log_Date])  OR [LastDiff] IS NULL) AND IsSystemDB = 0 THEN ISNULL(CONVERT(VARCHAR(17),[LastDiff],113),''More then ''+CAST(@DiffBackupThreshold AS VARCHAR(3))+'' days ago'')
+					WHEN ([LastDiff] >= ''19000101'' AND [LastDiff] < DATEADD(HOUR,-@DiffBackupThreshold,[Log_Date])  OR [LastDiff] IS NULL) AND IsSystemDB = 0 THEN ISNULL(CONVERT(VARCHAR(17),[LastDiff],113),''More then ''+CAST(@DiffBackupThreshold AS VARCHAR(3))+'' Hours ago'')
 					WHEN IsSystemDB = 1 THEN ''N/A''
 		  			ELSE ''OK'' 
 				 END 
@@ -7402,7 +7414,7 @@ BEGIN
 			WHEN @HtmlOutput LIKE ''%No backup issues present%'' AND @NoClutter = 1 THEN ''''
 			ELSE ISNULL(@HtmlTableHead, '''') + ISNULL(@HtmlOutput, '''') +''</table><p><font style="color: Black; background-color: ''+@WarningHighlight+''">Warning Highlight Thresholds:</font><br>
 		Last FULL backup older than <b>''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Day/s</b><br>
-		''+ CASE WHEN @DiffBackupThreshold IS NOT NULL THEN ''Last DIFF backup older than <b>''+ CAST(@DiffBackupThreshold AS VARCHAR(3))+'' Day/s</b><br>'' ELSE ''DIFF backups excluded from check</b><br>'' END +
+		''+ CASE WHEN @DiffBackupThreshold IS NOT NULL THEN ''Last DIFF backup older than <b>''+ CAST(@DiffBackupThreshold AS VARCHAR(3))+'' Hour/s</b><br>'' ELSE ''DIFF backups excluded from check</b><br>'' END +
 		''Last Log backup older than <b>''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minute/s</b><br>
 		Databases Excluded for this server: <b>''+(SELECT CAST(COUNT(Servername) AS VARCHAR(6)) FROM [Inspector].[BackupsCheckExcludes] WHERE Servername = @Servername AND ([SuppressUntil] IS NULL OR [SuppressUntil] >= GETDATE()))+''</b></p></b>''
 		+ ISNULL(REPLACE(@TableTail,''</table>'',''''),'''') +''<p><BR><p>''
@@ -12507,7 +12519,7 @@ VALUES (GETDATE(),CASE WHEN @InitialSetup = 0 THEN 1 ELSE 0 END,CAST(@CurrentBui
 @MAXDatabaseGrowthsAllowedPerDay = ''+CAST(ISNULL(@MAXDatabaseGrowthsAllowedPerDay,10) AS VARCHAR(6))+'', 
 @AgentJobOwnerExclusions = ''+ISNULL(''''''''+@AgentJobOwnerExclusions+'''''''',''''''sa'''''')+'', 
 @FullBackupThreshold = ''+CAST(ISNULL(@FullBackupThreshold,8) AS VARCHAR(6))+'',		
-@DiffBackupThreshold = ''+CAST(ISNULL(@DiffBackupThreshold,2) AS VARCHAR(6))+'',		
+@DiffBackupThreshold = ''+CAST(ISNULL(@DiffBackupThreshold,24) AS VARCHAR(6))+'',		
 @LogBackupThreshold = ''+CAST(ISNULL(@LogBackupThreshold,20) AS VARCHAR(6))+'',		
 @DatabaseOwnerExclusions = ''+ISNULL(''''''''+@DatabaseOwnerExclusions+'''''''',''''''sa'''''')+'',  
 @LongRunningTransactionThreshold = ''+CAST(ISNULL(@LongRunningTransactionThreshold,300) AS VARCHAR(6))+'',	
@@ -12645,7 +12657,7 @@ EXEC [%s].[Inspector].[InspectorSetup]
 @MAXDatabaseGrowthsAllowedPerDay = 10, 
 @AgentJobOwnerExclusions = ''sa'', 
 @FullBackupThreshold = 8,		
-@DiffBackupThreshold = 2,		
+@DiffBackupThreshold = 24,		
 @LogBackupThreshold = 20,		
 @DatabaseOwnerExclusions = ''sa'',  
 @LongRunningTransactionThreshold = 300,	
