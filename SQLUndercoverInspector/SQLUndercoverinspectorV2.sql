@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 20/04/2021
+Revision date: 21/04/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210420';
+DECLARE @Revisiondate DATE = '20210421';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -3290,237 +3290,9 @@ END
 			END			
 		
 
-			--Drop procedures for recreation
-			IF OBJECT_ID('Inspector.ADHocDatabaseCreationsInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[ADHocDatabaseCreationsInsert];
-			
-			IF OBJECT_ID('Inspector.AGCheckInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[AGCheckInsert];
-			
-			IF OBJECT_ID('Inspector.DatabaseFilesInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DatabaseFilesInsert];
-			
-			IF OBJECT_ID('Inspector.DatabaseStatesInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DatabaseStatesInsert];
-			
-			IF OBJECT_ID('Inspector.DriveSpaceInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DriveSpaceInsert];
-			
-			IF OBJECT_ID('Inspector.FailedAgentJobsInsert') IS NOT NULL 
-			DROP PROCEDURE [Inspector].[FailedAgentJobsInsert];
-			
 			--Typo Fix 1.0.1
 			IF OBJECT_ID('Inspector.LoginAttemptsiInsert') IS NOT NULL
 			DROP PROCEDURE [Inspector].[LoginAttemptsiInsert];
-
-			--Corrected Typo 1.0.1
-			IF OBJECT_ID('Inspector.LoginAttemptsInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[LoginAttemptsInsert];
-			
-			IF OBJECT_ID('Inspector.JobOwnerInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[JobOwnerInsert];
-			
-			IF OBJECT_ID('Inspector.TopFiveDatabasesInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[TopFiveDatabasesInsert];
-			
-			IF OBJECT_ID('Inspector.BackupsCheckInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[BackupsCheckInsert];
-			
-			IF OBJECT_ID('Inspector.DatabaseGrowthsInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DatabaseGrowthsInsert];
-			
-			IF OBJECT_ID('Inspector.DatabaseOwnershipInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DatabaseOwnershipInsert];
-			
-			IF OBJECT_ID('Inspector.BackupSizesByDayInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[BackupSizesByDayInsert];
-			
-			IF OBJECT_ID('Inspector.DatabaseSettingsInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DatabaseSettingsInsert];
-
-			IF OBJECT_ID('Inspector.ServerSettingsInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[ServerSettingsInsert];
-
-			IF OBJECT_ID('Inspector.InstanceStartInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[InstanceStartInsert];
-
-			IF OBJECT_ID('Inspector.InstanceVersionInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[InstanceVersionInsert];
-
-			IF OBJECT_ID('Inspector.SuspectPagesInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[SuspectPagesInsert];
-
-			IF OBJECT_ID('Inspector.AGDatabasesInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[AGDatabasesInsert];
-
-			IF OBJECT_ID('Inspector.LongRunningTransactionsInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[LongRunningTransactionsInsert];
-									
-			IF OBJECT_ID('Inspector.SQLUnderCoverInspectorReport') IS NOT NULL 
-			DROP PROCEDURE [Inspector].[SQLUnderCoverInspectorReport];
-
-			IF OBJECT_ID('Inspector.InspectorDataCollection') IS NOT NULL 
-			DROP PROCEDURE [Inspector].[InspectorDataCollection];
-
-			IF OBJECT_ID('Inspector.PopulateModuleWarningLevel') IS NOT NULL 
-			DROP PROCEDURE [Inspector].[PopulateModuleWarningLevel];
-
-			IF OBJECT_ID('Inspector.UnusedLogshipConfigInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[UnusedLogshipConfigInsert];
-
-			IF OBJECT_ID('Inspector.ExecutionLogInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[ExecutionLogInsert];
-
-			IF OBJECT_ID('Inspector.CatalogueMissingLogins') IS NOT NULL
-			DROP PROCEDURE [Inspector].[CatalogueMissingLogins];
-
-			IF OBJECT_ID('Inspector.CatalogueDroppedTables') IS NOT NULL 
-			DROP PROCEDURE [Inspector].[CatalogueDroppedTables];
-
-			IF OBJECT_ID('Inspector.CatalogueDroppedDatabases') IS NOT NULL 
-			DROP PROCEDURE [Inspector].[CatalogueDroppedDatabases];
-
-			IF OBJECT_ID('Inspector.ResetHtmlColors') IS NOT NULL
-			DROP PROCEDURE [Inspector].[ResetHtmlColors];
-
-			IF OBJECT_ID('Inspector.DriveCapacityHistory') IS NOT NULL 
-			DROP PROCEDURE [Inspector].[DriveCapacityHistory];
-
-			IF OBJECT_ID('Inspector.SuppressAdHocDatabase') IS NOT NULL 
-			DROP PROCEDURE [Inspector].[SuppressAdHocDatabase];
-
-			IF OBJECT_ID('Inspector.SuppressAGDatabase') IS NOT NULL 
-			DROP PROCEDURE [Inspector].[SuppressAGDatabase];
-
-			IF OBJECT_ID('Inspector.DatabaseGrowthFilenameSync') IS NOT NULL 
-			DROP PROCEDURE [Inspector].[DatabaseGrowthFilenameSync];
-			
-			IF OBJECT_ID('Inspector.PSGetColumns') IS NOT NULL
-			DROP PROCEDURE [Inspector].[PSGetColumns];
-
-			IF OBJECT_ID('Inspector.PSGetInspectorBuild') IS NOT NULL
-			DROP PROCEDURE [Inspector].[PSGetInspectorBuild];
-
-			IF OBJECT_ID('Inspector.PSGetConfig') IS NOT NULL
-			DROP PROCEDURE [Inspector].[PSGetConfig];
-
-			IF OBJECT_ID('Inspector.PSGetServers') IS NOT NULL
-			DROP PROCEDURE [Inspector].[PSGetServers];
-
-			IF OBJECT_ID('Inspector.PSGetADHocDatabaseCreationsStage') IS NOT NULL
-			DROP PROCEDURE [Inspector].[PSGetADHocDatabaseCreationsStage];
-
-			IF OBJECT_ID('Inspector.PSGetAGDatabasesStage') IS NOT NULL
-			DROP PROCEDURE [Inspector].[PSGetAGDatabasesStage];
-
-			IF OBJECT_ID('Inspector.PSGetDatabaseGrowthsStage') IS NOT NULL
-			DROP PROCEDURE [Inspector].[PSGetDatabaseGrowthsStage];
-
-			IF OBJECT_ID('Inspector.PSGetDriveSpaceStage') IS NOT NULL
-			DROP PROCEDURE [Inspector].[PSGetDriveSpaceStage];
-
-			IF OBJECT_ID('Inspector.PSGetSettingsTables') IS NOT NULL
-			DROP PROCEDURE [Inspector].[PSGetSettingsTables];
-
-			IF OBJECT_ID('Inspector.PSGetInstanceVersionHistoryStage') IS NOT NULL
-			DROP PROCEDURE [Inspector].[PSGetInstanceVersionHistoryStage];
-
-			IF OBJECT_ID('Inspector.PSHistCleanup') IS NOT NULL
-			DROP PROCEDURE [Inspector].[PSHistCleanup];
-
-			IF OBJECT_ID('Inspector.PSGetAGPrimaryHistoryStage') IS NOT NULL
-			DROP PROCEDURE [Inspector].[PSGetAGPrimaryHistoryStage];
-
-			IF OBJECT_ID('Inspector.PopulatePSConfig') IS NOT NULL 
-			DROP PROCEDURE [Inspector].[PopulatePSConfig]
-
-			IF OBJECT_ID('Inspector.ADHocDatabaseCreationsReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[ADHocDatabaseCreationsReport];
-			
-			IF OBJECT_ID('Inspector.AGCheckReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[AGCheckReport];
-			
-			IF OBJECT_ID('Inspector.AGDatabasesReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[AGDatabasesReport];
-			
-			IF OBJECT_ID('Inspector.BackupsCheckReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[BackupsCheckReport];
-			
-			IF OBJECT_ID('Inspector.BackupSizesByDayReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[BackupSizesByDayReport];
-			
-			IF OBJECT_ID('Inspector.DatabaseFilesReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DatabaseFilesReport];
-			
-			IF OBJECT_ID('Inspector.DatabaseGrowthsReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DatabaseGrowthsReport];
-			
-			IF OBJECT_ID('Inspector.DatabaseOwnershipReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DatabaseOwnershipReport];
-			
-			IF OBJECT_ID('Inspector.DatabaseSettingsReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DatabaseSettingsReport];
-			
-			IF OBJECT_ID('Inspector.DatabaseStatesReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DatabaseStatesReport];
-			
-			IF OBJECT_ID('Inspector.DriveSpaceReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DriveSpaceReport];
-			
-			IF OBJECT_ID('Inspector.FailedAgentJobsReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[FailedAgentJobsReport];
-			
-			IF OBJECT_ID('Inspector.JobOwnerReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[JobOwnerReport];
-			
-			IF OBJECT_ID('Inspector.LoginAttemptsReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[LoginAttemptsReport];
-			
-			IF OBJECT_ID('Inspector.LongRunningTransactionsReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[LongRunningTransactionsReport];
-			
-			IF OBJECT_ID('Inspector.ServerSettingsReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[ServerSettingsReport];
-			
-			IF OBJECT_ID('Inspector.SuspectPagesReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[SuspectPagesReport];
-			
-			IF OBJECT_ID('Inspector.TestModuleReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[TestModuleReport];
-			
-			IF OBJECT_ID('Inspector.TopFiveDatabaseSizesReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[TopFiveDatabaseSizesReport];
-			
-			IF OBJECT_ID('Inspector.TopFiveDatabasesReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[TopFiveDatabasesReport];
-			
-			IF OBJECT_ID('Inspector.UnusedLogshipConfigReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[UnusedLogshipConfigReport];
-			
-			IF OBJECT_ID('Inspector.UnusedLogshipReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[UnusedLogshipReport];
-
-			IF OBJECT_ID('Inspector.ModuleReportProcTemplate') IS NOT NULL
-			DROP PROCEDURE [Inspector].[ModuleReportProcTemplate];
-
-			IF OBJECT_ID('Inspector.GenerateHeaderInfo') IS NOT NULL
-			DROP PROCEDURE [Inspector].[GenerateHeaderInfo];
-
-			IF OBJECT_ID('Inspector.DatacollectionsOverdueInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DatacollectionsOverdueInsert]
-
-			IF OBJECT_ID('Inspector.DatacollectionsOverdueReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[DatacollectionsOverdueReport]
-
-			IF OBJECT_ID('Inspector.BackupSpaceInsert') IS NOT NULL
-			DROP PROCEDURE [Inspector].[BackupSpaceInsert];
-
-			IF OBJECT_ID('Inspector.BackupSpaceReport') IS NOT NULL
-			DROP PROCEDURE [Inspector].[BackupSpaceReport];
-
-			IF OBJECT_ID('Inspector.ExecutionLogTruncate') IS NOT NULL
-			DROP PROCEDURE [Inspector].[ExecutionLogTruncate];
-			
 
 			--Drop functions for recreation
 			IF OBJECT_ID('Inspector.GetNonServerSpecificModules') IS NOT NULL 
@@ -3703,8 +3475,11 @@ BEGIN
 END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[ADHocDatabaseCreationsInsert]
+IF OBJECT_ID('Inspector.ADHocDatabaseCreationsInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[ADHocDatabaseCreationsInsert] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[ADHocDatabaseCreationsInsert]
 AS
 BEGIN
 
@@ -3758,12 +3533,14 @@ IF NOT EXISTS (SELECT Servername
 			VALUES(@Servername,GETDATE(),''No Ad hoc database creations present'',NULL)
 			END
 
-END;'
+END;';
 
-EXEC (@SQLStatement);
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[AGCheckInsert]
+IF OBJECT_ID('Inspector.AGCheckInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[AGCheckInsert] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[AGCheckInsert]
 AS
 BEGIN
 
@@ -3863,13 +3640,14 @@ GETDATE(),
 ''N/A''
 
 END
-END;'
+END;';
 
-EXEC(@SQLStatement);
 
+IF OBJECT_ID('Inspector.DatabaseFilesInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[DatabaseFilesInsert] AS;');
 
 SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DatabaseFilesInsert]
+ALTER PROCEDURE [Inspector].[DatabaseFilesInsert]
 AS
 BEGIN
 
@@ -3958,9 +3736,11 @@ END;'
 EXEC(@SQLStatement);
 
 
+IF OBJECT_ID('Inspector.DatabaseStatesInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[DatabaseStatesInsert] AS;');
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DatabaseStatesInsert]
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DatabaseStatesInsert]
 AS
 BEGIN
 
@@ -4011,13 +3791,14 @@ FROM
 GROUP BY state_desc,DBName
 ORDER BY COUNT(state_desc) DESC
 
-END;'
-
-EXEC(@SQLStatement);
+END;';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DriveSpaceInsert] 
+IF OBJECT_ID('Inspector.DriveSpaceInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[DriveSpaceInsert] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DriveSpaceInsert] 
 AS
 BEGIN
 
@@ -4060,14 +3841,14 @@ FROM
 CROSS APPLY sys.dm_os_volume_stats([DistinctDrives].[database_id],[DistinctDrives].[file_id]) volumestats
 WHERE DistinctDrives.RowNum = 1;
 
-END'
+END';
 
 
-EXEC(@SQLStatement);
+IF OBJECT_ID('Inspector.PopulateModuleWarningLevel') IS NULL 
+EXEC('CREATE PROCEDURE  [Inspector].[PopulateModuleWarningLevel] AS;');
 
-
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PopulateModuleWarningLevel] 
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PopulateModuleWarningLevel] 
 AS 
 BEGIN
 
@@ -4101,15 +3882,17 @@ BackupSizesCheck
 					WHERE [ModuleConfig_Desc] = [Modules].[ModuleConfig_Desc] 
 					AND [Module] = [CatalogueModulesList].[Module]);
 
-END'
-
-EXEC(@SQLStatement);
+END';
 
 --Run Proc for the first time to populate the Warning Level table
 EXEC sp_executesql N'EXEC [Inspector].[PopulateModuleWarningLevel];';
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[FailedAgentJobsInsert]
+
+IF OBJECT_ID('Inspector.FailedAgentJobsInsert') IS NULL 
+EXEC('CREATE PROCEDURE  [Inspector].[FailedAgentJobsInsert] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[FailedAgentJobsInsert]
 AS
 BEGIN
 
@@ -4187,13 +3970,14 @@ IF NOT EXISTS (SELECT Servername
 			VALUES(@Servername,GETDATE(),''No Failed Jobs present'',NULL,NULL,NULL)
 			END
 
-END;'
-
-EXEC(@SQLStatement);
+END;';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[LoginAttemptsInsert]
+IF OBJECT_ID('Inspector.LoginAttemptsInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[LoginAttemptsInsert] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[LoginAttemptsInsert]
 AS
 BEGIN
 
@@ -4250,14 +4034,14 @@ IF NOT EXISTS (SELECT Servername
 			VALUES(@Servername,GETDATE(),''No Failed Logins present'',NULL,NULL,NULL)
 			END
 
-END;'
+END;';
 
 
-EXEC(@SQLStatement);
-
+IF OBJECT_ID('Inspector.JobOwnerInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[JobOwnerInsert] AS;');
 
 SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[JobOwnerInsert]
+ALTER PROCEDURE [Inspector].[JobOwnerInsert]
 AS
 BEGIN
 
@@ -4297,14 +4081,16 @@ IF NOT EXISTS (SELECT Servername
 			VALUES(@Servername,GETDATE(),NULL,''No Job Owner issues present'')
 			END
 
-END;'
-
+END;';
 
 EXEC(@SQLStatement);
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[TopFiveDatabasesInsert]
+IF OBJECT_ID('Inspector.TopFiveDatabasesInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[TopFiveDatabasesInsert] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[TopFiveDatabasesInsert]
 AS
 BEGIN
 
@@ -4334,13 +4120,14 @@ FROM
 ) Sizes
 ORDER BY [TotalSize(MB)] DESC
 
-END ;'
-
-EXEC(@SQLStatement);
+END;';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[BackupsCheckInsert]
+IF OBJECT_ID('Inspector.BackupsCheckInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[BackupsCheckInsert] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[BackupsCheckInsert]
 AS
 BEGIN
 
@@ -4482,12 +4269,14 @@ AND source_database_id IS NULL
 END
 
 			
-END;'
+END;';
 
-EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DatabaseGrowthsInsert]
+IF OBJECT_ID('Inspector.DatabaseGrowthsInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[DatabaseGrowthsInsert] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DatabaseGrowthsInsert]
 AS
 
 --Revision date: 06/06/2019
@@ -4797,14 +4586,14 @@ END
          WHERE [Log_Date] < DATEADD(DAY,-@Retention,GETDATE())
          AND [Servername] = @Servername;
 
-     END;'
-
-EXEC(@SQLStatement);
+     END;';
 
 
+IF OBJECT_ID('Inspector.DatabaseOwnershipInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[DatabaseOwnershipInsert] AS;');
 
 SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DatabaseOwnershipInsert]
+ALTER PROCEDURE [Inspector].[DatabaseOwnershipInsert]
 AS
 BEGIN
 
@@ -4894,9 +4683,11 @@ END;'
 
 EXEC(@SQLStatement);
 
+IF OBJECT_ID('Inspector.BackupSizesByDayInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[BackupSizesByDayInsert] AS;');
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[BackupSizesByDayInsert]
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[BackupSizesByDayInsert]
 AS
 BEGIN
 
@@ -4933,17 +4724,15 @@ IF NOT EXISTS (SELECT Servername
 			VALUES(@Servername,NULL,NULL,NULL,NULL)
 			END
 
-END;'
+END;';
 
 
-EXEC(@SQLStatement);
+IF OBJECT_ID('Inspector.DatabaseSettingsInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[DatabaseSettingsInsert] AS;');
 
-
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DatabaseSettingsInsert]
-
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DatabaseSettingsInsert]
 AS
-
 BEGIN
 
 --Revision date: 28/06/2018
@@ -5039,16 +4828,15 @@ COUNT(recovery_model_desc)
 FROM sys.databases
 GROUP BY recovery_model_desc
 
-END;'
-
-EXEC(@SQLStatement);
+END;';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[ServerSettingsInsert]
+IF OBJECT_ID('Inspector.ServerSettingsInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[ServerSettingsInsert] AS;');
 
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[ServerSettingsInsert]
 AS
-
 BEGIN
 
 --Revision date: 28/06/2018
@@ -5072,17 +4860,15 @@ ORDER BY
 [configuration_id] ASC,
 [name] ASC
 
+END;';
 
 
-END;'
+IF OBJECT_ID('Inspector.InstanceStartInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[InstanceStartInsert] AS;');
 
-EXEC(@SQLStatement);
-
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[InstanceStartInsert]
-
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[InstanceStartInsert]
 AS
-
 BEGIN
 
 --Revision date: 02/07/2018
@@ -5091,7 +4877,7 @@ DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 DECLARE @LogDate DATETIME = GETDATE()
 
 DELETE FROM [Inspector].[InstanceStart]
-WHERE Servername = @Servername
+WHERE Servername = @Servername;
 
 INSERT INTO [Inspector].[InstanceStart] ([Servername],[Log_Date],[InstanceStart])
 SELECT 
@@ -5101,16 +4887,15 @@ SELECT
 FROM sys.databases
 WHERE name = ''tempdb''
 
-END;'
-
-EXEC(@SQLStatement);
+END;';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[InstanceVersionInsert]
+IF OBJECT_ID('Inspector.InstanceVersionInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[InstanceVersionInsert] AS;');
 
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[InstanceVersionInsert]
 AS
-
 BEGIN
 
 --Revision date: 14/02/2019
@@ -5194,16 +4979,15 @@ WHERE Servername = @Servername;
 
 INSERT INTO [Inspector].[InstanceVersion] ([Servername], [PhysicalServername], [Log_Date], [VersionInfo])
 SELECT @Servername, @PhysicalServername, GETDATE(), @Version + N'' - '' + @Edition
-END;
-'
-EXEC(@SQLStatement);
+END;';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[SuspectPagesInsert]
+IF OBJECT_ID('Inspector.SuspectPagesInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[SuspectPagesInsert] AS;');
 
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[SuspectPagesInsert]
 AS
-
 BEGIN
 
 --Revision date: 30/07/2018
@@ -5233,15 +5017,15 @@ BEGIN
 END
 
 
-END;'
-
-EXEC(@SQLStatement);
+END;';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[AGDatabasesInsert]
+IF OBJECT_ID('Inspector.AGDatabasesInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[AGDatabasesInsert] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[AGDatabasesInsert]
 AS
-
 BEGIN
 
 --Revision date: 10/08/2018
@@ -5301,15 +5085,15 @@ LEFT JOIN sys.availability_replicas AGReplicas ON AGDBs.group_id = AGReplicas.gr
 WHERE DBs.Servername = @Servername;
 	
 
-END'
-
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[LongRunningTransactionsInsert]
+IF OBJECT_ID('Inspector.LongRunningTransactionsInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[LongRunningTransactionsInsert] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[LongRunningTransactionsInsert]
 AS
-
 BEGIN
 
 --Revision date: 08/08/2018
@@ -5369,13 +5153,14 @@ BEGIN
 	VALUES(@Servername,@Now,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)
 END
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[UnusedLogshipConfigInsert]
+IF OBJECT_ID('Inspector.UnusedLogshipConfigInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[UnusedLogshipConfigInsert] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[UnusedLogshipConfigInsert]
 AS
 BEGIN
 
@@ -5404,12 +5189,14 @@ FROM msdb.dbo.log_shipping_secondary_databases LogshippedDBs
 LEFT JOIN sys.databases DBs ON LogshippedDBs.secondary_database = DBs.name
 WHERE DBs.name IS NULL OR DBs.state != 1 --Database does not exist or is not in a restoring state
 
-END;
-'
-EXEC(@SQLStatement);
+END;';
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DatacollectionsOverdueInsert]
+
+IF OBJECT_ID('Inspector.DatacollectionsOverdueInsert') IS NULL
+EXEC('CREATE PROCEDURE [Inspector].[DatacollectionsOverdueInsert] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DatacollectionsOverdueInsert]
 AS
 --Revision date:13/10/2019
 SET NOCOUNT ON;
@@ -5438,12 +5225,14 @@ INNER JOIN (SELECT [ModuleConfig_Desc],MIN(Frequency) AS Frequency
 			WHERE [IsActive] = 1
 			GROUP BY [ModuleConfig_Desc]) AS MinFrequencies ON MinFrequencies.ModuleConfig_Desc = [ExecutionLogDetails].ModuleConfig_Desc
 WHERE [ExecutionLogDetails].Procname = ''InspectorDataCollection''
-AND ([ExecutionLogDetails].[Duration]/60) > MinFrequencies.Frequency;'
+AND ([ExecutionLogDetails].[Duration]/60) > MinFrequencies.Frequency;';
 
-EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DatacollectionsOverdueReport] (
+IF OBJECT_ID('Inspector.DatacollectionsOverdueReport') IS NULL
+EXEC('CREATE PROCEDURE [Inspector].[DatacollectionsOverdueReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DatacollectionsOverdueReport] (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
 @TableHeaderColour VARCHAR(7) = ''#E6E6FA'',
@@ -5604,12 +5393,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END'
+END';
 
-EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[ExecutionLogInsert]
+IF OBJECT_ID('Inspector.ExecutionLogInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[ExecutionLogInsert] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[ExecutionLogInsert]
 (
 @RunDatetime DATETIME,
 @Servername NVARCHAR(128),
@@ -5638,13 +5429,14 @@ END
 
 
 INSERT INTO [Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection,ErrorMessage)
-VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection,@ErrorMessage);'
-
-EXEC(@SQLStatement);
+VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection,@ErrorMessage);';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[ResetHtmlColors]
+IF OBJECT_ID('Inspector.ResetHtmlColors') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[ResetHtmlColors] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[ResetHtmlColors]
 AS
 BEGIN 
 
@@ -5666,13 +5458,14 @@ BEGIN
 								WHEN [WarningLevel] = 2 THEN ''#FAFCA4''
 								WHEN [WarningLevel] = 3 THEN ''#FEFFFF''
 							   END
-END'	
-
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DriveCapacityHistory]
+IF OBJECT_ID('Inspector.DriveCapacityHistory') IS NULL 
+EXEC('CREATE PROCEDURE  [Inspector].[DriveCapacityHistory] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DriveCapacityHistory]
 (
 @Servername NVARCHAR(128),
 @Drive VARCHAR(20)
@@ -5705,13 +5498,14 @@ FROM
 WHERE CapacityChange = 1
 ORDER BY Log_Date DESC
 
-END'
-
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[SuppressAdHocDatabase]
+IF OBJECT_ID('Inspector.SuppressAdHocDatabase') IS NULL 
+EXEC('CREATE PROCEDURE  [Inspector].[SuppressAdHocDatabase] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[SuppressAdHocDatabase]
 (
 @Databasename NVARCHAR(128),
 @Servername NVARCHAR(128)
@@ -5726,13 +5520,14 @@ SET NOCOUNT ON;
 	WHERE [Databasename] = @Databasename 
 	AND [Servername] = @Servername;
 
-END'
-
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[SuppressAGDatabase]
+IF OBJECT_ID('Inspector.SuppressAGDatabase') IS NULL 
+EXEC('CREATE PROCEDURE  [Inspector].[SuppressAGDatabase] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[SuppressAGDatabase]
 (
 @Databasename NVARCHAR(128),
 @Servername NVARCHAR(128)
@@ -5747,13 +5542,14 @@ SET NOCOUNT ON;
 	WHERE [Databasename] = @Databasename 
 	AND [Servername] = @Servername;
 
-END'
-
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DatabaseGrowthFilenameSync]
+IF OBJECT_ID('Inspector.DatabaseGrowthFilenameSync') IS NULL 
+EXEC('CREATE PROCEDURE  [Inspector].[DatabaseGrowthFilenameSync] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DatabaseGrowthFilenameSync]
 AS
 BEGIN
 
@@ -5785,13 +5581,14 @@ SET NOCOUNT ON;
 	UPDATE [Inspector].[Settings] 
 	SET [Value] = NULL
 	WHERE [Description] = ''InspectorUpgradeFilenameSync'';
-END'
-
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PSGetColumns]
+IF OBJECT_ID('Inspector.PSGetColumns') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[PSGetColumns] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PSGetColumns]
 (
 @Tablename NVARCHAR(128)
 )
@@ -5814,12 +5611,14 @@ FROM
 	ORDER BY tables.name ASC,columns.column_id ASC
 	FOR XML PATH('''')
 ) AS ColumnList (Columnname)
-END'
+END';
 
-EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PSGetInspectorBuild]
+IF OBJECT_ID('Inspector.PSGetInspectorBuild') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[PSGetInspectorBuild] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PSGetInspectorBuild]
 AS
 BEGIN 
 --Revision date: 14/09/2018
@@ -5829,12 +5628,14 @@ BEGIN
 	CAST([Value] AS DECIMAL(4,2)) AS Build
 	FROM [Inspector].[Settings]
 	WHERE [Description] = ''InspectorBuild''
-END'
+END';
 
-EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PSGetConfig]
+IF OBJECT_ID('Inspector.PSGetConfig') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[PSGetConfig] AS;')
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PSGetConfig]
 (
 @Servername NVARCHAR(128),
 @ModuleConfig VARCHAR(20) = NULL,
@@ -5917,14 +5718,14 @@ CROSS APPLY(VALUES(''InstanceStart''), (''InstanceVersion'')) AS NonModuleColect
 ORDER BY [Modulename] ASC;
 END
 
-END'
+END';
 
 
-EXEC(@SQLStatement);
+IF OBJECT_ID('Inspector.PSGetServers') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[PSGetServers] AS;');
 
-
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PSGetServers]
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PSGetServers]
 AS 
 BEGIN 
 --Revision date: 20/01/2020
@@ -5938,13 +5739,14 @@ BEGIN
 		WHEN [Servername] = @@SERVERNAME THEN 2 
 		ELSE 1
 	END
-END'
-
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PSGetADHocDatabaseCreationsStage]
+IF OBJECT_ID('Inspector.PSGetADHocDatabaseCreationsStage') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[PSGetADHocDatabaseCreationsStage] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PSGetADHocDatabaseCreationsStage]
 (
 @Servername NVARCHAR(128)
 )
@@ -5986,12 +5788,14 @@ AND NOT EXISTS (SELECT Databasename
 				WHERE SuppressList.Servername = @Servername AND SuppressList.Databasename = Creations.Databasename);
 
 
-END'
+END';
 
-EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PSGetAGDatabasesStage]
+IF OBJECT_ID('Inspector.PSGetAGDatabasesStage') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[PSGetAGDatabasesStage] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PSGetAGDatabasesStage]
 (
 @Servername NVARCHAR(128)
 )
@@ -6022,13 +5826,14 @@ INNER JOIN [Inspector].[AGDatabases] Base ON Base.Servername = Stage.Servername	
 WHERE Stage.Servername = @Servername;
 
 
-END'
-
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PSGetDriveSpaceStage]
+IF OBJECT_ID('Inspector.PSGetDriveSpaceStage') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[PSGetDriveSpaceStage] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PSGetDriveSpaceStage]
 (
 @Servername NVARCHAR(128)
 )
@@ -6055,13 +5860,14 @@ AND NOT EXISTS (SELECT 1
 				WHERE Base.Servername = Stage.Servername
 				AND Base.Log_Date = Stage.Log_Date)
 
-END'
-
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PSGetDatabaseGrowthsStage]
+IF OBJECT_ID('Inspector.PSGetDatabaseGrowthsStage') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[PSGetDatabaseGrowthsStage] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PSGetDatabaseGrowthsStage]
 (
 @Servername NVARCHAR(128)
 )
@@ -6122,13 +5928,14 @@ WHERE NOT EXISTS (SELECT 1
 				AND Base.Servername = PSStage.Servername
 				AND PSStage.Log_Date = Base.Log_Date)
 
-END'
-
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PSGetInstanceVersionHistoryStage]
+IF OBJECT_ID('Inspector.PSGetInstanceVersionHistoryStage') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[PSGetInstanceVersionHistoryStage] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PSGetInstanceVersionHistoryStage]
 (
 @Servername NVARCHAR(128)
 )
@@ -6150,12 +5957,14 @@ AND NOT EXISTS (SELECT 1
 				AND CAST(Base.Log_Date AS DATE) = CAST(Stage.Log_Date AS DATE)
 				);
 
-END'
+END';
 
-EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PSGetAGPrimaryHistoryStage]
+IF OBJECT_ID('Inspector.PSGetAGPrimaryHistoryStage') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[PSGetAGPrimaryHistoryStage] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PSGetAGPrimaryHistoryStage]
 (
 @Servername NVARCHAR(128)
 )
@@ -6175,13 +5984,14 @@ WHERE NOT EXISTS (SELECT 1
 				AND Base.[Servername] = PSStage.[Servername]
 				AND PSStage.[CollectionDateTime] = Base.[CollectionDateTime])
 
-END'
-
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PSHistCleanup]
+IF OBJECT_ID('Inspector.PSHistCleanup') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[PSHistCleanup] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PSHistCleanup]
 AS 
 BEGIN 
 --Revision date: 10/04/2019
@@ -6196,13 +6006,14 @@ DECLARE @Retention INT = (SELECT ISNULL(NULLIF([Value],''''),90) FROM [Inspector
 	DELETE FROM [Inspector].[DatabaseFileSizeHistory]
 	WHERE [Log_Date] < DATEADD(DAY,-@Retention,GETDATE());
 
-END '
-
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PopulatePSConfig]
+IF OBJECT_ID('Inspector.PopulatePSConfig') IS NULL 
+EXEC('CREATE PROCEDURE  [Inspector].[PopulatePSConfig] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PopulatePSConfig]
 AS
 BEGIN
 --Revision date: 27/01/2020
@@ -6303,12 +6114,14 @@ WHERE NOT EXISTS (SELECT 1
 
 
 
-END'
+END';
 
-EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[PSGetSettingsTables]
+IF OBJECT_ID('Inspector.PSGetSettingsTables') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[PSGetSettingsTables] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[PSGetSettingsTables]
 (
 @SortOrder BIT, --0 FOR ORDER BY TableOrder ASC , 1 FOR ORDER BY TableOrder DESC
 @PSCollection BIT = 0 --If its a powershell collection ensure that the WarningLevel table is populated
@@ -6367,13 +6180,15 @@ BEGIN
 		ORDER BY TableOrder DESC;
 	END
 
-END'
+END';
 
-EXEC(@SQLStatement);
+
+IF OBJECT_ID('Inspector.CatalogueMissingLogins') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[CatalogueMissingLogins] AS;');
 
 --Catalogue reporting procs
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[CatalogueMissingLogins]
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[CatalogueMissingLogins]
 (
 @Servername NVARCHAR(128),
 @TableHeaderColour VARCHAR(7) = NULL,
@@ -6489,12 +6304,14 @@ EXEC [Inspector].[ExecutionLogInsert]
 @Duration = @Duration,
 @PSCollection = @PSCollection;
 
-END'
+END';
 
-EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[CatalogueDroppedTables]
+IF OBJECT_ID('Inspector.CatalogueDroppedTables') IS NULL 
+EXEC('CREATE PROCEDURE  [Inspector].[CatalogueDroppedTables] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[CatalogueDroppedTables]
 (
 @Servername NVARCHAR(128),
 @TableHeaderColour VARCHAR(7) = NULL,
@@ -6565,12 +6382,14 @@ EXEC [Inspector].[ExecutionLogInsert]
 @Duration = @Duration,
 @PSCollection = @PSCollection;
 
-END'
+END';
 
-EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[CatalogueDroppedDatabases]
+IF OBJECT_ID('Inspector.CatalogueDroppedDatabases') IS NULL 
+EXEC('CREATE PROCEDURE  [Inspector].[CatalogueDroppedDatabases] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[CatalogueDroppedDatabases]
 (
 @Servername NVARCHAR(128),
 @TableHeaderColour VARCHAR(7) = NULL,
@@ -6638,12 +6457,14 @@ EXEC [Inspector].[ExecutionLogInsert]
 @Duration = @Duration,
 @PSCollection = @PSCollection;
 
-END'
+END';
 
-EXEC(@SQLStatement);
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[ADHocDatabaseCreationsReport]
+IF OBJECT_ID('Inspector.ADHocDatabaseCreationsReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[ADHocDatabaseCreationsReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[ADHocDatabaseCreationsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -6777,13 +6598,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[AGCheckReport]
+
+IF OBJECT_ID('Inspector.AGCheckReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[AGCheckReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[AGCheckReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -6995,13 +6817,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[AGDatabasesReport]
+
+IF OBJECT_ID('Inspector.AGDatabasesReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[AGDatabasesReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[AGDatabasesReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -7143,13 +6966,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[BackupsCheckReport]
+ 
+IF OBJECT_ID('Inspector.BackupsCheckReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[BackupsCheckReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[BackupsCheckReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -7477,17 +7301,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
+END';
 
 
+IF OBJECT_ID('Inspector.BackupSizesByDayReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[BackupSizesByDayReport] AS;');
 
-
-'
-EXEC(@SQLStatement);
-
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[BackupSizesByDayReport]
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[BackupSizesByDayReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -7609,17 +7430,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
+END';
 
 
+IF OBJECT_ID('Inspector.DatabaseFilesReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[DatabaseFilesReport] AS;');
 
-
-'
-EXEC(@SQLStatement);
-
-                
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DatabaseFilesReport]
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DatabaseFilesReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -7754,21 +7572,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
+END';
 
 
+IF OBJECT_ID('Inspector.DatabaseGrowthsReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[DatabaseGrowthsReport] AS;');
 
-
-
-
-    
-
-'
-EXEC(@SQLStatement);
-
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DatabaseGrowthsReport]
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DatabaseGrowthsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -7882,13 +7693,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END'
+END';
 
-EXEC(@SQLStatement);
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DatabaseOwnershipReport]
+IF OBJECT_ID('Inspector.DatabaseOwnershipReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[DatabaseOwnershipReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DatabaseOwnershipReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -8028,13 +7840,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DatabaseSettingsReport]
+
+IF OBJECT_ID('Inspector.DatabaseSettingsReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[DatabaseSettingsReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DatabaseSettingsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -8287,13 +8100,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DatabaseStatesReport]
+
+IF OBJECT_ID('Inspector.DatabaseStatesReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[DatabaseStatesReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DatabaseStatesReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -8409,13 +8223,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[DriveSpaceReport]
+
+IF OBJECT_ID('Inspector.DriveSpaceReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[DriveSpaceReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[DriveSpaceReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -8763,13 +8578,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[FailedAgentJobsReport]
+
+IF OBJECT_ID('Inspector.FailedAgentJobsReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[FailedAgentJobsReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[FailedAgentJobsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -8907,13 +8723,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[GenerateHeaderInfo] (
+
+IF OBJECT_ID('Inspector.GenerateHeaderInfo') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[GenerateHeaderInfo] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[GenerateHeaderInfo] (
 @Servername NVARCHAR(128),
 @ModuleConfig VARCHAR(20),
 @Modulename VARCHAR(50),
@@ -9088,9 +8905,7 @@ BEGIN
 	@TableTail AS ''@TableTail'';
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
         
 SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
@@ -9177,13 +8992,15 @@ BEGIN
 							AND [Modulename] = @Modulename);
 	
 	RETURN(@WarningLevel);
-END
-'
+END'
 EXEC(@SQLStatement);
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[JobOwnerReport]
+
+IF OBJECT_ID('Inspector.JobOwnerReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[JobOwnerReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[JobOwnerReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -9315,13 +9132,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[LoginAttemptsReport]
+
+IF OBJECT_ID('Inspector.LoginAttemptsReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[LoginAttemptsReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[LoginAttemptsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -9455,13 +9273,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[LongRunningTransactionsReport]
+
+IF OBJECT_ID('Inspector.LongRunningTransactionsReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[LongRunningTransactionsReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[LongRunningTransactionsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -9624,13 +9443,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[ModuleReportProcTemplate] (
+
+IF OBJECT_ID('Inspector.ModuleReportProcTemplate') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[ModuleReportProcTemplate] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[ModuleReportProcTemplate] (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
 @TableHeaderColour VARCHAR(7) = ''#E6E6FA'',
@@ -9794,13 +9614,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END'
+END';
 
-EXEC(@SQLStatement);
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[ServerSettingsReport]
+IF OBJECT_ID('Inspector.ServerSettingsReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[ServerSettingsReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[ServerSettingsReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -9933,13 +9754,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[SuspectPagesReport]
+
+IF OBJECT_ID('Inspector.SuspectPagesReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[SuspectPagesReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[SuspectPagesReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -10066,13 +9888,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[TopFiveDatabasesReport]
+
+IF OBJECT_ID('Inspector.TopFiveDatabasesReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[TopFiveDatabasesReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[TopFiveDatabasesReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -10168,13 +9991,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
-        
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[UnusedLogshipConfigReport]
+
+IF OBJECT_ID('Inspector.UnusedLogshipConfigReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[UnusedLogshipConfigReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[UnusedLogshipConfigReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -10304,9 +10128,7 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END
-'
-EXEC(@SQLStatement);
+END';
 
   
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'Inspector.InspectorReportMaster') AND type in (N'P', N'PC'))
@@ -10388,9 +10210,11 @@ END
 	DEALLOCATE InspectorReportmaster_cur';
 
 
+IF OBJECT_ID('Inspector.BackupSpaceInsert') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[BackupSpaceInsert] AS;');
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[BackupSpaceInsert]
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[BackupSpaceInsert]
 AS
 BEGIN
 SET NOCOUNT ON;
@@ -10440,13 +10264,14 @@ FROM (
     END
 ) as BackupSizesbyDay;
 
-END'
-
-EXEC(@SQLStatement)
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[BackupSpaceReport]
+IF OBJECT_ID('Inspector.BackupSpaceReport') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[BackupSpaceReport] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[BackupSpaceReport]
 (
 @Servername NVARCHAR(128),
 @Modulename VARCHAR(50),
@@ -10686,13 +10511,14 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END 
 
-END'
-
-EXEC(@SQLStatement);
+END';
 
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[ExecutionLogTruncate] 
+IF OBJECT_ID('Inspector.ExecutionLogTruncate') IS NULL
+EXEC('CREATE PROCEDURE  [Inspector].[ExecutionLogTruncate] AS;');
+
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[ExecutionLogTruncate] 
 AS 
 BEGIN 
 	DECLARE @LastTruncate DATE;
@@ -10708,11 +10534,12 @@ BEGIN
 
 END';
 
-EXEC(@SQLStatement)
 
+IF OBJECT_ID('Inspector.InspectorDataCollection') IS NULL 
+EXEC('CREATE PROCEDURE  [Inspector].[InspectorDataCollection] AS;');
 
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
-CREATE PROCEDURE [Inspector].[InspectorDataCollection]
+EXEC sp_executesql N'
+ALTER PROCEDURE [Inspector].[InspectorDataCollection]
 (
 @ModuleConfig VARCHAR(20)  = NULL,
 @PSCollection BIT = 0,
@@ -10944,19 +10771,18 @@ BEGIN
 	RAISERROR(''Server: %s not present or IsActive = 0 in [Inspector].[CurrentServers]'',0,0,@Servername);
 END
 
-END'
+END';
 
-EXEC(@SQLStatement);
 
+IF OBJECT_ID('Inspector.SQLUnderCoverInspectorReport') IS NULL 
+EXEC('CREATE PROCEDURE  [Inspector].[SQLUnderCoverInspectorReport] AS;');
 
 --Create Main Inspector Report Stored Procedure
-SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+ N'
+EXEC sp_executesql N'
 /*********************************************
 --Author: Adrian Buckman
 --Revision date: 20/11/2020
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
---V2.3
-
 
 --Example Execute command
 --EXEC [Inspector].[SQLUnderCoverInspectorReport] 
@@ -10971,7 +10797,7 @@ SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+ N'
 
 *********************************************/
 
-CREATE PROCEDURE [Inspector].[SQLUnderCoverInspectorReport] 
+ALTER PROCEDURE [Inspector].[SQLUnderCoverInspectorReport] 
 (
 @EmailDistributionGroup VARCHAR(50) = ''DBA'',
 @TestMode BIT = 0,
@@ -12184,10 +12010,8 @@ BEGIN
 	RAISERROR(''@ModuleDesc supplied does not exist in [Inspector].[Modules]'',15,1) 
 END
 
-END'
+END';
 
-
-EXEC(@SQLStatement);
 
 SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
 -- =============================================
