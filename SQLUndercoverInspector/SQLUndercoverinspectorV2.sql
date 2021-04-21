@@ -393,6 +393,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				(ReportDate ASC);
 			END
 
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.ReportData') AND name='CIX_ReportData_ID')
+			BEGIN
+				CREATE CLUSTERED INDEX [CIX_ReportData_ID] ON [Inspector].[ReportData]
+				(ID ASC);
+			END
+
 			--Inspector V2.00 change to XML
 			IF NOT EXISTS (SELECT 1 
 							FROM sys.tables 
@@ -1024,7 +1030,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 						[ShowDisabledModules] BIT NOT NULL,
 						[RunDay] VARCHAR(70) NULL,
 						[EmailGroup] VARCHAR(50) NULL,
-						[EmailProfile] NVARCHAR(128) NULL
+						[EmailProfile] NVARCHAR(128) NULL,
+						[EmailAsAttachment] BIT NULL
 					 CONSTRAINT [PK_ModuleConfig_Desc] PRIMARY KEY CLUSTERED 
 					([ModuleConfig_Desc] ASC)
 					);
@@ -1066,6 +1073,16 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				BEGIN 
 					ALTER TABLE [Inspector].[ModuleConfig] ALTER COLUMN [ReportWarningsOnly] TINYINT NOT NULL;
 				END
+
+				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID('Inspector.ModuleConfig') AND [name] = 'EmailAsAttachment')
+				BEGIN 
+					EXEC sp_executesql N'ALTER TABLE [Inspector].[ModuleConfig] ADD [EmailAsAttachment] BIT NULL;';
+				END
+
+				EXEC sp_executesql N'
+				UPDATE [Inspector].[ModuleConfig]
+				SET [EmailAsAttachment] = 0
+				WHERE [EmailAsAttachment] IS NULL;';
 
 				IF OBJECT_ID('Inspector.CatalogueModules') IS NULL
 				BEGIN
@@ -1858,13 +1875,19 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[NoClutter] BIT NOT NULL,
 				[Frequency] SMALLINT NOT NULL,
 				[EmailGroup] VARCHAR(50) NULL,
-				[EmailProfile] VARCHAR(128) NULL
+				[EmailProfile] VARCHAR(128) NULL,
+				[EmailAsAttachment] BIT NULL
 				);
 			END
 			
 			IF NOT EXISTS (SELECT 1 FROM sys.tables INNER JOIN sys.indexes ON indexes.[object_id] = tables .[object_id] WHERE tables.[name] = N'ReportsDueCache' AND indexes.[name] = N'CIX_ID' AND SCHEMA_NAME(tables.[schema_id]) = N'Inspector')
 			BEGIN 
 				CREATE CLUSTERED INDEX [CIX_ID] ON [Inspector].[ReportsDueCache] (ID ASC);
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE name = N'EmailAsAttachment' AND [object_id] = OBJECT_ID(N'Inspector.ReportsDueCache'))
+			BEGIN
+				ALTER TABLE [Inspector].[ReportsDueCache] ADD [EmailAsAttachment] BIT NULL;
 			END
 
 			IF NOT EXISTS (SELECT * FROM sys.tables WHERE [name] = N'ExecutionLogLastTruncate' AND [schema_id] = SCHEMA_ID(N'Inspector'))
@@ -2515,7 +2538,8 @@ END
 		RowNum%Frequency AS modulo,
 		RowNum,
 		EmailGroup,
-		EmailProfile
+		EmailProfile,
+		EmailAsAttachment
 		FROM 
 		(
 			SELECT 
@@ -2528,9 +2552,10 @@ END
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
 			LastRunDateTime,RunDay,
 			ISNULL(EmailGroup,''DBA'') AS EmailGroup,
-			EmailProfile
+			EmailProfile,
+			EmailAsAttachment
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup,EmailProfile
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup,EmailProfile,ISNULL(EmailAsAttachment,0) AS EmailAsAttachment
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
 			) Modules
@@ -2567,7 +2592,8 @@ END
 		RowNum%Frequency AS modulo,
 		RowNum,
 		EmailGroup,
-		EmailProfile
+		EmailProfile,
+		EmailAsAttachment
 		FROM 
 		(
 			SELECT 
@@ -2580,9 +2606,10 @@ END
 			DATEADD(MINUTE,DATEPART(MINUTE,EndTime),DATEADD(HOUR,DATEPART(HOUR,EndTime),CAST(CAST(GETDATE() AS DATE) AS DATETIME))) AS EndDatetime,
 			LastRunDateTime,RunDay,
 			ISNULL(EmailGroup,''DBA'') AS EmailGroup,
-			EmailProfile
+			EmailProfile,
+			EmailAsAttachment
 			FROM (
-				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup,EmailProfile
+				SELECT [ModuleConfig_Desc],Frequency,StartTime,EndTime,LastRunDateTime,ReportWarningsOnly,NoClutter,RunDay,EmailGroup,EmailProfile,ISNULL(EmailAsAttachment,0) AS EmailAsAttachment
 				FROM [Inspector].[ModuleConfig] 
 				WHERE [IsActive] = 1
 			) Modules
@@ -10154,21 +10181,22 @@ END
 	DECLARE @Duration MONEY;
 	DECLARE @ReportStart DATETIME = GETDATE();
 	DECLARE @EmailProfile NVARCHAR(128);
+	DECLARE @EmailAsAttachment BIT;
 
 	DECLARE InspectorReportmaster_cur CURSOR LOCAL STATIC
 	FOR
 	SELECT 
-	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
+	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile,EmailAsAttachment
 	FROM  [Inspector].[ReportSchedulesDue]
 	UNION --We want to be sure we are not duplicating rows
 	SELECT 
-	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
+	ModuleConfig_Desc,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile,EmailAsAttachment
 	FROM [Inspector].[ReportsDueCache]
 	WHERE ID = @CachedReportID
 	
 	OPEN InspectorReportmaster_cur
 	
-	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile
+	FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile,@EmailAsAttachment
 	
 	WHILE @@FETCH_STATUS = 0 
 	BEGIN 
@@ -10189,7 +10217,8 @@ END
 		@ReportWarningsOnly = @ReportWarningsOnly,
 		@NoClutter = @NoClutter,
 		@EmailGroup = @EmailGroup,
-		@EmailProfile = @EmailProfile;
+		@EmailProfile = @EmailProfile,
+		@EmailAsAttachment = @EmailAsAttachment;
 	
 		UPDATE [Inspector].[ModuleConfig]
 		SET LastRunDateTime = GETDATE() 
@@ -10203,7 +10232,7 @@ END
 			AND ModuleConfig_Desc = @ModuleConfigDesc;
 		END 
 	
-		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile
+		FETCH NEXT FROM InspectorReportmaster_cur INTO @ModuleConfigDesc,@ReportWarningsOnly,@NoClutter,@Frequency,@EmailGroup,@EmailProfile,@EmailAsAttachment
 	END 
 	
 	CLOSE InspectorReportmaster_cur
@@ -10582,8 +10611,8 @@ BEGIN
 		BEGIN 
 			SET @CachedReportID = NEWID();
 
-			INSERT INTO [Inspector].[ReportsDueCache] (ID,ModuleConfig_Desc,CurrentScheduleStart,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile) 
-			SELECT @CachedReportID,ModuleConfig_Desc,[CurrentScheduleStart],ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile
+			INSERT INTO [Inspector].[ReportsDueCache] (ID,ModuleConfig_Desc,CurrentScheduleStart,ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile,EmailAsAttachment) 
+			SELECT @CachedReportID,ModuleConfig_Desc,[CurrentScheduleStart],ReportWarningsOnly,NoClutter,Frequency,EmailGroup,EmailProfile,EmailAsAttachment
 			FROM [Inspector].[ReportSchedulesDue];
 		END 
 
@@ -10804,6 +10833,7 @@ ALTER PROCEDURE [Inspector].[SQLUnderCoverInspectorReport]
 @ModuleDesc VARCHAR(20)	= NULL,
 @ReportWarningsOnly TINYINT = 0,
 @EmailProfile NVARCHAR(128) = NULL,
+@EmailAsAttachment BIT = 0,
 @Theme VARCHAR(5) = ''Dark'',
 @PSCollection BIT = 0,
 @NoClutter BIT = 0,
@@ -10837,45 +10867,44 @@ WarningPriority TINYINT
 SET @Theme = UPPER(@Theme);
 
 DECLARE @Procname NVARCHAR(128) = OBJECT_NAME(@@PROCID);
-DECLARE @ModuleConfig VARCHAR(20) 
-DECLARE @ModuleConfigDetermined VARCHAR(20)
-DECLARE @InspectorBuild	VARCHAR(6) = (SELECT ISNULL([Value],'''') FROM [Inspector].[Settings] WHERE [Description] = ''InspectorBuild'')
+DECLARE @ModuleConfig VARCHAR(20);
+DECLARE @ModuleConfigDetermined VARCHAR(20);
+DECLARE @InspectorBuild	VARCHAR(6) = (SELECT ISNULL([Value],'''') FROM [Inspector].[Settings] WHERE [Description] = ''InspectorBuild'');
 DECLARE @ReportStart DATETIME = GETDATE();
 DECLARE @ModuleReportStart DATETIME;
-DECLARE @SQLstatement NVARCHAR(1000)
-
+DECLARE @SQLstatement NVARCHAR(1000);
 DECLARE @TotalWarningCount INT = 0;
 DECLARE @TotalAdvisoryCount INT = 0;
 DECLARE @CountWarning INT = 0;
 DECLARE @CountAdvisory INT = 0;
-DECLARE @WarningLevel TINYINT
-DECLARE @WarningLevelFontColour VARCHAR(7)
-DECLARE @VersionNo VARCHAR(128)
-DECLARE @Edition VARCHAR(128)
-DECLARE @DatabaseGrowthCheckRunEnabled BIT
-DECLARE @Duration MONEY
+DECLARE @WarningLevel TINYINT;
+DECLARE @WarningLevelFontColour VARCHAR(7);
+DECLARE @VersionNo VARCHAR(128);
+DECLARE @Edition VARCHAR(128);
+DECLARE @DatabaseGrowthCheckRunEnabled BIT;
+DECLARE @Duration MONEY;
 DECLARE @Frequency SMALLINT; 
-DECLARE @CatalogueInstalled BIT 
-DECLARE @CatalogueBuild	VARCHAR(10)
-DECLARE @MinCatalogueBuild VARCHAR(10) = ''0.2.0''
-DECLARE @CatalogueModuleEnabled BIT
-DECLARE @CatalogueModulename VARCHAR(20)
-DECLARE @CatalogueHtml VARCHAR(MAX)
-DECLARE @ReportModuleHtml VARCHAR(MAX)
-DECLARE @CountCatalogueWarnings INT 
-DECLARE @CatalogueLastExecution DATETIME
-DECLARE @CatalogueModuleReport BIT
-DECLARE @CPUCount INT
-DECLARE @TotalRAM INT
-DECLARE @VMType NVARCHAR(60)
+DECLARE @CatalogueInstalled BIT;
+DECLARE @CatalogueBuild	VARCHAR(10);
+DECLARE @MinCatalogueBuild VARCHAR(10) = ''0.2.0'';
+DECLARE @CatalogueModuleEnabled BIT;
+DECLARE @CatalogueModulename VARCHAR(20);
+DECLARE @CatalogueHtml VARCHAR(MAX);
+DECLARE @ReportModuleHtml VARCHAR(MAX);
+DECLARE @CountCatalogueWarnings INT;
+DECLARE @CatalogueLastExecution DATETIME;
+DECLARE @CatalogueModuleReport BIT;
+DECLARE @CPUCount INT;
+DECLARE @TotalRAM INT;
+DECLARE @VMType NVARCHAR(60);
 
-DECLARE @Stack VARCHAR(255) = (SELECT [Value] from [Inspector].[Settings] WHERE [Description] = ''SQLUndercoverInspectorEmailSubject'') 
+DECLARE @Stack VARCHAR(255) = (SELECT [Value] from [Inspector].[Settings] WHERE [Description] = ''SQLUndercoverInspectorEmailSubject'');
 
 DECLARE @EmailHeader VARCHAR(1000) = CASE 
 										WHEN @PSCollection = 0 
 										THEN ''<img src="''+(SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''EmailBannerURL'')+''">''
 										ELSE ''<img src="''+(SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''PSEmailBannerURL'')+''">''
-									 END
+									 END;
 DECLARE @SubjectText VARCHAR(255);
 DECLARE @AlertSubjectText VARCHAR(255);
 DECLARE @Importance VARCHAR(6);
@@ -10921,6 +10950,8 @@ DECLARE @DetailedSummary BIT = (SELECT CASE WHEN [Value] IS NULL OR [Value] != 1
 DECLARE @MultiWarningModule BIT;
 DECLARE @ShowDisabledModules BIT;
 DECLARE @ErrorMessage NVARCHAR(128);
+DECLARE @ReportId INT;
+DECLARE @Databasename NVARCHAR(128) = DB_NAME();
 
 --------------Internal use only----------------------
 DECLARE @DriveExtensionRequest VARCHAR(MAX)
@@ -11957,13 +11988,39 @@ IF (@ReportWarningsOnly > 0)
 			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup,ReportWarningsOnly)
 			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup,@ReportWarningsOnly;
 
-			EXEC msdb.dbo.sp_send_dbmail 
-			@recipients = @RecipientsList,
-			@subject = @SubjectText,
-			@importance = @Importance,
-			@body=@EmailBody ,
-			@body_format = ''HTML'',
-			@profile_name = @EmailProfile;
+			SELECT @ReportId = SCOPE_IDENTITY();
+
+			IF (@EmailAsAttachment = 1)
+			BEGIN 
+			EXEC sp_executesql N''
+				EXEC msdb.dbo.sp_send_dbmail 
+				@recipients = @RecipientsList,
+				@subject = @SubjectText,
+				@body = @EmailBody,
+				@attach_query_result_as_file = 1,
+				@query_attachment_filename = N''''Inspector.html'''',
+				@query = N''''SELECT TOP 1 [ReportData] 
+				FROM [Inspector].[ReportData]
+				WHERE [ID] = @ReportId'''',
+				@execute_query_database = @Databasename,
+				@query_result_width = 32767,
+				@query_no_truncate = 1;'',
+				N''@ReportId INT,
+				@Databasename NVARCHAR(128)'',
+				@ReportId = @ReportId,
+				@Databasename = @Databasename;
+			END
+			ELSE
+			BEGIN
+				EXEC msdb.dbo.sp_send_dbmail 
+				@recipients = @RecipientsList,
+				@subject = @SubjectText,
+				@importance = @Importance,
+				@body=@EmailBody ,
+				@body_format = ''HTML'',
+				@profile_name = @EmailProfile;
+			END
+
 		END
 	END
 	ELSE 
