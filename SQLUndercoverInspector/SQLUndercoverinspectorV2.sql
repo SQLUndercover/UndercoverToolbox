@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 21/04/2021
+Revision date: 24/04/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210421';
+DECLARE @Revisiondate DATE = '20210424';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -10211,8 +10211,9 @@ END
 		@ModuleDesc = @ModuleConfigDesc,
 		@ReportWarningsOnly = @ReportWarningsOnly, 
 		@Theme = ''''Dark'''',
-		@NoClutter = @NoClutter;'',
-		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly TINYINT,@NoClutter BIT,@EmailGroup VARCHAR(50),@EmailProfile NVARCHAR(128)'',
+		@NoClutter = @NoClutter,
+		@EmailAsAttachment = @EmailAsAttachment;'',
+		N''@ModuleConfigDesc VARCHAR(20),@ReportWarningsOnly TINYINT,@NoClutter BIT,@EmailGroup VARCHAR(50),@EmailProfile NVARCHAR(128),@EmailAsAttachment BIT'',
 		@ModuleConfigDesc = @ModuleConfigDesc,
 		@ReportWarningsOnly = @ReportWarningsOnly,
 		@NoClutter = @NoClutter,
@@ -10810,20 +10811,8 @@ EXEC('CREATE PROCEDURE  [Inspector].[SQLUnderCoverInspectorReport] AS;');
 EXEC sp_executesql N'
 /*********************************************
 --Author: Adrian Buckman
---Revision date: 20/11/2020
+--Revision date: 24/04/2021
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
-
---Example Execute command
---EXEC [Inspector].[SQLUnderCoverInspectorReport] 
---@EmailDistributionGroup = ''DBA'',
---@TestMode = 0,
---@ModuleDesc = NULL,
---@ReportWarningsOnly = 0,
---@EmailProfile = NULL,
---@Theme = ''Dark'',
---@NoClutter = 0,
---@Debug = 0;
-
 *********************************************/
 
 ALTER PROCEDURE [Inspector].[SQLUnderCoverInspectorReport] 
@@ -10952,6 +10941,7 @@ DECLARE @ShowDisabledModules BIT;
 DECLARE @ErrorMessage NVARCHAR(128);
 DECLARE @ReportId INT;
 DECLARE @Databasename NVARCHAR(128) = DB_NAME();
+DECLARE @AttachmentQuery NVARCHAR(256);
 
 --------------Internal use only----------------------
 DECLARE @DriveExtensionRequest VARCHAR(MAX)
@@ -11923,8 +11913,8 @@ FOR XML PATH('''')
 )
 END
 
-
-SET @EmailBody = ''
+/* Reuse the ServerSummaryHeader parameter setting to a new value */
+SET @ServerSummaryHeader = ''
 <div style="text-align: center;">''+@ServerSummaryHeader+''</div>'' 
 + ''
 <BR></BR>
@@ -11938,16 +11928,22 @@ SET @EmailBody = ''
 <div style="background: linear-gradient(to right, ''+@GradientLeftInfoHighlight+'' 35%, ''+@GradientRightInfoHighlight+'' 110%)">
 <text>'' + ISNULL(@InfoHeader,'''') + ''</text>
 </div>
-'' +@EmailBody
+'';
 
-SET @EmailBody = @EmailBody + ''
+SET @EmailBody = @ServerSummaryHeader + @EmailBody;
+SET @EmailBody = Replace(Replace(@EmailBody,''&lt;'',''<''),''&gt;'',''>'');
+SET @EmailBody = @EmailHeader + @EmailBody + ''
 </body>
 </html>
-''
+'';
 
-SET @EmailBody = Replace(Replace(@EmailBody,''&lt;'',''<''),''&gt;'',''>'');
-
-SET @EmailBody = @EmailHeader + @EmailBody;
+IF (@EmailAsAttachment = 1)
+BEGIN 
+	SET @ServerSummaryHeader = @EmailHeader + @ServerSummaryHeader+ ''
+</body>
+</html>
+'';
+END;
 
 IF (@DetailedSummary = 1)
 BEGIN 
@@ -11992,23 +11988,24 @@ IF (@ReportWarningsOnly > 0)
 
 			IF (@EmailAsAttachment = 1)
 			BEGIN 
-			EXEC sp_executesql N''
+
+			SET @AttachmentQuery = N''EXEC sp_executesql N''''SET NOCOUNT ON; SELECT TOP (1) [ReportData] FROM [Inspector].[ReportData] WHERE [ID] = @ReportID'''',N''''@ReportID INT'''',@ReportID = ''+CAST(@ReportId AS NVARCHAR(20))+'';'';
+
 				EXEC msdb.dbo.sp_send_dbmail 
 				@recipients = @RecipientsList,
 				@subject = @SubjectText,
-				@body = @EmailBody,
+				@importance = @Importance,
+				@body = @ServerSummaryHeader, /* We only want to add the header to the email body as we attach the report as a file */
+				@body_format = ''HTML'',
+				@profile_name = @EmailProfile,
 				@attach_query_result_as_file = 1,
-				@query_attachment_filename = N''''Inspector.html'''',
-				@query = N''''SELECT TOP 1 [ReportData] 
-				FROM [Inspector].[ReportData]
-				WHERE [ID] = @ReportId'''',
+				@query_attachment_filename = N''Inspector.html'',
+				@query = @AttachmentQuery,
 				@execute_query_database = @Databasename,
 				@query_result_width = 32767,
-				@query_no_truncate = 1;'',
-				N''@ReportId INT,
-				@Databasename NVARCHAR(128)'',
-				@ReportId = @ReportId,
-				@Databasename = @Databasename;
+				@query_no_truncate = 1,
+				@query_result_header = 1;
+
 			END
 			ELSE
 			BEGIN
@@ -12028,13 +12025,38 @@ IF (@ReportWarningsOnly > 0)
 			INSERT INTO [Inspector].[ReportData] (ReportDate,ModuleConfig,ReportData,Summary,Importance,EmailGroup,ReportWarningsOnly)
 			SELECT GETDATE(),ISNULL(@ModuleDesc,@ModuleConfig),@EmailBody,CAST(@ReportSummary AS XML),@Importance,@EmailDistributionGroup,@ReportWarningsOnly;
 
-			EXEC msdb.dbo.sp_send_dbmail 
-			@recipients = @RecipientsList,
-			@subject = @SubjectText,
-			@importance = @Importance,
-			@body=@EmailBody ,
-			@body_format = ''HTML'',
-			@profile_name = @EmailProfile;
+			SELECT @ReportId = SCOPE_IDENTITY();
+
+			IF (@EmailAsAttachment = 1)
+			BEGIN 
+
+			SET @AttachmentQuery = N''EXEC sp_executesql N''''SET NOCOUNT ON; SELECT TOP (1) [ReportData] FROM [Inspector].[ReportData] WHERE [ID] = @ReportID'''',N''''@ReportID INT'''',@ReportID = ''+CAST(@ReportId AS NVARCHAR(20))+'';'';
+			
+				EXEC msdb.dbo.sp_send_dbmail 
+				@recipients = @RecipientsList,
+				@subject = @SubjectText,
+				@importance = @Importance,
+				@body = @ServerSummaryHeader, /* We only want to add the header to the email body as we attach the report as a file */
+				@body_format = ''HTML'',
+				@profile_name = @EmailProfile,
+				@attach_query_result_as_file = 1,
+				@query_attachment_filename = N''Inspector.html'',
+				@query = @AttachmentQuery,
+				@execute_query_database = @Databasename,
+				@query_result_width = 32767,
+				@query_no_truncate = 1,
+				@query_result_header = 1;
+			END
+			ELSE
+			BEGIN
+				EXEC msdb.dbo.sp_send_dbmail 
+				@recipients = @RecipientsList,
+				@subject = @SubjectText,
+				@importance = @Importance,
+				@body=@EmailBody ,
+				@body_format = ''HTML'',
+				@profile_name = @EmailProfile;
+			END
 	END
 
 END TRY 
