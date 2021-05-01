@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 24/04/2021
+Revision date: 01/05/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210424';
+DECLARE @Revisiondate DATE = '20210501';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1271,7 +1271,10 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[Log_Date] DATETIME,
 			[Drive] NVARCHAR(128),
 			[Capacity_GB] DECIMAL(10,2),
-			[AvailableSpace_GB] DECIMAL(10,2)
+			[AvailableSpace_GB] DECIMAL(10,2),
+			[UsedSpaceGB] DECIMAL(10,2) NULL,
+			[PrevUsedSpace_GB] DECIMAL(10,2) NULL,
+			[UsedSpaceVarianceGB] AS CAST([UsedSpaceGB]-[PrevUsedSpace_GB] AS DECIMAL(10,2))
 			);
 
 			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.DriveSpace') AND type = 1)
@@ -1289,11 +1292,50 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			END
 
 			--Increase column length to accomodate shared storage names such as \\ClusterStorage
-			IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DriveSpace') AND [name] = 'Drive' AND max_length != 256)
+			IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DriveSpace') AND [name] = N'Drive' AND max_length != 256)
 			BEGIN 
 				ALTER TABLE [Inspector].[DriveSpace] ALTER COLUMN [Drive] NVARCHAR(128);
 			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DriveSpace') AND [name] = N'UsedSpaceGB')
+			BEGIN 
+				ALTER TABLE [Inspector].[DriveSpace] ADD [UsedSpaceGB] DECIMAL(10,2) NULL;
+			END
 			
+			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DriveSpace') AND [name] = N'PrevUsedSpace_GB')
+			BEGIN 
+				ALTER TABLE [Inspector].[DriveSpace] ADD [PrevUsedSpace_GB] DECIMAL(10,2) NULL;
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.DriveSpace') AND [name] = N'UsedSpaceVarianceGB')
+			BEGIN 
+				EXEC sp_executesql N'ALTER TABLE [Inspector].[DriveSpace] ADD [UsedSpaceVarianceGB] AS CAST([UsedSpaceGB]-[PrevUsedSpace_GB] AS DECIMAL(10,2));';
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.DriveSpace') AND name = 'IX_DriveSpace_Drive_UsedSpaceVarianceGB')
+			BEGIN 
+				CREATE NONCLUSTERED INDEX [IX_DriveSpace_Drive_UsedSpaceVarianceGB] ON Inspector.DriveSpace ([Drive] ASC,[UsedSpaceVarianceGB] ASC);
+			END
+
+
+			/* One off update of UsedSpaceGB and PrevUsedSpace_GB */
+			EXEC sp_executesql N'UPDATE DS
+			SET UsedSpaceGB = PrevUsedCalc.UsedSpaceGB,
+				PrevUsedSpace_GB = PrevUsedCalc.PrevUsed
+			FROM 
+			(
+				SELECT [Servername]
+				      ,[Log_Date]
+				      ,[Drive]
+					  ,[Capacity_GB]-[AvailableSpace_GB] AS UsedSpaceGB
+					  ,LAG([UsedSpaceGB],1,[UsedSpaceGB]) OVER(PARTITION BY [Servername],[Drive] ORDER BY [Log_Date] ASC) AS PrevUsed
+				  FROM [Inspector].[DriveSpace]
+			) AS PrevUsedCalc 
+			INNER JOIN Inspector.DriveSpace DS ON DS.Servername = PrevUsedCalc.Servername
+											AND DS.Drive = PrevUsedCalc.Drive
+											AND DS.Log_Date = PrevUsedCalc.Log_Date
+			WHERE (DS.PrevUsedSpace_GB IS NULL OR DS.UsedSpaceGB IS NULL);';
+
 
 			IF OBJECT_ID('Inspector.FailedAgentJobs') IS NULL
 			CREATE TABLE [Inspector].[FailedAgentJobs]
@@ -3830,7 +3872,7 @@ AS
 BEGIN
 
 /**************************
-Revision date: 07/04/2021
+Revision date: 01/05/2021
 
 DistinctDrives derived table updated to show all database_id and file_id combinations grouped by file path.
 Row number is applied so that we can filter just one database_id and file_id combination per file path and then these 
@@ -3842,31 +3884,45 @@ to reduce the number of executions performed by the TVF because on instances wit
 DECLARE @Retention INT = (SELECT Value From [Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'')
 
 DELETE FROM [Inspector].[DriveSpace] 
-WHERE Log_Date < DATEADD(DAY,-@Retention,DATEADD(DAY,1,CAST(GETDATE() AS DATE)))
+WHERE Log_Date < DATEADD(DAY,-@Retention,DATEADD(DAY,1,GETDATE()))
 AND Servername = @@SERVERNAME;
 
 
-
-/* RECORD THE DRIVE SPACE CAPACITY AND AVAILABLE SPACE PER DAY */
-INSERT INTO [Inspector].[DriveSpace] (Servername, Log_Date, Drive, Capacity_GB, AvailableSpace_GB)
-SELECT DISTINCT
-@@SERVERNAME,
-GETDATE(),
-CAST(UPPER(volumestats.volume_mount_point) AS NVARCHAR(128)) AS Drive,
-CAST((CAST(volumestats.total_bytes AS DECIMAL(20,2)))/1024/1024/1024 AS DECIMAL(10,2)) Capacity_GB,
-CAST((CAST(volumestats.available_bytes AS DECIMAL(20,2)))/1024/1024/1024 AS DECIMAL(10,2)) AS AvailableSpace_GB
+INSERT INTO [Inspector].[DriveSpace] (Servername, Log_Date, Drive, Capacity_GB, AvailableSpace_GB, UsedSpaceGB,PrevUsedSpace_GB)
+SELECT 
+LatestDriveSpace.Servername,
+LatestDriveSpace.Log_Date,
+LatestDriveSpace.Drive,
+LatestDriveSpace.Capacity_GB,
+LatestDriveSpace.AvailableSpace_GB,
+CAST(LatestDriveSpace.[Capacity_GB]-LatestDriveSpace.[AvailableSpace_GB] AS DECIMAL(10,2)),
+ISNULL(LastRecordedSpace.PrevUsedSpace_GB,CAST(LatestDriveSpace.[Capacity_GB]-LatestDriveSpace.[AvailableSpace_GB] AS DECIMAL(10,2))) AS PrevUsedSpace_GB
 FROM 
 (
-	SELECT 
-	[database_id],
-	[file_id],
-	ROW_NUMBER() OVER (PARTITION BY SUBSTRING(physical_name,1,LEN(physical_name)-CHARINDEX(''\'',REVERSE(physical_name))+1) 
-						ORDER BY SUBSTRING(physical_name,1,LEN(physical_name)-CHARINDEX(''\'',REVERSE(physical_name))+1) ASC) AS RowNum
-	FROM sys.master_files
-	WHERE database_id IN (SELECT database_id FROM sys.databases WHERE state = 0)
-) DistinctDrives
-CROSS APPLY sys.dm_os_volume_stats([DistinctDrives].[database_id],[DistinctDrives].[file_id]) volumestats
-WHERE DistinctDrives.RowNum = 1;
+	SELECT DISTINCT
+	@@SERVERNAME AS Servername,
+	GETDATE() AS Log_Date,
+	CAST(UPPER(volumestats.volume_mount_point) AS NVARCHAR(128)) AS Drive,
+	CAST((CAST(volumestats.total_bytes AS DECIMAL(20,2)))/1024/1024/1024 AS DECIMAL(10,2)) Capacity_GB,
+	CAST((CAST(volumestats.available_bytes AS DECIMAL(20,2)))/1024/1024/1024 AS DECIMAL(10,2)) AS AvailableSpace_GB
+	FROM 
+	(
+		SELECT 
+		[database_id],
+		[file_id],
+		ROW_NUMBER() OVER (PARTITION BY SUBSTRING(physical_name,1,LEN(physical_name)-CHARINDEX(''\'',REVERSE(physical_name))+1) 
+							ORDER BY SUBSTRING(physical_name,1,LEN(physical_name)-CHARINDEX(''\'',REVERSE(physical_name))+1) ASC) AS RowNum
+		FROM sys.master_files
+		WHERE database_id IN (SELECT database_id FROM sys.databases WHERE state = 0)
+	) DistinctDrives
+	CROSS APPLY sys.dm_os_volume_stats([DistinctDrives].[database_id],[DistinctDrives].[file_id]) volumestats
+	WHERE DistinctDrives.RowNum = 1
+) AS LatestDriveSpace
+OUTER APPLY (SELECT TOP (1) [UsedSpaceGB] AS PrevUsedSpace_GB
+				FROM [Inspector].[DriveSpace] 
+				WHERE LatestDriveSpace.Servername = DriveSpace.Servername
+				AND LatestDriveSpace.[Drive] = DriveSpace.[Drive]
+				ORDER BY [Log_Date] DESC) LastRecordedSpace;
 
 END';
 
@@ -8279,7 +8335,7 @@ ALTER PROCEDURE [Inspector].[DriveSpaceReport]
 )
 AS
 
---Revision date: 08/04/2021
+--Revision date: 01/05/2021
 BEGIN
 	SET NOCOUNT ON;
  /* Excluded from Warning level control */
@@ -8328,30 +8384,10 @@ BEGIN
 	TotalEntries INT NOT NULL,
 	MedianCalc BIT NULL,
 	Excluded BIT NOT NULL,
-	DaysRecorded INT NULL
+	DaysRecorded INT NULL,
+	AverageDailyGrowth_GB DECIMAL(10,2)
 	);
 
-	CREATE CLUSTERED INDEX [IX_TotalDriveEntries] ON #TotalDriveEntries (
-	Servername,
-	Drive
-	);
-
-	IF OBJECT_ID(''tempdb.dbo.#SpaceVariation'') IS NOT NULL 
-	DROP TABLE #SpaceVariation;
-
-	CREATE TABLE #SpaceVariation (
-	[Log_Date] DATETIME NOT NULL,
-	[Servername] VARCHAR(128) NOT NULL,
-	[Drive] NVARCHAR(128) NULL,
-	[Capacity_GB] DECIMAL(18,2) NOT NULL,
-	[UsedSpace_GB] DECIMAL(18,2) NOT NULL,
-	[AvailableSpace_GB] DECIMAL(18,2) NOT NULL,
-	[laggedUsedSpace] DECIMAL(18,2) NOT NULL,
-	[TotalEntries] INT NOT NULL,
-	[UsedVariance_GB] AS CAST((UsedSpace_GB - laggedUsedSpace) AS DECIMAL(18,2))
-	);
-
-     /*GROUP THE DRIVE LETTERS AND COUNT TOTAL LOGGED ENTRIES)*/
 	 INSERT INTO #TotalDriveEntries ([Servername], [Drive], [TotalEntries], [MedianCalc],[Excluded])
      SELECT Servername, 
             Drive, 
@@ -8378,7 +8414,9 @@ BEGIN
 	 SET DaysRecorded = Total
 	 FROM 
 	 (
-		SELECT DriveByDay.Drive,COUNT(*) AS Total 
+		SELECT 
+			DriveByDay.Drive,
+			COUNT(*) AS Total 
 		FROM 
 			(
 				SELECT DISTINCT Drive,CAST(Log_Date AS DATE) AS Log_Date
@@ -8389,27 +8427,7 @@ BEGIN
 	 ) DriveByDayCounts
 	 INNER JOIN #TotalDriveEntries ON DriveByDayCounts.Drive = #TotalDriveEntries.Drive;
 	 
-
-     /*CALCULATE THE DIFFERENCE BETWEEN CURRENT FREESPACE AND LAST RECORDED FREE SPACE FOR ALL ENTRIES PER DRIVE*/
-	 INSERT INTO #SpaceVariation ([Log_Date],[DriveSpace].[Servername],[DriveSpace].[Drive],[Capacity_GB],[UsedSpace_GB],[AvailableSpace_GB],[laggedUsedSpace],[TotalEntries])
-     SELECT Log_Date, 
-            DriveSpace.Servername, 
-            DriveSpace.Drive, 
-            Capacity_GB, 
-            (Capacity_GB - AvailableSpace_GB) AS UsedSpace_GB, 
-            AvailableSpace_GB, 
-            LAG(Capacity_GB - AvailableSpace_GB, 1, Capacity_GB - AvailableSpace_GB) OVER(PARTITION BY DriveSpace.Servername, 
-                                                                                                       DriveSpace.Drive
-     ORDER BY DriveSpace.Servername, 
-              DriveSpace.Drive, 
-              Log_Date) AS laggedUsedSpace, 
-            TotalEntries
-     FROM [Inspector].[DriveSpace] AS DriveSpace
-          INNER JOIN #TotalDriveEntries ON DriveSpace.Drive = #TotalDriveEntries.Drive
-                                          AND DriveSpace.Servername = #TotalDriveEntries.Servername;
-
-
-     /*TAKE THE DIFFERENCES FROM SpaceVariation CTE AND DIVIDE THIS BY TOTAL ENTRIES PER DRIVE LETTER*/
+	 
 	 WITH AverageDailyGrowth AS (
      SELECT #TotalDriveEntries.Servername, 
             #TotalDriveEntries.Drive, 
@@ -8418,21 +8436,25 @@ BEGIN
                 WHEN MedianCalc = 1 THEN
      CAST(
 	 (
-         SELECT TOP 1 PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY [UsedVariance_GB]) OVER(PARTITION BY Drive)
-         FROM #SpaceVariation Median
+         SELECT TOP 1 PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY [UsedSpaceVarianceGB]) OVER(PARTITION BY Drive)
+         FROM Inspector.DriveSpace Median
          WHERE Median.Drive = #TotalDriveEntries.Drive
      ) AS DECIMAL(10,2))
-		ELSE CAST(SUM(([UsedVariance_GB])/#TotalDriveEntries.TotalEntries) AS DECIMAL(10,2)) 
+		ELSE CAST(SUM(([UsedSpaceVarianceGB])/#TotalDriveEntries.TotalEntries) AS DECIMAL(10,2)) 
 	END AS AverageDailyGrowth_GB
      FROM #TotalDriveEntries 
-	 INNER JOIN #SpaceVariation ON #TotalDriveEntries.Drive = #SpaceVariation.Drive
-                                          AND #TotalDriveEntries.Servername = #SpaceVariation.Servername
+	 INNER JOIN Inspector.DriveSpace ON DriveSpace.Drive = #TotalDriveEntries.Drive
+                                          AND DriveSpace.Servername = #TotalDriveEntries.Servername
 
      GROUP BY #TotalDriveEntries.Servername, 
               #TotalDriveEntries.Drive, 
               MedianCalc)
-
-     SELECT @HtmlOutput = (
+	UPDATE #TotalDriveEntries
+	SET AverageDailyGrowth_GB = AverageDailyGrowth.AverageDailyGrowth_GB
+	FROM AverageDailyGrowth
+	INNER JOIN #TotalDriveEntries ON #TotalDriveEntries.Servername = AverageDailyGrowth.Servername AND #TotalDriveEntries.Drive = AverageDailyGrowth.Drive;
+	
+	SELECT @HtmlOutput = (
      SELECT CASE
                 WHEN AverageDailyGrowth_GB > 0
                      AND CAST(COALESCE((LastRecordedFreeSpace.AvailableSpace_GB) / NULLIF(AverageDailyGrowth_GB, 0), 0) AS DECIMAL(20, 2)) < ISNULL(Overrides.[DaysUntilDriveFull], @DaysUntilDriveFullThreshold)
@@ -8442,17 +8464,17 @@ BEGIN
                 THEN @AdvisoryHighlight
                 ELSE ''#FFFFFF''
             END AS [@bgcolor], 
-            AverageDailyGrowth.Servername AS ''td'', 
+            TotalDriveEntries.Servername AS ''td'', 
             '''', 
-            +AverageDailyGrowth.Drive AS ''td'', 
+            +TotalDriveEntries.Drive AS ''td'', 
             '''', 
             +LastRecordedFreeSpace.Capacity_GB AS ''td'', 
             '''', 
             +LastRecordedFreeSpace.AvailableSpace_GB AS ''td'', 
             '''', 
-            +CAST((AvailableSpace_GB / LastRecordedFreeSpace.Capacity_GB) * 100 AS DECIMAL(10, 2)) AS ''td'', 
+            +CAST((LastRecordedFreeSpace.AvailableSpace_GB / LastRecordedFreeSpace.Capacity_GB) * 100 AS DECIMAL(10, 2)) AS ''td'', 
             '''', 
-            +ISNULL(AverageDailyGrowth.AverageDailyGrowth_GB, 0.00) AS ''td'', 
+            +ISNULL(TotalDriveEntries.AverageDailyGrowth_GB, 0.00) AS ''td'', 
             '''', 
             +CASE
                  WHEN AverageDailyGrowth_GB <= 0
@@ -8464,14 +8486,13 @@ BEGIN
             '''', 
             +ISNULL(STUFF(
      (
-         SELECT '', ['' + DATENAME(WEEKDAY, x.Log_Date) + '' '' + CAST(SUM(Variance) AS VARCHAR(10)) + '' GB]''
+         SELECT '', ['' + DATENAME(WEEKDAY, x.Log_Date) + '' '' + CAST(SUM([UsedSpaceVarianceGB]) AS VARCHAR(10)) + '' GB]''
          FROM
          (
              SELECT 
 			 CAST(SpaceVariation.Log_Date AS DATE) AS Log_Date, 
-			 CAST([UsedVariance_GB] AS DECIMAL(20, 2)
-				  ) AS Variance
-             FROM #SpaceVariation SpaceVariation
+			 [UsedSpaceVarianceGB]
+             FROM Inspector.DriveSpace SpaceVariation
              WHERE SpaceVariation.Drive = TotalDriveEntries.Drive
                    AND SpaceVariation.Servername = TotalDriveEntries.Servername
                    AND SpaceVariation.Log_Date >= DATEADD(DAY, -5, GETDATE())
@@ -8496,15 +8517,13 @@ BEGIN
                                                                 ELSE(LastRecordedFreeSpace.Capacity_GB * 1.00) * (CAST(ISNULL(Overrides.[FreeSpaceRemainingPercent], @FreeSpaceRemainingPercent) AS DECIMAL(5, 2)) / 100.00)
                                                             END AS DECIMAL(10, 2)) AS VARCHAR(128)) + '' GB'', ''Not set'') + '' ('' + ISNULL(CAST(COALESCE(CAST((Overrides.[MinAvailableSpace_GB] / LastRecordedFreeSpace.Capacity_GB) * 100.00 AS DECIMAL(5, 2)), Overrides.[FreeSpaceRemainingPercent], @FreeSpaceRemainingPercent) AS VARCHAR(128)) + ''%'', ''Not set'') + ''), '' + ''Estimated days remaining: '' + ISNULL(CAST(ISNULL(Overrides.[DaysUntilDriveFull], @DaysUntilDriveFullThreshold) AS VARCHAR(128)), ''Not set'') AS ''td'', 
             ''''
-     FROM AverageDailyGrowth
-          INNER JOIN #TotalDriveEntries TotalDriveEntries ON TotalDriveEntries.Drive = AverageDailyGrowth.Drive
-                                          AND TotalDriveEntries.Servername = AverageDailyGrowth.Servername
+     FROM #TotalDriveEntries TotalDriveEntries 
           LEFT JOIN [Inspector].[DriveSpaceThresholds] Overrides ON TotalDriveEntries.Drive = Overrides.Drive
                                                                     AND TotalDriveEntries.Servername = Overrides.Servername
           CROSS APPLY
      (
-         SELECT TOP 1 Capacity_GB, 
-                      AvailableSpace_GB
+         SELECT TOP 1 [Capacity_GB], 
+                      [AvailableSpace_GB]
          FROM [Inspector].[DriveSpace] DriveSpace
          WHERE DriveSpace.Drive = TotalDriveEntries.Drive
                AND DriveSpace.Servername = TotalDriveEntries.Servername
@@ -8512,24 +8531,22 @@ BEGIN
      ) AS LastRecordedFreeSpace
           CROSS APPLY
      (
-         SELECT CAST(AVG([UsedVariance_GB]) AS DECIMAL(20, 2)) AS SUMFiveDayTotal
+         SELECT CAST(AVG([UsedSpaceVarianceGB]) AS DECIMAL(20, 2)) AS SUMFiveDayTotal
          FROM
      (
          SELECT	TOP	(7200)  /* Maximum of 5 days worth of 1 min collections per drive per server */
 					  Drive, 
-                      laggedUsedSpace, 
-                      UsedSpace_GB,
-					  [UsedVariance_GB]
-         FROM #SpaceVariation SpaceVariation
-         WHERE SpaceVariation.Drive = TotalDriveEntries.Drive
-               AND SpaceVariation.Servername = TotalDriveEntries.Servername
-               AND SpaceVariation.Log_Date >= DATEADD(DAY, -5, GETDATE())
-         ORDER BY SpaceVariation.Log_Date DESC
+					  UsedSpaceVarianceGB
+         FROM Inspector.DriveSpace FiveDay
+         WHERE FiveDay.Drive = TotalDriveEntries.Drive
+               AND FiveDay.Servername = TotalDriveEntries.Servername
+               AND FiveDay.Log_Date >= DATEADD(DAY, -5, GETDATE())
+         ORDER BY FiveDay.Log_Date DESC
      ) AS LastFiveDays
      ) AS FiveDayTotal
-     WHERE AverageDailyGrowth.Servername = @Servername
-     ORDER BY AverageDailyGrowth.Drive ASC
-	FOR XML PATH(''tr''),Elements)
+     WHERE TotalDriveEntries.Servername = @Servername
+     ORDER BY TotalDriveEntries.Drive ASC
+	 FOR XML PATH(''tr''),Elements)
 
 	/* If @NoClutter is on we do not want to show the table if it has @InfoHighlight against the row/s
 	@NoClutter not applicable to DriveSpace module */
