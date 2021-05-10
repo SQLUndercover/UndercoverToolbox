@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 01/05/2021
+Revision date: 10/05/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210501';
+DECLARE @Revisiondate DATE = '20210510';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -10828,7 +10828,7 @@ EXEC('CREATE PROCEDURE  [Inspector].[SQLUnderCoverInspectorReport] AS;');
 EXEC sp_executesql N'
 /*********************************************
 --Author: Adrian Buckman
---Revision date: 24/04/2021
+--Revision date: 10/05/2021
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 *********************************************/
 
@@ -11960,6 +11960,7 @@ BEGIN
 </body>
 </html>
 '';
+	SET @ServerSummaryHeader = Replace(Replace(@ServerSummaryHeader,''&lt;'',''<''),''&gt;'',''>'');
 END;
 
 IF (@DetailedSummary = 1)
