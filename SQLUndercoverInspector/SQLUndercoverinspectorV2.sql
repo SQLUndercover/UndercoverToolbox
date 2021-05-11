@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 10/05/2021
+Revision date: 11/05/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210510';
+DECLARE @Revisiondate DATE = '20210511';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1176,10 +1176,10 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				);
 			END
 
-			IF NOT EXISTS(SELECT 1 FROM [Inspector].[MultiWarningModules] WHERE [Modulename] IN ('DriveSpace','DatabaseGrowths','DatabaseStates'))
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[MultiWarningModules] WHERE [Modulename] IN ('DriveSpace','DatabaseGrowths','DatabaseStates','ServerSettings'))
 			BEGIN 
 				EXEC sp_executesql N'INSERT INTO [Inspector].[MultiWarningModules] ([Modulename])
-				VALUES(''DriveSpace''),(''DatabaseGrowths''),(''DatabaseStates'');';
+				VALUES(''DriveSpace''),(''DatabaseGrowths''),(''DatabaseStates''),(''ServerSettings'');';
 			END
 
 
@@ -1674,8 +1674,111 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			[Log_Date] DATETIME NULL,
 			[configuration_id] INT NULL,
 			[Setting] NVARCHAR(128) NULL,
-			[value_in_use] INT NULL
+			[value_in_use] INT NULL,
+			[LastUpdated] DATETIME NOT NULL
 			);
+
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.ServerSettings') AND [name] = N'CIX_Servername_Setting') 
+			BEGIN 
+				EXEC sp_executesql N'CREATE CLUSTERED INDEX [CIX_Servername_Setting] ON [Inspector].[ServerSettings] ([Servername],[Setting]);';
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.ServerSettings') AND [name] = N'LastUpdated') 
+			BEGIN 
+				ALTER TABLE [Inspector].[ServerSettings] ADD [LastUpdated] DATETIME NULL;
+			END
+
+			EXEC sp_executesql N'
+			UPDATE [Inspector].[ServerSettings] 
+			SET [LastUpdated] = [Log_Date]
+			WHERE [Log_Date] IS NULL;';
+
+			IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.ServerSettings') AND [name] = N'LastUpdated' AND is_nullable = 1)
+			BEGIN
+				ALTER TABLE [Inspector].[ServerSettings] ALTER COLUMN [LastUpdated] DATETIME NOT NULL;
+			END
+
+			/* On off population with IsActtive = 0*/
+			EXEC sp_executesql N'
+			INSERT INTO [Inspector].[ServerSettings] ([Servername], [Log_Date], [configuration_id], [Setting], [value_in_use], [LastUpdated])
+			SELECT 
+				@@SERVERNAME,
+				GETDATE(),
+				[configuration_id],
+				[name],
+				CAST([value_in_use] AS INT),
+				GETDATE()
+			FROM sys.configurations conf
+			WHERE NOT EXISTS(SELECT 1 FROM [Inspector].[ServerSettings] ssc WHERE [conf].[name] = [ssc].[Setting] AND [ssc].[Servername] = @@SERVERNAME);';
+
+
+			IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[ServerSettingsConfig]') AND type in (N'U'))
+			BEGIN
+				CREATE TABLE [Inspector].[ServerSettingsConfig] (
+				[Servername] NVARCHAR(128), 
+				[Setting] NVARCHAR(128), 
+				[value_in_use] INT, 
+				[IsActive] BIT
+				);
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.ServerSettingsConfig') AND [name] = N'CIX_Servername_IsActive_Setting') 
+			BEGIN 
+				EXEC sp_executesql N'CREATE CLUSTERED INDEX [CIX_Servername_IsActive_Setting] ON [Inspector].[ServerSettingsConfig] ([Servername],[IsActive],[Setting]);';
+			END
+
+			/* On off population with IsActtive = 0*/
+			EXEC sp_executesql N'
+			INSERT INTO [Inspector].[ServerSettingsConfig] ([Servername],[Setting],[value_in_use],[IsActive])
+			SELECT 
+				@@SERVERNAME,
+				[name],
+				CAST([value_in_use] AS INT),
+				0
+			FROM sys.configurations conf
+			WHERE NOT EXISTS(SELECT 1 FROM [Inspector].[ServerSettingsConfig] ssc WHERE [conf].[name] = [ssc].[Setting] AND [ssc].[Servername] = @@SERVERNAME);';
+
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[MultiWarningModules]  WHERE [Modulename] = 'ServerSettings')
+			BEGIN 
+				INSERT INTO [Inspector].[MultiWarningModules] ([Modulename])
+				VALUES('ServerSettings');
+			END 
+
+			IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[ServerSettingsAudit]') AND type in (N'U'))
+			BEGIN
+			CREATE TABLE [Inspector].[ServerSettingsAudit](
+				[ID] INT IDENTITY(1,1),
+				[Servername] NVARCHAR(128) NULL,
+				[Log_Date] DATETIME NULL,
+				[configuration_id] INT NULL,
+				[Setting] NVARCHAR(128) NULL,
+				[old_value_in_use] INT NULL,
+				[value_in_use] INT NULL,
+				[AuditDate] DATETIME NULL
+			);
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.ServerSettingsAudit') AND [name] = N'CIX_Servername_Setting_AuditDate') 
+			BEGIN 
+				EXEC sp_executesql N'CREATE CLUSTERED INDEX [CIX_Servername_Setting_AuditDate] ON [Inspector].[ServerSettingsAudit] ([Servername],[Setting],[AuditDate]);';
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.triggers WHERE [parent_id] = OBJECT_ID(N'Inspector.ServerSettings') AND [name] = N'ServerSettingsChangeAudit')
+			BEGIN 
+EXEC sp_executesql N'
+CREATE TRIGGER [Inspector].[ServerSettingsChangeAudit] ON [Inspector].[ServerSettings]
+AFTER UPDATE 
+AS 
+BEGIN 
+	SET NOCOUNT ON;
+
+	INSERT INTO [Inspector].[ServerSettingsAudit] ([Servername],[Log_Date],[configuration_id],[Setting],[old_value_in_use],[value_in_use],[AuditDate])
+	SELECT i.[Servername],i.[Log_Date],i.[configuration_id],i.[Setting],d.[value_in_use],i.[value_in_use],i.[LastUpdated]
+	FROM inserted i 
+	INNER JOIN deleted d ON i.[Servername] = d.[Servername]
+							AND i.[configuration_id] = d.[configuration_id];
+END';
+			END 
 
 			IF OBJECT_ID('Inspector.InstanceStart') IS NULL
 			CREATE TABLE [Inspector].[InstanceStart](
@@ -1875,7 +1978,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 					(''LoginAttempts'',''Failed logins''),
 					(''JobOwner'',''Agent jobs not set to your preferred owner''),
 					(''LongRunningTransactions'',''Long running transactions exceeding your threshold''),
-					(''ServerSettings'',''Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values''),
+					(''ServerSettings'',''Server settings changed or differ from your config values''),
 					(''SuspectPages'',''Suspect database pages found''),
 					(''UnusedLogshipConfig'',''Unused log shipping config found''),
 					(''DatacollectionsOverdue'',''Data collection duration exceeded module schedules'');
@@ -1887,6 +1990,20 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 					([Modulename] ASC);';
 				END
 			END
+
+ 
+			EXEC sp_executesql N'
+			UPDATE [Inspector].[DefaultHeaderText]
+			SET [HeaderText] = ''Server settings changed or differ from your config values''
+			WHERE [Modulename] = ''ServerSettings''
+			AND [HeaderText] = ''Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values'';';
+ 
+ 			EXEC sp_executesql N'
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[DefaultHeaderText] WHERE [Modulename] = ''DriveSpace'') 
+			BEGIN 
+				INSERT INTO [Inspector].[DefaultHeaderText]([Modulename], [HeaderText])
+				VALUES(''DriveSpace'',''Drive space thresholds breached'');
+			END';
 
 			IF OBJECT_ID('Inspector.DatacollectionsOverdue') IS NULL 
 			BEGIN
@@ -4922,26 +5039,37 @@ ALTER PROCEDURE [Inspector].[ServerSettingsInsert]
 AS
 BEGIN
 
---Revision date: 28/06/2018
+--Revision date: 07/05/2021
 
+SET NOCOUNT ON;
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME 
 DECLARE @LogDate DATETIME = GETDATE()
 
-DELETE FROM [Inspector].[ServerSettings]
-WHERE Servername = @Servername
-
-INSERT INTO [Inspector].[ServerSettings] ([Servername],[Log_Date],[configuration_id],[Setting],[value_in_use])
+/* INSERT any configuration options not currently in the Inspector table */
+INSERT INTO [Inspector].[ServerSettings] ([Servername],[Log_Date],[configuration_id],[Setting],[value_in_use],[LastUpdated])
 SELECT 
 @Servername,
 @LogDate,
 [configuration_id],
 CAST([name] AS NVARCHAR(128)), 
-CAST([value_in_use] AS INT)
+CAST([value_in_use] AS INT),
+@LogDate AS LastUpdated
 FROM sys.configurations
-WHERE name IN (''max server memory (MB)'',''cost threshold for parallelism'',''max degree of parallelism'',''optimize for ad hoc workloads'',''automatic soft-NUMA disabled'',''xp_cmdshell'',''Agent XPs'',''Database Mail XPs'',''backup compression default'',''backup checksum default'')
-ORDER BY 
-[configuration_id] ASC,
-[name] ASC
+WHERE NOT EXISTS (SELECT 1 
+					FROM [Inspector].[ServerSettings] 
+					WHERE [ServerSettings].[configuration_id] = [configurations].[configuration_id]
+					AND [ServerSettings].[Servername] = @Servername
+				);
+
+/* UPDATE any configuration options which have changed */
+UPDATE ss
+SET 
+[value_in_use] = CAST([configurations].[value_in_use] AS INT),
+[LastUpdated] = @LogDate
+FROM [Inspector].[ServerSettings] ss 
+INNER JOIN sys.configurations ON [ss].[configuration_id] = [configurations].[configuration_id]
+WHERE [ss].[value_in_use] != [configurations].[value_in_use]
+AND [ss].[Servername] = @Servername;
 
 END;';
 
@@ -9685,15 +9813,14 @@ ALTER PROCEDURE [Inspector].[ServerSettingsReport]
 )
 AS
 BEGIN
---Revision date: 20/04/2021	
+--Revision date: 11/05/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @LastCollection DATETIME;
-	DECLARE @ReportFrequency INT;
+	DECLARE @LastReportDateTime DATETIME;
 
-	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
-	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
-	SET @ReportFrequency *= -1;
+	SET @LastCollection = [Inspector].[GetLastCollectionDateTime](@Modulename);
+	SET @LastReportDateTime = [Inspector].[GetLastReportDateTime](@ModuleConfig);
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -9704,52 +9831,84 @@ BEGIN
 		@ServerSpecific,
 		''Server settings'',
 		@TableHeaderColour,
-		''Setting,Total'')
+		''Setting,ServerSettingInUse,YourConfigValue,ConfigIsActive,ChangeType,LastUpdated,SetConfigToMatchCurrent'')
 	);
 
 	
 	/* if there has been a data collection since the last report frequency minutes ago then run the report */
-	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
+	IF(@LastCollection >= @LastReportDateTime)
 	BEGIN
 		SELECT @HtmlOutput = 
-		(SELECT 
-		CASE 
-			WHEN @WarningLevel IS NULL 
-			THEN CASE 
-					WHEN [Setting] = ''cost threshold for parallelism'' AND [value_in_use] = 5 THEN @AdvisoryHighlight
-					WHEN [Setting] = ''max degree of parallelism'' AND [value_in_use] <= 1 THEN @AdvisoryHighlight
-					WHEN [Setting] = ''max server memory (MB)'' AND [value_in_use] = 2147483647 THEN @AdvisoryHighlight
-					ELSE ''#FFFFFF''
-				 END
-			WHEN @WarningLevel = 1
-			THEN CASE 
-					WHEN [Setting] = ''cost threshold for parallelism'' AND [value_in_use] = 5 THEN @WarningHighlight
-					WHEN [Setting] = ''max degree of parallelism'' AND [value_in_use] <= 1 THEN @WarningHighlight
-					WHEN [Setting] = ''max server memory (MB)'' AND [value_in_use] = 2147483647 THEN @WarningHighlight
-					ELSE ''#FFFFFF''
-				 END
-			WHEN @WarningLevel = 2 
-			THEN CASE 
-					WHEN [Setting] = ''cost threshold for parallelism'' AND [value_in_use] = 5 THEN @AdvisoryHighlight
-					WHEN [Setting] = ''max degree of parallelism'' AND [value_in_use] <= 1 THEN @AdvisoryHighlight
-					WHEN [Setting] = ''max server memory (MB)'' AND [value_in_use] = 2147483647 THEN @AdvisoryHighlight
-					ELSE ''#FFFFFF''
-				 END
-			WHEN @WarningLevel = 3 
-			THEN CASE 
-					WHEN [Setting] = ''cost threshold for parallelism'' AND [value_in_use] = 5 THEN @InfoHighlight
-					WHEN [Setting] = ''max degree of parallelism'' AND [value_in_use] <= 1 THEN @InfoHighlight
-					WHEN [Setting] = ''max server memory (MB)'' AND [value_in_use] = 2147483647 THEN @InfoHighlight
-					ELSE ''#FFFFFF''
-				 END
-		ELSE ''#FFFFFF''		
-		END AS [@bgcolor],
-		[Setting]  AS ''td'','''', + 
-		[value_in_use]   AS ''td'',''''
-		FROM [Inspector].[ServerSettings]
-		WHERE Servername = @Servername
-		ORDER BY [configuration_id] ASC
-		FOR XML PATH(''tr''),ELEMENTS);
+(
+SELECT  
+CASE 
+	WHEN [ChangeType] = N''A change to server configuration was detected'' THEN @WarningHighlight
+	WHEN [ChangeType] = N''A change to server configuration was detected. Server value differs from your config value'' THEN @WarningHighlight
+	WHEN [ChangeType] = N''No change detected. Server value differs from your config value'' THEN @AdvisoryHighlight
+	ELSE ''#FFFFFF''
+END AS [@bgcolor],
+[Setting] AS ''td'','''', + 
+[ServerSettingInUse] AS ''td'','''', + 
+[YourConfigValue] AS ''td'','''', + 
+CASE 
+	WHEN [sscvalue_in_use] IS NULL THEN 0
+	ELSE 1 
+END AS ''td'','''', + /* ConfigIsActive */
+[ChangeType] AS ''td'','''', + 
+[LastUpdated] AS ''td'','''', + 
+[SetConfigToMatchCurrent] AS ''td'',''''
+FROM 
+(
+	SELECT 
+	[ss].[Setting],
+	[ss].[value_in_use] AS ServerSettingInUse,
+	[ssc].[value_in_use] AS sscvalue_in_use,
+	ISNULL(CAST([ssc].[value_in_use] AS VARCHAR(10)),''N/A'') AS YourConfigValue,
+	CASE /* Check if a aetting has been changed since the last report */
+		WHEN (EXISTS(SELECT 1 
+						FROM [Inspector].[ServerSettingsAudit] ssa
+						WHERE [ss].[Servername] = [ssa].[Servername]
+						AND [ss].[configuration_id] = [ssa].[configuration_id]
+						AND [ssa].[AuditDate] > @LastReportDateTime
+					)
+			 ) THEN N''A change to server configuration was detected''
+	
+		ELSE N''No change detected''
+	END+
+	CASE 
+		WHEN [ss].[value_in_use] != [ssc].[value_in_use] THEN N''. Server value differs from your config value''
+		WHEN [ss].[value_in_use] = [ssc].[value_in_use] THEN N''. Server value matches your config value''
+		ELSE ''''
+	END AS ChangeType,
+	ISNULL(CONVERT(VARCHAR(20),[ss].[LastUpdated],113),N''N/A'') AS LastUpdated,
+	CASE 
+		WHEN [ss].[value_in_use] = [ssc].[value_in_use] THEN N''/* N/A - [''+[ss].[Setting]+N''], Matching config */''
+		ELSE N''UPDATE [Inspector].[ServerSettingsConfig] SET [IsActive] = 1, [value_in_use] = ''+
+	CAST([ss].[value_in_use] AS VARCHAR(10))+
+	N'' WHERE [Servername] = N''''''+
+	@Servername+
+	N'''''' AND [Setting] = N''''''+
+	[ss].[Setting]+
+	N'''''';'' 
+	END AS SetConfigToMatchCurrent
+	FROM [Inspector].[ServerSettings] ss
+	LEFT JOIN (SELECT [Servername],[Setting],[value_in_use]
+				FROM [Inspector].[ServerSettingsConfig] 
+				WHERE [ServerSettingsConfig].[IsActive] = 1
+				) [ssc] ON [ss].[Setting] = [ssc].[Setting]
+						AND [ss].[Servername] = [ssc].[Servername]
+	WHERE ([ss].Servername = @Servername)
+) ServerSettings 
+WHERE (([ChangeType] != N''No change detected'') OR (@WarningLevel = 0))
+ORDER BY 
+CASE 
+	WHEN [ChangeType] = N''A change to server configuration was detected'' THEN 1
+	WHEN [ChangeType] = N''A change to server configuration was detected. Server value differs from your config value'' THEN 2
+	WHEN [ChangeType] = N''No change detected. Server value differs from your config value'' THEN 3
+	WHEN [ChangeType] = N''No change detected. Server value matches your config value'' THEN 4
+	ELSE 5
+END ASC
+FOR XML PATH(''tr''),ELEMENTS);
 	END
 	ELSE
 	BEGIN
@@ -9762,7 +9921,11 @@ BEGIN
 			WHEN @WarningLevel = 3 THEN @InfoHighlight
 		END AS [@bgcolor],
 		''Data Collection out of date''  AS ''td'','''', + 
-		''N/A''   AS ''td'',''''
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'',''''
 		FOR XML PATH(''tr''),ELEMENTS);
 
 		--Mark Collection as out of date
