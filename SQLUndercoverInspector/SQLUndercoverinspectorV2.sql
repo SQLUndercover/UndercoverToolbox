@@ -9831,7 +9831,7 @@ BEGIN
 		@ServerSpecific,
 		''Server settings'',
 		@TableHeaderColour,
-		''Setting,ServerSettingInUse,YourConfigValue,ConfigIsActive,ChangeType,LastUpdated,SetConfigToMatchCurrent'')
+		''Setting,ServerSettingInUse,old_value,YourConfigValue,ConfigIsActive,ChangeType,LastUpdated,SetConfigToMatchCurrent'')
 	);
 
 	
