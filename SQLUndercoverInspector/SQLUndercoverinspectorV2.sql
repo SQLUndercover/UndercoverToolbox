@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210511';
+DECLARE @Revisiondate DATE = '20210512';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -2577,7 +2577,7 @@ END
 								FROM [Inspector].[ModuleConfig] 
 								WHERE [ModuleConfig_Desc] = @ModuleConfig);
 		
-		RETURN(ISNULL(@LastDateTime,''19000101''));
+		RETURN(ISNULL(@LastDateTime,CAST(CAST(GETDATE() AS DATE) AS DATETIME)));
 	END
 	' 
 	END;
@@ -9813,7 +9813,7 @@ ALTER PROCEDURE [Inspector].[ServerSettingsReport]
 )
 AS
 BEGIN
---Revision date: 11/05/2021	
+--Revision date: 12/05/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @LastCollection DATETIME;
@@ -9849,6 +9849,7 @@ CASE
 END AS [@bgcolor],
 [Setting] AS ''td'','''', + 
 [ServerSettingInUse] AS ''td'','''', + 
+[old_value_in_use] AS ''td'','''', + 
 [YourConfigValue] AS ''td'','''', + 
 CASE 
 	WHEN [sscvalue_in_use] IS NULL THEN 0
@@ -9881,6 +9882,8 @@ FROM
 		ELSE ''''
 	END AS ChangeType,
 	ISNULL(CONVERT(VARCHAR(20),[ss].[LastUpdated],113),N''N/A'') AS LastUpdated,
+	ssa.[AuditDate],
+	ssa.[old_value_in_use],
 	CASE 
 		WHEN [ss].[value_in_use] = [ssc].[value_in_use] THEN N''/* N/A - [''+[ss].[Setting]+N''], Matching config */''
 		ELSE N''UPDATE [Inspector].[ServerSettingsConfig] SET [IsActive] = 1, [value_in_use] = ''+
@@ -9889,7 +9892,7 @@ FROM
 	@Servername+
 	N'''''' AND [Setting] = N''''''+
 	[ss].[Setting]+
-	N'''''';'' 
+	N'''''';''
 	END AS SetConfigToMatchCurrent
 	FROM [Inspector].[ServerSettings] ss
 	LEFT JOIN (SELECT [Servername],[Setting],[value_in_use]
@@ -9897,9 +9900,17 @@ FROM
 				WHERE [ServerSettingsConfig].[IsActive] = 1
 				) [ssc] ON [ss].[Setting] = [ssc].[Setting]
 						AND [ss].[Servername] = [ssc].[Servername]
+	LEFT JOIN [Inspector].[ServerSettingsAudit] ssa ON ss.Servername = ssa.Servername
+														AND ss.configuration_id = ssa.configuration_id
+				
+	
 	WHERE ([ss].Servername = @Servername)
 ) ServerSettings 
-WHERE (([ChangeType] != N''No change detected'') OR (@WarningLevel = 0))
+WHERE (
+		(ServerSettings.[AuditDate] > @LastReportDateTime AND [ChangeType] != N''No change detected'') 
+		OR 
+		(@WarningLevel = 0)
+	  )
 ORDER BY 
 CASE 
 	WHEN [ChangeType] = N''A change to server configuration was detected'' THEN 1
