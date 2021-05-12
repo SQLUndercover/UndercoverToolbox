@@ -9844,6 +9844,7 @@ SELECT
 CASE 
 	WHEN [ChangeType] = N''A change to server configuration was detected'' THEN @WarningHighlight
 	WHEN [ChangeType] = N''A change to server configuration was detected. Server value differs from your config value'' THEN @WarningHighlight
+	WHEN [ChangeType] = N''A change to server configuration was detected. Server value matches your config value'' THEN @AdvisoryHighlight
 	WHEN [ChangeType] = N''No change detected. Server value differs from your config value'' THEN @AdvisoryHighlight
 	ELSE ''#FFFFFF''
 END AS [@bgcolor],
@@ -9870,7 +9871,7 @@ FROM
 						FROM [Inspector].[ServerSettingsAudit] ssa
 						WHERE [ss].[Servername] = [ssa].[Servername]
 						AND [ss].[configuration_id] = [ssa].[configuration_id]
-						AND [ssa].[AuditDate] > @LastReportDateTime
+						AND [ssa].[AuditDate] > DATEADD(MINUTE,@ReportFrequency,GETDATE())
 					)
 			 ) THEN N''A change to server configuration was detected''
 	
@@ -9907,17 +9908,19 @@ FROM
 	WHERE ([ss].Servername = @Servername)
 ) ServerSettings 
 WHERE (
-		(ServerSettings.[AuditDate] > @LastReportDateTime AND [ChangeType] != N''No change detected'') 
+		(ServerSettings.[AuditDate] > DATEADD(MINUTE,@ReportFrequency,GETDATE()) AND [ChangeType] != N''No change detected'') 
 		OR 
 		(@WarningLevel = 0)
 	  )
 ORDER BY 
+LastUpdated ASC,
 CASE 
 	WHEN [ChangeType] = N''A change to server configuration was detected'' THEN 1
 	WHEN [ChangeType] = N''A change to server configuration was detected. Server value differs from your config value'' THEN 2
-	WHEN [ChangeType] = N''No change detected. Server value differs from your config value'' THEN 3
-	WHEN [ChangeType] = N''No change detected. Server value matches your config value'' THEN 4
-	ELSE 5
+	WHEN [ChangeType] = N''A change to server configuration was detected. Server value matches your config value'' THEN 3
+	WHEN [ChangeType] = N''No change detected. Server value differs from your config value'' THEN 4
+	WHEN [ChangeType] = N''No change detected. Server value matches your config value'' THEN 5
+	ELSE 6
 END ASC
 FOR XML PATH(''tr''),ELEMENTS);
 	END
