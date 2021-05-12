@@ -9817,10 +9817,11 @@ BEGIN
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @LastCollection DATETIME;
-	DECLARE @LastReportDateTime DATETIME;
+	DECLARE @ReportFrequency INT;
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime](@Modulename);
-	SET @LastReportDateTime = [Inspector].[GetLastReportDateTime](@ModuleConfig);
+	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+	SET @ReportFrequency *= -1;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
@@ -9836,7 +9837,7 @@ BEGIN
 
 	
 	/* if there has been a data collection since the last report frequency minutes ago then run the report */
-	IF(@LastCollection >= @LastReportDateTime)
+	IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
 	BEGIN
 		SELECT @HtmlOutput = 
 (
