@@ -11195,6 +11195,16 @@ td {
 	padding-bottom:10px;
 	font: 11px arial;
 }
+th {
+	color: Black; 
+	border: solid black;
+	border-width: 1px;
+	padding-left:10px;
+	padding-right:10px;
+	padding-top:10px;
+	padding-bottom:10px;
+	font: 11px arial;
+}
 tr:hover {
 	opacity: 0.8;
 }
