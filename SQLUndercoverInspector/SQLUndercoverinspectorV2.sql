@@ -8912,7 +8912,7 @@ ALTER PROCEDURE [Inspector].[GenerateHeaderInfo] (
 @Debug BIT = 0
 )
 AS 
---Revision date: 15/05/2020
+--Revision date: 13/05/2021
 BEGIN
 	DECLARE @HeaderText VARCHAR(100);
 	DECLARE @CountInfo INT = 0;
@@ -8970,8 +8970,8 @@ BEGIN
 			SET @CountWarning = (LEN(@ModuleBodyText) - LEN(REPLACE(@ModuleBodyText,@WarningHighlight, '''')))/LEN(@WarningHighlight)
 			SELECT @AlertHeader = CAST('''' AS VARCHAR(200)) +
 			CASE --Add hyperlinks to the respective table and also Anchors for Back to Top for each table
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountWarning AS VARCHAR(5))+'') ''+@HeaderText+''</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountWarning AS VARCHAR(5))+'') ''+@HeaderText+'' <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A class="linkWarning" HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountWarning AS VARCHAR(5))+'') ''+@HeaderText+''</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A class="linkWarning" HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountWarning AS VARCHAR(5))+'') ''+@HeaderText+'' <b>(Data collection out of Date)</b></font><p>''  
 			END
 			SET @Importance = ''High''; 
 		END
@@ -8988,8 +8988,8 @@ BEGIN
 			SET @CountAdvisory = (LEN(@ModuleBodyText) - LEN(REPLACE(@ModuleBodyText,@AdvisoryHighlight, '''')))/LEN(@AdvisoryHighlight)
 			SELECT @AdvisoryHeader = CAST('''' AS VARCHAR(200)) +
 			CASE --Add hyperlinks to the respective table and also Anchors for Back to Top for each table
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdvisory AS VARCHAR(5))+'') ''+@HeaderText+''</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdvisory AS VARCHAR(5))+'') ''+@HeaderText+'' <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A class="linkAdvisory" HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdvisory AS VARCHAR(5))+'') ''+@HeaderText+''</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A class="linkAdvisory" HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountAdvisory AS VARCHAR(5))+'') ''+@HeaderText+'' <b>(Data collection out of Date)</b></font><p>''  
 			END
 
 			--If Multi warning is enabled for this module and Importance was set to high in the previous block then do not reset Importance
@@ -9016,8 +9016,8 @@ BEGIN
 			SET @CountInfo = (LEN(@ModuleBodyText) - LEN(REPLACE(@ModuleBodyText,@InfoHighlight, '''')))/LEN(@InfoHighlight)
 			SELECT @InfoHeader = CAST('''' AS VARCHAR(200)) +
 			CASE --Add hyperlinks to the respective table and also Anchors for Back to Top for each table
-				WHEN @CollectionOutOfDate = 0 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountInfo AS VARCHAR(5))+'') ''+@HeaderText+''</font><p>''  
-				WHEN @CollectionOutOfDate = 1 THEN ''<A HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountInfo AS VARCHAR(5))+'') ''+@HeaderText+'' <b>(Data collection out of Date)</b></font><p>''  
+				WHEN @CollectionOutOfDate = 0 THEN ''<A class="linkInfo" HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountInfo AS VARCHAR(5))+'') ''+@HeaderText+''</font><p>''  
+				WHEN @CollectionOutOfDate = 1 THEN ''<A class="linkInfo" HREF = "#''+REPLACE(@Servername,''\'','''')+@Modulename+''">''+@Servername+''</a><A NAME = "''+REPLACE(@Servername,''\'','''')+@Modulename+''Back"></a><font color= "''+@WarningLevelFontColour+''">  - has (''+CAST(@CountInfo AS VARCHAR(5))+'') ''+@HeaderText+'' <b>(Data collection out of Date)</b></font><p>''  
 			END
 
 			--If Multi warning is enabled for this module and Importance was set to high or Normal in the previous blocks then do not reset Importance
@@ -9036,7 +9036,7 @@ BEGIN
 	--If no Headers are populated then revert the table tail to the standard back to top
 	IF COALESCE(@AlertHeader,@AdvisoryHeader,@InfoHeader) IS NULL
 	BEGIN 
-		SET @TableTail = ''</table><p><A HREF = "#Warnings">Back to Top</a><p>'';
+		SET @TableTail = ''</table></div><p><A HREF = "#Warnings">Back to Top</a><p>'';
 	END 
 
 IF (@Debug = 1)
@@ -9091,9 +9091,11 @@ SET @Columnnames = REPLACE(@Columnnames,'', '','','');
 
 SELECT @TableHeader = 
     ''<b><A NAME = "''+REPLACE(@Servername,''\'','''')+''''+@Modulename+''''+''"></a>''+@Tableheadermessage+''</b>
-    <br> <table cellpadding=0 cellspacing=0 border=0> 
+    <br> 
+	<div style="overflow-x:auto;">
+	<table cellpadding=0 cellspacing=0 border=0> 
     <tr>''+
-	(SELECT ''<td bgcolor=''+ISNULL(@TableHeaderColour,'''')+''><b>''+ISNULL([StringElement],'''')+''</b></font></td>'' FROM master.dbo.fn_SplitString(@Columnnames,'','') FOR XML PATH(''''), TYPE) .value(''.'', ''VARCHAR(MAX)'');
+	(SELECT ''<th bgcolor=''+ISNULL(@TableHeaderColour,'''')+''><b>''+ISNULL([StringElement],'''')+''</b></font></th>'' FROM master.dbo.fn_SplitString(@Columnnames,'','') FOR XML PATH(''''), TYPE) .value(''.'', ''VARCHAR(MAX)'');
 
 	RETURN(@TableHeader);
 END
@@ -10995,7 +10997,7 @@ EXEC('CREATE PROCEDURE  [Inspector].[SQLUnderCoverInspectorReport] AS;');
 EXEC sp_executesql N'
 /*********************************************
 --Author: Adrian Buckman
---Revision date: 10/05/2021
+--Revision date: 13/05/2021
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 *********************************************/
 
@@ -11073,7 +11075,7 @@ DECLARE @VMType NVARCHAR(60);
 
 DECLARE @Stack VARCHAR(255) = (SELECT [Value] from [Inspector].[Settings] WHERE [Description] = ''SQLUndercoverInspectorEmailSubject'');
 
-DECLARE @EmailHeader VARCHAR(1000) = CASE 
+DECLARE @EmailHeader VARCHAR(2000) = CASE 
 										WHEN @PSCollection = 0 
 										THEN ''<img src="''+(SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''EmailBannerURL'')+''">''
 										ELSE ''<img src="''+(SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''PSEmailBannerURL'')+''">''
@@ -11183,10 +11185,58 @@ SET @EmailHeader = ''
 <head>
 <title>SQLUndercover Inspector</title>
 <style>
-td 
-    {
-    color: Black; border: solid black;border-width: 1px;padding-left:10px;padding-right:10px;padding-top:10px;padding-bottom:10px;font: 11px arial;
-    }
+td {
+	color: Black; 
+	border: solid black;
+	border-width: 1px;
+	padding-left:10px;
+	padding-right:10px;
+	padding-top:10px;
+	padding-bottom:10px;
+	font: 11px arial;
+}
+tr:hover {
+	opacity: 0.8;
+}
+.linkWarning {
+  background-color: ''+@WarningHighlight+'';
+  color: white;
+  padding: 2px 10px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  border-radius:5px;
+}
+.linkWarning:hover {
+	  background-color: ''+@WarningHighlight+'';
+	  opacity: 0.6;
+}
+.linkAdvisory {
+  background-color: ''+@AdvisoryHighlight+'';
+  color: black;
+  padding: 2px 10px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  border-radius:5px;
+}
+.linkAdvisory:hover {
+	  background-color: ''+@AdvisoryHighlight+'';
+	  opacity: 0.6;
+}
+.linkInfo {
+  background-color: ''+@InfoHighlight+'';
+  color: black;
+  padding: 2px 10px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  border-radius:5px;
+}
+.linkInfo:hover {
+	  background-color: ''+@InfoHighlight+'';
+	  opacity: 0.6;
+}
 </style>
 </head>
 <body style="background-color: ''+CASE WHEN @Theme = ''LIGHT'' THEN ''White'' ELSE ''Black'' END +'';" text="''+CASE WHEN @Theme = ''LIGHT'' THEN ''Black'' ELSE ''White'' END +''">
@@ -11346,7 +11396,7 @@ BEGIN
 		SET @CountAdvisory = 0;
 		SET @ModuleReportStart = GETDATE();
 		SET @CollectionOutOfDate = 0;
-		SET @TableTail = ''</table><p><A HREF = "#''+REPLACE(@Serverlist,''\'','''')+@Modulename+''Back">Back to Top</a><p>'';
+		SET @TableTail = ''</table></div><p><A HREF = "#''+REPLACE(@Serverlist,''\'','''')+@Modulename+''Back">Back to Top</a><p>'';
 		SET @StandardTableTail = NULL;
 		SET @MultiWarningModule = NULL;
 		SET @MultiWarningModule = (SELECT 1 FROM [Inspector].[MultiWarningModules]  WHERE [Modulename] = @Modulename);
