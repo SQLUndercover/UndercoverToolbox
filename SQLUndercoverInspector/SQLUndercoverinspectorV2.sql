@@ -5623,24 +5623,11 @@ ALTER PROCEDURE [Inspector].[ExecutionLogInsert]
 @PSCollection BIT
 )
 AS
---Revision Date: 09/04/2020
-DECLARE @CentraliseExecutionLog BIT = (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = ''CentraliseExecutionLog'');
-
---Default to zero if NULL
-SET @CentraliseExecutionLog = ISNULL(@CentraliseExecutionLog,0);
-
---If the value is not set to off evaluate the value to ensure its valid otherwise default to off
-IF (@CentraliseExecutionLog != 0)
-BEGIN 
-	IF (@CentraliseExecutionLog != 1)
-	BEGIN 
-		SET @CentraliseExecutionLog = 0
-	END
-END
-
+--Revision Date: 13/05/2021
 
 INSERT INTO [Inspector].[ExecutionLog] (ExecutionDate,Servername,ModuleConfig_Desc,Procname,Frequency,Duration,PSCollection,ErrorMessage)
-VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection,@ErrorMessage);';
+VALUES(@RunDatetime,@Servername,@ModuleConfigDesc,@Procname,@Frequency,@Duration,@PSCollection,@ErrorMessage);
+';
 
 
 IF OBJECT_ID('Inspector.ResetHtmlColors') IS NULL
