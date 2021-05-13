@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 11/05/2021
+Revision date: 13/05/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210512';
+DECLARE @Revisiondate DATE = '20210513';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -9813,7 +9813,7 @@ ALTER PROCEDURE [Inspector].[ServerSettingsReport]
 )
 AS
 BEGIN
---Revision date: 12/05/2021	
+--Revision date: 13/05/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @LastCollection DATETIME;
@@ -9911,6 +9911,8 @@ FROM
 WHERE (
 		(ServerSettings.[AuditDate] > DATEADD(MINUTE,@ReportFrequency,GETDATE()) AND [ChangeType] != N''No change detected'') 
 		OR 
+		([ChangeType] = N''No change detected. Server value differs from your config value'') 
+		OR
 		(@WarningLevel = 0)
 	  )
 ORDER BY 
