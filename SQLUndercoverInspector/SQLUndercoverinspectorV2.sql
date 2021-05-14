@@ -12184,6 +12184,8 @@ SET @EmailBody = @EmailHeader + @EmailBody + ''
 IF (@EmailAsAttachment = 1)
 BEGIN 
 	SET @ServerSummaryHeader = @EmailHeader + @ServerSummaryHeader+ ''
+<br>
+<div style="text-align: center;" color:White>See attachment for the complete report</div>
 </body>
 </html>
 '';
