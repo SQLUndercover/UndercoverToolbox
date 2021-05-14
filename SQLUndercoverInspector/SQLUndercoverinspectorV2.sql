@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 13/05/2021
+Revision date: 14/05/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210513';
+DECLARE @Revisiondate DATE = '20210514';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1691,7 +1691,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			EXEC sp_executesql N'
 			UPDATE [Inspector].[ServerSettings] 
 			SET [LastUpdated] = [Log_Date]
-			WHERE [Log_Date] IS NULL;';
+			WHERE [LastUpdated] IS NULL;';
 
 			IF EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.ServerSettings') AND [name] = N'LastUpdated' AND is_nullable = 1)
 			BEGIN
