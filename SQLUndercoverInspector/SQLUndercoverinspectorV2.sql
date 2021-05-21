@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 14/05/2021
+Revision date: 21/05/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210514';
+DECLARE @Revisiondate DATE = '20210521';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1754,7 +1754,9 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[Setting] NVARCHAR(128) NULL,
 				[old_value_in_use] INT NULL,
 				[value_in_use] INT NULL,
-				[AuditDate] DATETIME NULL
+				[AuditDate] DATETIME NULL,
+				[PrevLastUpdated] DATETIME NOT NULL,
+				[config_value_in_use] INT
 			);
 			END
 
@@ -1763,22 +1765,34 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				EXEC sp_executesql N'CREATE CLUSTERED INDEX [CIX_Servername_Setting_AuditDate] ON [Inspector].[ServerSettingsAudit] ([Servername],[Setting],[AuditDate]);';
 			END
 
-			IF NOT EXISTS (SELECT 1 FROM sys.triggers WHERE [parent_id] = OBJECT_ID(N'Inspector.ServerSettings') AND [name] = N'ServerSettingsChangeAudit')
-			BEGIN 
-EXEC sp_executesql N'
+IF NOT EXISTS (SELECT * FROM sys.triggers WHERE object_id = OBJECT_ID(N'[Inspector].[ServerSettingsChangeAudit]'))
+BEGIN
+EXEC dbo.sp_executesql @statement = N'
 CREATE TRIGGER [Inspector].[ServerSettingsChangeAudit] ON [Inspector].[ServerSettings]
 AFTER UPDATE 
 AS 
 BEGIN 
 	SET NOCOUNT ON;
 
-	INSERT INTO [Inspector].[ServerSettingsAudit] ([Servername],[Log_Date],[configuration_id],[Setting],[old_value_in_use],[value_in_use],[AuditDate])
-	SELECT i.[Servername],i.[Log_Date],i.[configuration_id],i.[Setting],d.[value_in_use],i.[value_in_use],i.[LastUpdated]
+	INSERT INTO [Inspector].[ServerSettingsAudit] ([Servername],[Log_Date],[configuration_id],[Setting],[old_value_in_use],[value_in_use],[AuditDate],[PrevLastUpdated],[config_value_in_use])
+	SELECT 
+		i.[Servername],
+		i.[Log_Date],
+		i.[configuration_id],
+		i.[Setting],
+		d.[value_in_use],
+		i.[value_in_use],
+		i.[LastUpdated],
+		d.[LastUpdated],
+		(SELECT value_in_use FROM [Inspector].[ServerSettingsConfig] ssc WHERE i.[Servername] = ssc.[Servername] AND i.[Setting] = ssc.[Setting] AND ssc.[IsActive] = 1)
 	FROM inserted i 
 	INNER JOIN deleted d ON i.[Servername] = d.[Servername]
-							AND i.[configuration_id] = d.[configuration_id];
-END';
-			END 
+							AND i.[Setting] = d.[Setting]
+
+	AND i.value_in_use != d.value_in_use;
+END 
+';
+END;
 
 			IF OBJECT_ID('Inspector.InstanceStart') IS NULL
 			CREATE TABLE [Inspector].[InstanceStart](
@@ -5039,7 +5053,7 @@ ALTER PROCEDURE [Inspector].[ServerSettingsInsert]
 AS
 BEGIN
 
---Revision date: 07/05/2021
+--Revision date: 21/05/2021
 
 SET NOCOUNT ON;
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME 
@@ -5061,14 +5075,13 @@ WHERE NOT EXISTS (SELECT 1
 					AND [ServerSettings].[Servername] = @Servername
 				);
 
-/* UPDATE any configuration options which have changed */
+/* UPDATE Lastupdated to say we just checked if config has changed and update value_in_use */
 UPDATE ss
 SET 
 [value_in_use] = CAST([configurations].[value_in_use] AS INT),
 [LastUpdated] = @LogDate
 FROM [Inspector].[ServerSettings] ss 
 INNER JOIN sys.configurations ON [ss].[configuration_id] = [configurations].[configuration_id]
-WHERE [ss].[value_in_use] != [configurations].[value_in_use]
 AND [ss].[Servername] = @Servername;
 
 END;';
@@ -9802,7 +9815,7 @@ ALTER PROCEDURE [Inspector].[ServerSettingsReport]
 )
 AS
 BEGIN
---Revision date: 13/05/2021	
+--Revision date: 21/05/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @LastCollection DATETIME;
@@ -9821,7 +9834,7 @@ BEGIN
 		@ServerSpecific,
 		''Server settings'',
 		@TableHeaderColour,
-		''Setting,ServerSettingInUse,old_value,YourConfigValue,ConfigIsActive,ChangeType,LastUpdated,SetConfigToMatchCurrent'')
+		''Setting name,Value in use,Old value in use,Your config value,Config is active,Change type,Time of change'')
 	);
 
 	
@@ -9834,84 +9847,92 @@ SELECT
 CASE 
 	WHEN [ChangeType] = N''A change to server configuration was detected'' THEN @WarningHighlight
 	WHEN [ChangeType] = N''A change to server configuration was detected. Server value differs from your config value'' THEN @WarningHighlight
-	WHEN [ChangeType] = N''A change to server configuration was detected. Server value matches your config value'' THEN @AdvisoryHighlight
+	WHEN [ChangeType] = N''A change to server configuration was detected. Server value matches your config value'' THEN @InfoHighlight
 	WHEN [ChangeType] = N''No change detected. Server value differs from your config value'' THEN @AdvisoryHighlight
+	WHEN [ChangeType] LIKE ''%Installation default in use'' THEN @AdvisoryHighlight
 	ELSE ''#FFFFFF''
 END AS [@bgcolor],
 [Setting] AS ''td'','''', + 
-[ServerSettingInUse] AS ''td'','''', + 
+ISNULL([ssavalue_in_use],[ServerSettingInUse]) AS ''td'','''', + 
 [old_value_in_use] AS ''td'','''', + 
-[YourConfigValue] AS ''td'','''', + 
-CASE 
-	WHEN [sscvalue_in_use] IS NULL THEN 0
-	ELSE 1 
-END AS ''td'','''', + /* ConfigIsActive */
+ISNULL(CAST([ssaconfig_value_in_use] AS NVARCHAR(10)),[YourConfigValue]) AS ''td'','''', + 
+ISNULL([IsActive],0) AS ''td'','''', + /* ConfigIsActive */
 [ChangeType] AS ''td'','''', + 
-[LastUpdated] AS ''td'','''', + 
-[SetConfigToMatchCurrent] AS ''td'',''''
+CASE 
+	WHEN [AuditDate] IS NOT NULL THEN N''Change occurred between ''+ISNULL(CONVERT(NVARCHAR(17),[PrevLastUpdated],113),N''N/A'')+N'' and ''+ISNULL(CONVERT(NVARCHAR(17),[AuditDate],113),N''N/A'')
+	ELSE N''N/A''
+END AS ''td'',''''
 FROM 
 (
 	SELECT 
 	[ss].[Setting],
 	[ss].[value_in_use] AS ServerSettingInUse,
 	[ssc].[value_in_use] AS sscvalue_in_use,
-	ISNULL(CAST([ssc].[value_in_use] AS VARCHAR(10)),''N/A'') AS YourConfigValue,
+	[ssa].[value_in_use] AS ssavalue_in_use,
+	ISNULL(CAST([ssc].[value_in_use] AS NVARCHAR(10)),N''N/A'') AS YourConfigValue,
 	CASE /* Check if a aetting has been changed since the last report */
-		WHEN (EXISTS(SELECT 1 
-						FROM [Inspector].[ServerSettingsAudit] ssa
-						WHERE [ss].[Servername] = [ssa].[Servername]
-						AND [ss].[configuration_id] = [ssa].[configuration_id]
-						AND [ssa].[AuditDate] > DATEADD(MINUTE,@ReportFrequency,GETDATE())
-					)
-			 ) THEN N''A change to server configuration was detected''
-	
+		WHEN [AuditDate] IS NOT NULL THEN N''A change to server configuration was detected''
 		ELSE N''No change detected''
 	END+
 	CASE 
-		WHEN [ss].[value_in_use] != [ssc].[value_in_use] THEN N''. Server value differs from your config value''
-		WHEN [ss].[value_in_use] = [ssc].[value_in_use] THEN N''. Server value matches your config value''
+		WHEN [SQLDefaultSetting] = 1 THEN N'', Installation default in use''
+		WHEN ISNULL(ssa.[value_in_use],[ss].[value_in_use]) != ISNULL(ssa.[config_value_in_use],[ssc].[value_in_use]) THEN N''. Server value differs from your config value''
+		WHEN ISNULL(ssa.[value_in_use],[ss].[value_in_use]) = ISNULL(ssa.[config_value_in_use],[ssc].[value_in_use]) THEN N''. Server value matches your config value''
+		WHEN [ssc].[value_in_use] IS NULL THEN N'', No config value set in Inspector.ServerSettingsConfig''
 		ELSE ''''
 	END AS ChangeType,
-	ISNULL(CONVERT(VARCHAR(20),[ss].[LastUpdated],113),N''N/A'') AS LastUpdated,
+	--ISNULL(CONVERT(VARCHAR(20),[ss].[LastUpdated],113),N''N/A'') AS LastUpdated,
 	ssa.[AuditDate],
-	ssa.[old_value_in_use],
-	CASE 
-		WHEN [ss].[value_in_use] = [ssc].[value_in_use] THEN N''/* N/A - [''+[ss].[Setting]+N''], Matching config */''
-		ELSE N''UPDATE [Inspector].[ServerSettingsConfig] SET [IsActive] = 1, [value_in_use] = ''+
-	CAST([ss].[value_in_use] AS VARCHAR(10))+
-	N'' WHERE [Servername] = N''''''+
-	@Servername+
-	N'''''' AND [Setting] = N''''''+
-	[ss].[Setting]+
-	N'''''';''
-	END AS SetConfigToMatchCurrent
+	ssa.[PrevLastUpdated],
+	ISNULL(CAST(ssa.[old_value_in_use] AS VARCHAR(10)),N''N/A'') AS old_value_in_use,
+	ssa.[config_value_in_use] AS ssaconfig_value_in_use,
+	ssc.[IsActive]
 	FROM [Inspector].[ServerSettings] ss
-	LEFT JOIN (SELECT [Servername],[Setting],[value_in_use]
+	LEFT JOIN (SELECT [Servername],[Setting],[value_in_use],0 AS SQLDefaultSetting,IsActive
 				FROM [Inspector].[ServerSettingsConfig] 
 				WHERE [ServerSettingsConfig].[IsActive] = 1
+				AND [Servername] = @Servername
+				UNION
+			   SELECT [Servername],[Setting],[value_in_use],1,0 AS IsActive
+			    FROM [Inspector].[ServerSettings]
+				WHERE 
+				[Servername] = @Servername
+				AND
+				(
+					([ServerSettings].[Setting] = N''max server memory (MB)'' AND [value_in_use] = 2147483647)
+					OR 
+					([ServerSettings].[Setting] = N''max degree of parallelism'' AND [value_in_use] = 0)
+				) AND EXISTS (SELECT 1 
+								FROM [Inspector].[ServerSettingsConfig] 
+								WHERE [ServerSettingsConfig].[IsActive] = 0 
+								AND [ServerSettingsConfig].[Setting] = [ServerSettings].[Setting]
+								AND [ServerSettingsConfig].[Servername] = [ServerSettings].[Servername]
+				)
 				) [ssc] ON [ss].[Setting] = [ssc].[Setting]
 						AND [ss].[Servername] = [ssc].[Servername]
 	LEFT JOIN [Inspector].[ServerSettingsAudit] ssa ON ss.Servername = ssa.Servername
-														AND ss.configuration_id = ssa.configuration_id
-				
+														AND ss.Setting = ssa.Setting
+														AND [AuditDate] > DATEADD(MINUTE,@ReportFrequency,GETDATE())
 	
 	WHERE ([ss].Servername = @Servername)
 ) ServerSettings 
-WHERE (
-		(ServerSettings.[AuditDate] > DATEADD(MINUTE,@ReportFrequency,GETDATE()) AND [ChangeType] != N''No change detected'') 
+WHERE (	/* A change has been detected */
+		([ChangeType] LIKE ''A change to server configuration%'') 
 		OR 
-		([ChangeType] = N''No change detected. Server value differs from your config value'') 
+		/* No change detected but the current value in use differs from your config value */
+		([ChangeType] = N''No change detected. Server value differs from your config value'' OR [ChangeType] = N''No change detected, Installation default in use'') 
 		OR
-		(@WarningLevel = 0)
+		/* You have set warning level 0 (show all) */
+		(1 = 0)
 	  )
 ORDER BY 
-LastUpdated ASC,
+[AuditDate] DESC,
 CASE 
 	WHEN [ChangeType] = N''A change to server configuration was detected'' THEN 1
 	WHEN [ChangeType] = N''A change to server configuration was detected. Server value differs from your config value'' THEN 2
 	WHEN [ChangeType] = N''A change to server configuration was detected. Server value matches your config value'' THEN 3
-	WHEN [ChangeType] = N''No change detected. Server value differs from your config value'' THEN 4
-	WHEN [ChangeType] = N''No change detected. Server value matches your config value'' THEN 5
+	WHEN [ChangeType] = N''No change detected. Server value differs from your config value'' THEN 5
+	WHEN [ChangeType] LIKE ''%Installation default in use'' THEN 4
 	ELSE 6
 END ASC
 FOR XML PATH(''tr''),ELEMENTS);
@@ -9927,6 +9948,7 @@ FOR XML PATH(''tr''),ELEMENTS);
 			WHEN @WarningLevel = 3 THEN @InfoHighlight
 		END AS [@bgcolor],
 		''Data Collection out of date''  AS ''td'','''', + 
+		''N/A'' AS ''td'','''', +
 		''N/A'' AS ''td'','''', +
 		''N/A'' AS ''td'','''', +
 		''N/A'' AS ''td'','''', +
