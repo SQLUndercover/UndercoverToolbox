@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 23/05/2021
+Revision date: 29/05/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210523';
+DECLARE @Revisiondate DATE = '20210529';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1763,6 +1763,25 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.ServerSettingsAudit') AND [name] = N'CIX_Servername_Setting_AuditDate') 
 			BEGIN 
 				EXEC sp_executesql N'CREATE CLUSTERED INDEX [CIX_Servername_Setting_AuditDate] ON [Inspector].[ServerSettingsAudit] ([Servername],[Setting],[AuditDate]);';
+			END
+
+			IF OBJECT_ID('Inspector.ServerInfo') IS NULL
+			BEGIN 
+				CREATE TABLE [Inspector].[ServerInfo] (
+				Servername NVARCHAR(128),
+				Log_Date DATETIME,
+				cpu_count INT,
+				hyperthread_count INT,
+				physical_memory_gb INT,
+				scheduler_count INT,
+				affinity_type_desc NVARCHAR(10),
+				machine_type NVARCHAR(10)
+				);
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.ServerInfo') AND [name] = N'CIX_ServerInfo_Servername_Log_Date') 
+			BEGIN 
+				EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_ServerInfo_Servername_Log_Date] ON [Inspector].[ServerInfo] ([Servername],[Log_Date]);';
 			END
 
 IF NOT EXISTS (SELECT * FROM sys.triggers WHERE object_id = OBJECT_ID(N'[Inspector].[ServerSettingsChangeAudit]'))
@@ -3507,6 +3526,9 @@ END
 			IF OBJECT_ID('Inspector.GetDebugFlag') IS NOT NULL
 			DROP FUNCTION [Inspector].[GetDebugFlag];
 				
+			IF OBJECT_ID('Inspector.GetServerInfo') IS NOT NULL
+			DROP FUNCTION [Inspector].[GetServerInfo];
+
 			--Drop Trigger for recreation
 			IF OBJECT_ID('Inspector.PSConfigSync') IS NOT NULL 
 			DROP TRIGGER [Inspector].[PSConfigSync];
@@ -5122,7 +5144,7 @@ ALTER PROCEDURE [Inspector].[InstanceVersionInsert]
 AS
 BEGIN
 
---Revision date: 14/02/2019
+--Revision date: 29/05/2021
 
 SET NOCOUNT ON;
 
@@ -5203,6 +5225,25 @@ WHERE Servername = @Servername;
 
 INSERT INTO [Inspector].[InstanceVersion] ([Servername], [PhysicalServername], [Log_Date], [VersionInfo])
 SELECT @Servername, @PhysicalServername, GETDATE(), @Version + N'' - '' + @Edition
+
+/* Log server info */
+DELETE FROM [Inspector].[ServerInfo]
+WHERE Servername = @Servername;
+
+INSERT INTO [Inspector].[ServerInfo] ([Servername], [Log_Date], [cpu_count], [hyperthread_count], [physical_memory_gb], [scheduler_count], [affinity_type_desc], [machine_type])
+SELECT 
+	@Servername,
+	GETDATE(),
+	cpu_count,
+	hyperthread_ratio as hyperthread_count,
+	(physical_memory_kb/1024)/1000 AS physical_memory_gb,
+	scheduler_count,
+	affinity_type_desc,
+	CASE 
+		WHEN virtual_machine_type_desc = N''HYPERVISOR'' THEN N''Virtual'' 
+		ELSE N''Physical'' 
+	END
+FROM sys.dm_os_sys_info;
 END;';
 
 
@@ -9169,6 +9210,31 @@ BEGIN
 END'
 EXEC(@SQLStatement);
 
+SET @SQLStatement = CONVERT(NVARCHAR(MAX), '')+N'
+CREATE FUNCTION [Inspector].[GetServerInfo] (
+@Servername NVARCHAR(128)
+)
+RETURNS VARCHAR(256)
+AS 
+BEGIN
+	DECLARE @ServerInfo VARCHAR(256);
+
+	SELECT @ServerInfo = 
+	(SELECT  
+	ISNULL(''Machine type: <b>''+CAST([machine_type] AS VARCHAR(10))+''</b><BR>'','''')+CHAR(13),
+	ISNULL(''Total RAM: <b>''+CAST([physical_memory_gb] AS VARCHAR(10))+'' GB</b><BR>'','''')+CHAR(13),
+	ISNULL(''CPU Count: <b>''+CAST([cpu_count] AS VARCHAR(10))+''</b><BR>'','''')+CHAR(13),
+	ISNULL(''Hyperthread Count: <b>''+CAST([hyperthread_count] AS VARCHAR(10))+''</b><BR>'','''')+CHAR(13),
+	ISNULL(''Scheduler Count: <b>''+CAST([scheduler_count] AS VARCHAR(10))+''</b><BR>'','''')+CHAR(13),
+	ISNULL(''CPU Affinity: <b>''+CAST([affinity_type_desc] AS VARCHAR(10))+''</b><BR>'','''')+CHAR(13)	
+	FROM [Inspector].[ServerInfo]
+	WHERE Servername = @Servername
+	FOR XML PATH(''''), TYPE).value(''.'', ''VARCHAR(256)'');
+
+	RETURN(@ServerInfo);
+END'
+
+EXEC(@SQLStatement);
 
 IF OBJECT_ID('Inspector.JobOwnerReport') IS NULL
 EXEC('CREATE PROCEDURE  [Inspector].[JobOwnerReport] AS;');
@@ -11019,7 +11085,7 @@ EXEC('CREATE PROCEDURE  [Inspector].[SQLUnderCoverInspectorReport] AS;');
 EXEC sp_executesql N'
 /*********************************************
 --Author: Adrian Buckman
---Revision date: 13/05/2021
+--Revision date: 29/05/2021
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 *********************************************/
 
@@ -11091,9 +11157,6 @@ DECLARE @ReportModuleHtml VARCHAR(MAX);
 DECLARE @CountCatalogueWarnings INT;
 DECLARE @CatalogueLastExecution DATETIME;
 DECLARE @CatalogueModuleReport BIT;
-DECLARE @CPUCount INT;
-DECLARE @TotalRAM INT;
-DECLARE @VMType NVARCHAR(60);
 
 DECLARE @Stack VARCHAR(255) = (SELECT [Value] from [Inspector].[Settings] WHERE [Description] = ''SQLUndercoverInspectorEmailSubject'');
 
@@ -11364,19 +11427,11 @@ BEGIN
 	SET @InstanceUptime = (SELECT DATEDIFF(DAY,@InstanceStart,GETDATE()));
 	SELECT @InstanceVersionInfo = [VersionInfo], @PhysicalServername = [PhysicalServername] FROM [Inspector].[InstanceVersion] WHERE Servername = @Serverlist AND Log_Date >= CAST(GETDATE() AS DATE);
 	
-	IF @CatalogueInstalled = 1 AND @CatalogueBuild >= @MinCatalogueBuild 
-	BEGIN 
-		EXEC sp_executesql N''SELECT @CPUCount = [CPUCount],@TotalRAM = ([PhysicalMemoryMB]/1000) FROM [Catalogue].[Servers] WHERE ServerName = @Serverlist'',N''@Serverlist NVARCHAR(128),@CPUCount INT OUTPUT, @TotalRAM INT OUTPUT'',@Serverlist = @Serverlist, @CPUCount = @CPUCount OUTPUT, @TotalRAM = @TotalRAM OUTPUT;
-		EXEC sp_executesql N''SELECT @VMType = CASE WHEN [VMType] = ''''NONE'''' THEN ''''Physical'''' ELSE ''''Virtual'''' END FROM [Catalogue].[Servers] WHERE ServerName = @Serverlist'',N''@Serverlist NVARCHAR(128), @VMType NVARCHAR(60) OUTPUT'',@Serverlist = @Serverlist, @VMType = @VMType OUTPUT;
-	END
-	
 	SELECT  @EmailBody = @EmailBody + ''<hr><BR><p> <b>Server <A NAME = "''+REPLACE(@Serverlist,''\'','''')+''Servername''+''"></a>[''+@Serverlist+'']</b><BR></BR>
 	Instance start: <b>''+ISNULL(CONVERT(VARCHAR(17),@InstanceStart,113),''Not Recorded'')+'' (Uptime: ''+ISNULL(CAST(@InstanceUptime AS VARCHAR(6)),''N/A'')+CASE WHEN @InstanceUptime IS NOT NULL THEN '' Days)'' ELSE '')'' END + ''</b><BR>
 	Instance Version/Edition: <b>''+ISNULL(@InstanceVersionInfo,''Not Recorded'')+''</b><BR>
 	Physical Servername: <b>''+ISNULL(@PhysicalServername,''Not Recorded'')+''</b><BR>''
-	+ISNULL(''CPU Count: <b>''+CAST(@CPUCount AS VARCHAR(4))+''</b><BR>'','''')
-	+ISNULL(''Total RAM: <b>''+CAST(@TotalRAM AS VARCHAR(10))+'' GB</b><BR>'','''')
-	+ISNULL(''Machine type: <b>''+CAST(@VMType AS VARCHAR(10))+''</b><BR>'','''')
+	+[Inspector].[GetServerInfo](@Serverlist)
 	+''<p></p>''
 	+''ModuleConfig used: <b>''+@ModuleConfigDetermined+ ''</b><BR> 
 	Disabled Modules: <b>''+@DisabledModules+''</b><BR></p><p></p><BR></BR>''
