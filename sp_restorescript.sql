@@ -141,6 +141,10 @@ AS
 BEGIN
 
 DECLARE @WithMove VARCHAR(3000)
+DECLARE @IsAGDatabase BIT
+DECLARE @ReplicaName SYSNAME
+DECLARE @LastestBackupInSet DATETIME
+DECLARE @Cmd NVARCHAR(4000)
 
 SET NOCOUNT ON
 --Check that @RestoreOptions is a valid value
@@ -191,6 +195,15 @@ IF OBJECT_ID('tempdb..#LatestBackups') IS NOT NULL
 	DROP TABLE #LatestBackups
 CREATE TABLE #LatestBackups
 (LatestDBName SYSNAME,
+backup_finish_date DATETIME)
+
+IF OBJECT_ID('tempdb..#BackupDetails') IS NOT NULL
+DROP TABLE BackupDetails
+
+CREATE TABLE #BackupDetails
+(physical_device_name NVARCHAR(270),
+position  INT,
+backup_start_date DATETIME,
 backup_finish_date DATETIME)
 
 --remove any spaces in list of databases
@@ -347,10 +360,31 @@ FETCH NEXT FROM DatabaseCur INTO @DatabaseName, @RestoreAsName
 WHILE @@FETCH_STATUS = 0 
 BEGIN
 	
+	
+	SET @IsAGDatabase = 0
+	SET @ReplicaName = ''
+
 	--get all AG replicas for current database
 	IF @AvailabilityGroupAware = 1  
 	BEGIN
-		PRINT 'Holder for code to get AG replicas'
+		IF EXISTS (SELECT 1 FROM sys.databases WHERE name = @DatabaseName AND replica_id IS NOT NULL)
+		BEGIN
+			SET @IsAGDatabase = 1
+
+			DECLARE ReplicaCur CURSOR SCROLL STATIC READ_ONLY FOR 
+					SELECT replica_server_name
+					FROM sys.availability_databases_cluster databases
+					JOIN sys.availability_replicas replicas ON databases.group_id = replicas.group_id
+					WHERE database_name = @DatabaseName
+					AND replica_server_name != @@SERVERNAME
+
+			OPEN ReplicaCur
+		END
+		ELSE
+		BEGIN
+			SET @IsAGDatabase = 0
+			RAISERROR('Selected database is not part of an availability group, only the local server''s backup history will be checked',9,1)
+		END
 	END
 
 	--Insert single user command
@@ -364,33 +398,58 @@ BEGIN
 	--Get last full backup for required timeframe
 	IF (@RestoreOptions IN ('PointInTime','ToLog','ToDiff','ToFull','DiffOnly'))
 	BEGIN		
-		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
-		AS
-			(SELECT CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
-							WHEN device_type = 5 THEN 'TAPE = ''' + mediafamily.physical_device_name + ''''
-							WHEN device_type = 9 THEN 'URL = ''' + mediafamily.physical_device_name + ''''
-							WHEN device_type = 102 THEN  mediafamily.logical_device_name
-							ELSE '***UNSUPPORTED DEVICE***'
-					END, 
+
+		TRUNCATE TABLE #BackupDetails
+
+		--get latest backup from the local server
+		INSERT INTO #BackupDetails
+			SELECT TOP 1 CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
+					WHEN device_type = 5 THEN 'TAPE = ''' + mediafamily.physical_device_name + ''''
+					WHEN device_type = 9 THEN 'URL = ''' + mediafamily.physical_device_name + ''''
+					WHEN device_type = 102 THEN  mediafamily.logical_device_name
+					ELSE '***UNSUPPORTED DEVICE***'
+			END, 
 			position, 
-			RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, 
+			backup_start_date, 
 			backup_finish_date
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
 			AND backupset.backup_finish_date < @RestoreToDate
 			AND backupset.type = 'D'
-            AND is_copy_only IN (0,@IncludeCopyOnly))
+            AND is_copy_only IN (0,@IncludeCopyOnly)
+			ORDER BY backup_finish_date DESC
+
+		IF @IsAGDatabase = 1
+		BEGIN
+
+			FETCH FIRST FROM ReplicaCur INTO @ReplicaName
+
+			WHILE @@FETCH_STATUS = 0
+			BEGIN
+				SET @Cmd = N'SELECT * FROM OPENROWSET(''SQLNCLI'',  ''Server=' + @ReplicaName + N';Trusted_Connection=yes;'', ''SELECT @@SERVERNAME'')'
+
+				print @cmd
+				EXEC sp_executesql @Cmd
+
+				FETCH NEXT FROM ReplicaCur INTO @ReplicaName
+			END
+
+		END
+
+		SELECT @LastestBackupInSet = MAX(backup_start_date)
+		FROM #BackupDetails
+
 
 		INSERT INTO #BackupCommands (backup_finish_date, DBName, command, BackupType, AlterCommand)
 		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
 						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name,
 						0
-		FROM BackupFilesCTE
-		WHERE StartDateRank = 1
+		FROM #BackupDetails
+		WHERE backup_start_date = @LastestBackupInSet
 		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'FULL',0
-		FROM BackupFilesCTE
-		WHERE StartDateRank = 1
+		FROM #BackupDetails
+		WHERE backup_start_date = @LastestBackupInSet
 	END
 
 	--if Replace is set, add to statement
