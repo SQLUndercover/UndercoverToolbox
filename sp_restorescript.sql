@@ -35,49 +35,14 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-sp_RestoreScript 1.8                                                                                                             
+sp_RestoreScript 2.0                                                                                                          
 Written By David Fowler
-29 June 2017
-Generate a set of backup commands to restore a database(s) to a specified time         
-
-26 July 2017
-A bug with the cursor when running on versions of SQL pre-2016 has been fixed   
-
-2 January 2018
-Broker options included
-Restore in standby included
-Ability to cope with striped backup files added
-
-10 June 2019
-Maximum length of restore statement has been increased to VARCHAR(MAX)
-
-10 July 2019
-Wild cards supported in @DatabaseName
-Case Sensitive Collations Supported
-Fixed bug where not all databases would be set WITH RECOVERY or STANDBY on multi database statements, indstead they were being left with NORECOVERY
-
-12 August 2019
-Backup type added to the output
-
-29 August 2019
-@Credential parameter added
-
-29 September 2020
-@IncludeCopyOnly parameter added 
-@SingleUser parameter added 
-File names changed to match db names when WITH MOVE is used
-Fix to prevent log backups that were too early from being selected
-Fix to add \ at the end of file paths if not already there
-Support for DISK, TAPE, LOGICAL DEVICES and Azure blob store backups added
-Support for STOPATMARK and STOPBEFOREMARK added
-
-23 November 2020 
-Fix bug with @SingleUser generating the wrong ALTER statement
+28 May 2021
 
 MIT License
 ------------
 
-Copyright 2018 Sql Undrcover
+Copyright 2018 Sql Undercover
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files 
 (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, 
@@ -150,6 +115,7 @@ GO
 
 CREATE PROC sp_RestoreScript
 (
+@AGAware BIT = 0,
 @DatabaseName VARCHAR(3000) = NULL,
 @RestoreAsName VARCHAR(3000) = NULL, 
 @RestoreToDate DATETIME = NULL,  
@@ -380,6 +346,12 @@ FETCH NEXT FROM DatabaseCur INTO @DatabaseName, @RestoreAsName
 
 WHILE @@FETCH_STATUS = 0 
 BEGIN
+	
+	--get all AG replicas for current database
+	IF @AGAware = 1  
+	BEGIN
+		PRINT 'Holder for code to get AG replicas'
+	END
 
 	--Insert single user command
 	IF @SingleUser = 1
