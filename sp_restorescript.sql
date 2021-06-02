@@ -115,7 +115,7 @@ GO
 
 CREATE PROC sp_RestoreScript
 (
-@AGAware BIT = 0,
+@AvailabilityGroupAware BIT = 0,
 @DatabaseName VARCHAR(3000) = NULL,
 @RestoreAsName VARCHAR(3000) = NULL, 
 @RestoreToDate DATETIME = NULL,  
@@ -348,7 +348,7 @@ WHILE @@FETCH_STATUS = 0
 BEGIN
 	
 	--get all AG replicas for current database
-	IF @AGAware = 1  
+	IF @AvailabilityGroupAware = 1  
 	BEGIN
 		PRINT 'Holder for code to get AG replicas'
 	END
