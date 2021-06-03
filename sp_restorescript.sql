@@ -35,9 +35,9 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-sp_RestoreScript 2.0                                                                                                          
+sp_RestoreScript 2.0 BETA                                                                                                        
 Written By David Fowler
-28 May 2021
+03 June 2021
 
 MIT License
 ------------
@@ -103,6 +103,9 @@ Parameters
 
 @StopBeforeMark -	Append stopbeforemark clause to any log restores
 
+@AvailabilityGroupAware -	0 - Only backups taken on the local server will be returned - DEFAULT
+							1 - Backups from all AG nodes will be returned, great if you offload your backups
+
 Full documentation and examples can be found at www.sqlundercover.com
 
 */
@@ -145,6 +148,9 @@ DECLARE @IsAGDatabase BIT
 DECLARE @ReplicaName SYSNAME
 DECLARE @LastestBackupInSet DATETIME
 DECLARE @Cmd NVARCHAR(4000)
+DECLARE @Error VARCHAR(5000)
+DECLARE @ConnectionString VARCHAR(4000)
+DECLARE @LastFullDiff DATETIME
 
 SET NOCOUNT ON
 --Check that @RestoreOptions is a valid value
@@ -178,12 +184,12 @@ WHERE name = DB_NAME()
 IF  OBJECT_ID('tempdb..#BackupCommands') IS NOT NULL
 	DROP TABLE #BackupCommands
 CREATE TABLE #BackupCommands
-(backup_finish_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4), AlterCommand BIT)
+(backup_finish_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4), AlterCommand BIT, takenOnServer SYSNAME NULL)
 
 IF OBJECT_ID('tempdb..#BackupCommandsFinal') IS NOT NULL
 	DROP TABLE #BackupCommandsFinal
 CREATE TABLE #BackupCommandsFinal
-(backup_finish_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4), AlterCommand BIT)
+(backup_finish_date DATETIME, DBName VARCHAR(255), command VARCHAR(MAX), BackupType VARCHAR(4), AlterCommand BIT, takenOnServer SYSNAME NULL)
 
 IF OBJECT_ID('tempdb..#RestoreDatabases') IS NOT NULL
 	DROP TABLE #RestoreDatabases
@@ -204,7 +210,8 @@ CREATE TABLE #BackupDetails
 (physical_device_name NVARCHAR(270),
 position  INT,
 backup_start_date DATETIME,
-backup_finish_date DATETIME)
+backup_finish_date DATETIME,
+takenOnServer SYSNAME)
 
 --remove any spaces in list of databases
 SET @DatabaseName = REPLACE(@DatabaseName, ' ','')
@@ -371,7 +378,7 @@ BEGIN
 		BEGIN
 			SET @IsAGDatabase = 1
 
-			DECLARE ReplicaCur CURSOR SCROLL STATIC READ_ONLY FOR 
+			DECLARE ReplicaCur CURSOR LOCAL SCROLL STATIC READ_ONLY FOR 
 					SELECT replica_server_name
 					FROM sys.availability_databases_cluster databases
 					JOIN sys.availability_replicas replicas ON databases.group_id = replicas.group_id
@@ -402,7 +409,7 @@ BEGIN
 		TRUNCATE TABLE #BackupDetails
 
 		--get latest backup from the local server
-		INSERT INTO #BackupDetails
+		INSERT INTO #BackupDetails (physical_device_name, position, backup_start_date, backup_finish_date, takenOnServer)
 			SELECT TOP 1 CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
 					WHEN device_type = 5 THEN 'TAPE = ''' + mediafamily.physical_device_name + ''''
 					WHEN device_type = 9 THEN 'URL = ''' + mediafamily.physical_device_name + ''''
@@ -411,7 +418,8 @@ BEGIN
 			END, 
 			position, 
 			backup_start_date, 
-			backup_finish_date
+			backup_finish_date,
+			@@SERVERNAME
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
@@ -420,6 +428,7 @@ BEGIN
             AND is_copy_only IN (0,@IncludeCopyOnly)
 			ORDER BY backup_finish_date DESC
 
+		--if database is in an AG, cursor through other replicas and pull back ful back details
 		IF @IsAGDatabase = 1
 		BEGIN
 
@@ -427,10 +436,34 @@ BEGIN
 
 			WHILE @@FETCH_STATUS = 0
 			BEGIN
-				SET @Cmd = N'SELECT * FROM OPENROWSET(''SQLNCLI'',  ''Server=' + @ReplicaName + N';Trusted_Connection=yes;'', ''SELECT @@SERVERNAME'')'
+				SET @Cmd = N'SELECT * FROM OPENROWSET(''SQLNCLI'',  ''Server=' + @ReplicaName + N';Trusted_Connection=yes;'', 
+				''SELECT TOP 1 CASE	WHEN device_type = 2 THEN ''''DISK = '''' + mediafamily.physical_device_name + ''''''''
+					WHEN device_type = 5 THEN ''''TAPE = '''' + mediafamily.physical_device_name + ''''''''
+					WHEN device_type = 9 THEN ''''URL = '''' + mediafamily.physical_device_name + ''''''''
+					WHEN device_type = 102 THEN  mediafamily.logical_device_name
+					ELSE ''''***UNSUPPORTED DEVICE***''''
+				END, 
+				position, 
+				backup_start_date, 
+				backup_finish_date,
+				@@SERVERNAME
+				FROM msdb.dbo.backupset backupset
+				INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
+				WHERE backupset.database_name = ''''' + @DatabaseName + '''''
+				AND backupset.backup_finish_date < ''''' + CONVERT(VARCHAR,@RestoreToDate, 112) + ' ' + CONVERT(VARCHAR, @RestoreToDate, 14) + '''''
+				AND backupset.type = ''''D''''
+				AND is_copy_only IN (0,''''' + CAST(@IncludeCopyOnly AS char(1)) + ''''')
+				ORDER BY backup_finish_date DESC'')'
 
-				print @cmd
-				EXEC sp_executesql @Cmd
+
+				BEGIN TRY
+					INSERT INTO #BackupDetails (physical_device_name, position, backup_start_date, backup_finish_date, takenOnServer)
+					EXEC (@Cmd)
+				END TRY
+				BEGIN CATCH
+					SET @Error = 'Getting full backups; ' + @ReplicaName + ' is currently uncontactable and will be skipped. MSG: ' + ERROR_MESSAGE()
+					RAISERROR (@Error,12, 1)
+				END CATCH
 
 				FETCH NEXT FROM ReplicaCur INTO @ReplicaName
 			END
@@ -441,13 +474,13 @@ BEGIN
 		FROM #BackupDetails
 
 
-		INSERT INTO #BackupCommands (backup_finish_date, DBName, command, BackupType, AlterCommand)
+		INSERT INTO #BackupCommands (backup_finish_date, DBName, command, BackupType, AlterCommand, takenOnServer)
 		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
 						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name,
 						0
 		FROM #BackupDetails
 		WHERE backup_start_date = @LastestBackupInSet
-		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'FULL',0
+		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'FULL',0, takenOnServer
 		FROM #BackupDetails
 		WHERE backup_start_date = @LastestBackupInSet
 	END
@@ -512,72 +545,169 @@ BEGIN
 	--Get last diff for required timeframe
 	IF (@RestoreOptions IN ('PointInTime','ToLog','ToDiff','DiffOnly'))
 	BEGIN
-		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
-		AS
-			(SELECT CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
+
+		TRUNCATE TABLE #BackupDetails
+
+		INSERT INTO #BackupDetails (physical_device_name, position, backup_start_date, backup_finish_date, takenOnServer)
+		SELECT TOP 1 CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
 							WHEN device_type = 5 THEN 'TAPE = ''' + mediafamily.physical_device_name + ''''
 							WHEN device_type = 9 THEN 'URL = ''' + mediafamily.physical_device_name + ''''
 							WHEN device_type = 102 THEN  mediafamily.logical_device_name
 							ELSE '***UNSUPPORTED DEVICE***'
 					END,
 			position, 
-			RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, 
-			backup_finish_date
+			--RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, 
+			backup_start_date,
+			backup_finish_date,
+			@@SERVERNAME
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
 			AND backupset.backup_finish_date < @RestoreToDate
 			AND backupset.type = 'I'
-            AND is_copy_only IN (0,@IncludeCopyOnly))
+            AND is_copy_only IN (0,@IncludeCopyOnly)
+			ORDER BY backup_finish_date DESC
 
-		INSERT INTO #BackupCommands (backup_finish_date, DBName, command, BackupType, AlterCommand)
+			--if database is in an AG, cursor through other replicas and pull back ful back details
+			IF @IsAGDatabase = 1
+			BEGIN
+
+				FETCH FIRST FROM ReplicaCur INTO @ReplicaName
+
+				WHILE @@FETCH_STATUS = 0
+				BEGIN
+					SET @Cmd = N'SELECT * FROM OPENROWSET(''SQLNCLI'',  ''Server=' + @ReplicaName + N';Trusted_Connection=yes;'', 
+					''SELECT TOP 1 CASE	WHEN device_type = 2 THEN ''''DISK = '''' + mediafamily.physical_device_name + ''''''''
+						WHEN device_type = 5 THEN ''''TAPE = '''' + mediafamily.physical_device_name + ''''''''
+						WHEN device_type = 9 THEN ''''URL = '''' + mediafamily.physical_device_name + ''''''''
+						WHEN device_type = 102 THEN  mediafamily.logical_device_name
+						ELSE ''''***UNSUPPORTED DEVICE***''''
+					END, 
+					position, 
+					backup_start_date, 
+					backup_finish_date,
+					@@SERVERNAME
+					FROM msdb.dbo.backupset backupset
+					INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
+					WHERE backupset.database_name = ''''' + @DatabaseName + '''''
+					AND backupset.backup_finish_date < ''''' + CONVERT(VARCHAR,@RestoreToDate, 112) + ' ' + CONVERT(VARCHAR, @RestoreToDate, 14) + '''''
+					AND backupset.type = ''''I''''
+					AND is_copy_only IN (0,''''' + CAST(@IncludeCopyOnly AS char(1)) + ''''')
+					ORDER BY backup_finish_date DESC'')'
+
+					BEGIN TRY
+						INSERT INTO #BackupDetails (physical_device_name, position, backup_start_date, backup_finish_date, takenOnServer)
+						EXEC (@Cmd)
+					END TRY
+					BEGIN CATCH
+						SET @Error = 'Getting diff backups; ' + @ReplicaName + ' is currently uncontactable and will be skipped. MSG: ' + ERROR_MESSAGE()
+						RAISERROR (@Error,12, 1)
+					END CATCH
+
+				FETCH NEXT FROM ReplicaCur INTO @ReplicaName
+			END
+		END
+
+		SELECT @LastestBackupInSet = MAX(backup_start_date)
+		FROM #BackupDetails
+
+		INSERT INTO #BackupCommands (backup_finish_date, DBName, command, BackupType, AlterCommand, takenOnServer)
 		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
 						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name,
 						0
-		FROM BackupFilesCTE
-		WHERE StartDateRank = 1
-		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'DIFF',0
-		FROM BackupFilesCTE
-		WHERE StartDateRank = 1
-		AND backup_finish_date > (SELECT MAX(backup_finish_date) FROM #BackupCommands)
+		FROM #BackupDetails
+		WHERE backup_start_date = @LastestBackupInSet
+		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'DIFF',0, takenOnServer
+		FROM #BackupDetails
+		WHERE backup_start_date = @LastestBackupInSet
 	END
+
+	--get latest full or diff backup finish date
+	SELECT @LastFullDiff = COALESCE(MAX(backup_finish_date),@FirstLogToRestore) FROM #BackupCommands
 
 	--Get all log backups since last full or diff
 	IF (@RestoreOptions IN ('ToLog','LogsOnly'))
-		WITH BackupFilesCTE (physical_device_name, position, StartDateRank, backup_finish_date)
-		AS
-			(SELECT CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
+	BEGIN
+
+		TRUNCATE TABLE #BackupDetails
+			
+			INSERT INTO #BackupDetails (physical_device_name, position, backup_start_date, backup_finish_date, takenOnServer)
+			SELECT CASE	WHEN device_type = 2 THEN 'DISK = ''' + mediafamily.physical_device_name + ''''
 							WHEN device_type = 5 THEN 'TAPE = ''' + mediafamily.physical_device_name + ''''
 							WHEN device_type = 9 THEN 'URL = ''' + mediafamily.physical_device_name + ''''
 							WHEN device_type = 102 THEN  mediafamily.logical_device_name
 							ELSE '***UNSUPPORTED DEVICE***'
 					END, 
 			position, 
-			RANK() OVER (ORDER BY backup_finish_date DESC) AS StartDateRank, 
-			backup_finish_date
+			backup_start_date, 
+			backup_finish_date,
+			@@SERVERNAME
 			FROM msdb.dbo.backupset backupset
 			INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
 			WHERE backupset.database_name = @DatabaseName
-			AND backupset.backup_finish_date >
-				(SELECT COALESCE(MAX(backup_finish_date),@FirstLogToRestore) FROM #BackupCommands)
+			AND backupset.backup_finish_date > @LastFullDiff
 			AND backupset.backup_finish_date < @RestoreToDate
 			AND backupset.type = 'L'
-            AND is_copy_only IN (0,@IncludeCopyOnly))
+            AND is_copy_only IN (0,@IncludeCopyOnly)
 
-		INSERT INTO #BackupCommands (backup_finish_date, DBName, command, BackupType, AlterCommand)
+		--if database is in an AG, cursor through other replicas and pull back ful back details
+		IF @IsAGDatabase = 1
+		BEGIN
+
+			FETCH FIRST FROM ReplicaCur INTO @ReplicaName
+
+			WHILE @@FETCH_STATUS = 0
+			BEGIN
+				SET @Cmd = N'SELECT * FROM OPENROWSET(''SQLNCLI'',  ''Server=' + @ReplicaName + N';Trusted_Connection=yes;'', 
+				''SELECT CASE	WHEN device_type = 2 THEN ''''DISK = '''' + mediafamily.physical_device_name + ''''''''
+					WHEN device_type = 5 THEN ''''TAPE = '''' + mediafamily.physical_device_name + ''''''''
+					WHEN device_type = 9 THEN ''''URL = '''' + mediafamily.physical_device_name + ''''''''
+					WHEN device_type = 102 THEN  mediafamily.logical_device_name
+					ELSE ''''***UNSUPPORTED DEVICE***''''
+				END, 
+				position, 
+				backup_start_date, 
+				backup_finish_date,
+				@@SERVERNAME
+				FROM msdb.dbo.backupset backupset
+				INNER JOIN msdb.dbo.backupmediafamily mediafamily ON backupset.media_set_id = mediafamily.media_set_id
+				WHERE backupset.database_name = ''''' + @DatabaseName + '''''
+				AND backupset.backup_finish_date > ''''' + CONVERT(VARCHAR,@LastestBackupInSet, 112) + ' ' + CONVERT(VARCHAR, @LastestBackupInSet, 14) + '''''
+				AND backupset.backup_finish_date < ''''' + CONVERT(VARCHAR,@RestoreToDate, 112) + ' ' + CONVERT(VARCHAR, @RestoreToDate, 14) + '''''
+				AND backupset.type = ''''L''''
+				AND is_copy_only IN (0,''''' + CAST(@IncludeCopyOnly AS char(1)) + ''''')'')'
+
+
+				BEGIN TRY
+					INSERT INTO #BackupDetails (physical_device_name, position, backup_start_date, backup_finish_date, takenOnServer)
+					EXEC (@Cmd)
+				END TRY
+				BEGIN CATCH
+					SET @Error = 'Getting log backups; ' + @ReplicaName + ' is currently uncontactable and will be skipped. MSG: ' + ERROR_MESSAGE()
+					RAISERROR (@Error,12, 1)
+				END CATCH
+
+				FETCH NEXT FROM ReplicaCur INTO @ReplicaName
+			END
+
+		END
+
+		INSERT INTO #BackupCommands (backup_finish_date, DBName, command, BackupType, AlterCommand, takenOnServer)
 		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
 						'RESTORE LOG ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + 
 							STUFF ((SELECT DISTINCT ',' + physical_device_name
-							FROM BackupFilesCTE a
+							FROM #BackupDetails a
 							WHERE a.backup_finish_date = b.backup_finish_date
 							FOR XML PATH('')),1,1,'') 
 						+ ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) 
 						+ CASE  WHEN @StopAtMark IS NOT NULL THEN ', STOPATMARK = ''' + @StopAtMark + ''''
 								WHEN @StopBeforeMark IS NOT NULL THEN ', STOPBEFOREMARK = ''' + @StopBeforeMark + ''''
 								ELSE ''
-						 END AS Command, 'LOG',0
-		FROM BackupFilesCTE b
+						 END AS Command, 'LOG',0, takenOnServer
+		FROM #BackupDetails b
 		ORDER BY backup_finish_date ASC
+	END
+
 
 	--Get point in time if enabled
 	IF (@PointInTime = 1) AND (EXISTS (SELECT * FROM #BackupCommands WHERE AlterCommand = 0))
@@ -610,16 +740,20 @@ BEGIN
 		WHERE StartDateRank = 1
 	END
 
-	INSERT INTO #BackupCommandsFinal (backup_finish_date, DBName, command, BackupType, AlterCommand)
-	SELECT backup_finish_date, DBName, command, BackupType, AlterCommand FROM #BackupCommands;
+	INSERT INTO #BackupCommandsFinal (backup_finish_date, DBName, command, BackupType, AlterCommand, takenOnServer)
+	SELECT backup_finish_date, DBName, command, BackupType, AlterCommand, takenOnServer FROM #BackupCommands;
 
 	TRUNCATE TABLE #BackupCommands
+
+	IF (CURSOR_STATUS('local','ReplicaCur') != -3)
+	BEGIN
+		CLOSE ReplicaCur
+		DEALLOCATE ReplicaCur
+	END
 
 	FETCH NEXT FROM DatabaseCur INTO @DatabaseName, @RestoreAsName
 END
 
-CLOSE DatabaseCur
-DEALLOCATE DatabaseCur
 
 --get list of latest backups for each database
 INSERT INTO #LatestBackups(LatestDBName,backup_finish_date)
@@ -660,7 +794,7 @@ BEGIN
 					FROM #BackupCommandsFinal)
 END
 
-SELECT backup_finish_date, DBName, command, BackupType
+SELECT backup_finish_date, DBName, command, BackupType, takenOnServer
 FROM #BackupCommandsFinal
 ORDER BY DBName,backup_finish_date
 
