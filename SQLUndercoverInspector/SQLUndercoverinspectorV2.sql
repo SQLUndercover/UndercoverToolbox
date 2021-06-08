@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 29/05/2021
+Revision date: 08/06/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210529';
+DECLARE @Revisiondate DATE = '20210608';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -2137,6 +2137,51 @@ END;
 				EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [DriveSpaceThresholds_Servername_Drive] ON [Inspector].[DriveSpaceThresholds] ([Servername],[Drive]);';
 			END
 
+			IF OBJECT_ID('Inspector.TempDB',N'U') IS NULL 
+			BEGIN
+				CREATE TABLE [Inspector].[TempDB] (
+					Servername NVARCHAR(128) NOT NULL,
+					Log_Date DATETIME NOT NULL,
+					DatabaseFilename NVARCHAR(256) NOT NULL,
+					Reserved_MB DECIMAL(18,2) NOT NULL,
+					Unallocated_MB DECIMAL(18,2) NOT NULL,
+					Internal_object_reserved_MB DECIMAL(18,2) NOT NULL,
+					User_object_reserved_MB DECIMAL(18,2) NOT NULL,
+					Version_store_reserved_MB DECIMAL(18,2) NOT NULL,
+					UsedPct DECIMAL(10,2) NOT NULL,
+					OldestTransactionSessionId INT NULL,
+					OldestTransactionDurationMins DECIMAL(18,2) NULL,
+					TransactionStartTime DATETIME NULL
+				);
+
+				EXEC sp_executesql N'CREATE CLUSTERED INDEX [CIX_TempDB_Servername_Log_Date] ON [Inspector].[TempDB] ([Servername] ASC,[Log_Date] ASC);';
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'TempDBDataRetentionDays')
+			BEGIN 
+				INSERT INTO [Inspector].[Settings] ([Description], [Value])
+				VALUES('TempDBDataRetentionDays','7');
+			END 
+			
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'TempDBPercentUsed')
+			BEGIN 
+				INSERT INTO [Inspector].[Settings] ([Description], [Value])
+				VALUES('TempDBPercentUsed','75');
+			END 
+			
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Modules] WHERE [Modulename] = 'TempDB')
+			BEGIN 
+				INSERT INTO [Inspector].[Modules] ([ModuleConfig_Desc], [Modulename], [CollectionProcedurename], [ReportProcedurename], [ReportOrder], [WarningLevel], [ServerSpecific], [Debug], [IsActive], [HeaderText], [Frequency], [StartTime], [EndTime], [LastRunDateTime])
+				VALUES('Default','TempDB','TempDBInsert','TempDBReport',22,2,1,0,1,NULL,60,@StartTime,@EndTime,NULL);
+			END 
+			
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[DefaultHeaderText] WHERE [Modulename] = 'TempDB')
+			BEGIN 
+				INSERT INTO [Inspector].[DefaultHeaderText] ([Modulename], [HeaderText])
+				VALUES('TempDB','TempDB file usage higher than your threshold');
+			END
+
+
 		    IF OBJECT_ID('Inspector.PSConfig') IS NULL 
 			BEGIN
 				CREATE TABLE [Inspector].[PSConfig](
@@ -2343,7 +2388,9 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''UseMedianCalculationForDriveSpaceCalc'',''0''),
 		(''ReportDataDetailedSummary'',''1''),
 		(''CentraliseExecutionLog'',''0''),
-		(''BackupSpaceWeekdayOffset'',''1'');
+		(''BackupSpaceWeekdayOffset'',''1''),
+		(''TempDBDataRetentionDays'',''7''),
+		(''TempDBPercentUsed'',''75'');
 		
 IF NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfig])
 BEGIN 
@@ -2374,6 +2421,7 @@ VALUES(''Default'',''ADHocDatabaseCreations'',''ADHocDatabaseCreationsInsert'','
 (''Default'',''TopFiveDatabases'',''TopFiveDatabasesInsert'',''TopFiveDatabasesReport'',19,1,0,1,3,NULL,1440,@StartTime,@EndTime),
 (''Default'',''UnusedLogshipConfig'',''UnusedLogshipConfigInsert'',''UnusedLogshipConfigReport'',20,1,0,1,3,NULL,1440,@StartTime,@EndTime),
 (''Default'',''DatacollectionsOverdue'',''DatacollectionsOverdueInsert'',''DatacollectionsOverdueReport'',21,1,0,0,1,NULL,1440,@StartTime,@EndTime),
+(''Default'',''TempDB'',''TempDBInsert'',''TempDBReport'',22,2,1,0,1,NULL,60,@StartTime,@EndTime),
 (''PeriodicBackupCheck'',''BackupsCheck'',''BackupsCheckInsert'',''BackupsCheckReport'',1,1,0,1,1,NULL,120,DATEADD(HOUR,2,@StartTime),@EndTime);
 
 INSERT INTO [Inspector].[DefaultHeaderText] ([Modulename], [HeaderText])
@@ -2396,7 +2444,8 @@ VALUES(''ADHocDatabaseCreations'',''Potential ADhoc database creations''),
 (''LongRunningTransactions'',''Long running transactions exceeding your threshold''),
 (''ServerSettings'',''Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values''),
 (''SuspectPages'',''Suspect database pages found''),
-(''UnusedLogshipConfig'',''Unused log shipping config found'');
+(''UnusedLogshipConfig'',''Unused log shipping config found''),
+(''TempDB'',''TempDB file usage higher than your threshold'');
 
 INSERT INTO [Inspector].[EmailConfig] (ModuleConfig_Desc,EmailSubject)
 VALUES (''Default'',''SQLUndercover Inspector check ''),(''PeriodicBackupCheck'',''SQLUndercover Backups Report'');
@@ -5833,6 +5882,232 @@ SET NOCOUNT ON;
 	UPDATE [Inspector].[Settings] 
 	SET [Value] = NULL
 	WHERE [Description] = ''InspectorUpgradeFilenameSync'';
+END';
+
+
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[TempDBInsert]') AND type in (N'P', N'PC'))
+BEGIN
+EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [Inspector].[TempDBInsert] AS' 
+END
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[TempDBInsert]
+AS
+BEGIN
+
+SET NOCOUNT ON;
+
+DECLARE @SessionID INT;
+DECLARE @TransactionStart DATETIME;
+DECLARE @DurationMins DECIMAL(18,2);
+DECLARE @TempDBPercentUsed DECIMAL(5,2);
+
+SET @TempDBPercentUsed = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@@SERVERNAME, ''TempDB'', ''TempDBPercentUsed'') AS DECIMAL(5,2)), 75.00));
+
+IF (@TempDBPercentUsed IS NULL)
+BEGIN 
+	SET @TempDBPercentUsed = 75.00;
+END 
+
+/* we need to remove old records based on retention per server not just the global retention */
+DELETE tdb
+FROM [Inspector].[CurrentServers] cs
+INNER JOIN [Inspector].[TempDB] tdb ON cs.Servername = tdb.Servername
+WHERE [Log_Date] < DATEADD(DAY,ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](cs.[Servername], ''TempDB'', ''TempDBDataRetentionDays'') AS INT), 7)*-1,GETDATE())
+AND cs.[IsActive] = 1;
+
+
+/* oldest transaction */
+SELECT 
+@SessionID = SessionTrans.session_id,
+@TransactionStart = MIN(ActiveTrans.transaction_begin_time)
+FROM tempdb.sys.dm_tran_session_transactions SessionTrans
+JOIN tempdb.sys.dm_tran_active_transactions ActiveTrans ON SessionTrans.transaction_id = ActiveTrans.transaction_id
+JOIN tempdb.sys.dm_exec_sessions ExecSessions ON ExecSessions.session_id = SessionTrans.session_id
+JOIN tempdb.sys.dm_exec_connections Connections ON Connections.session_id = ExecSessions.session_id
+GROUP BY SessionTrans.session_id;
+
+/* Calculate the duraion in mins for the oldest transaction */
+SET @DurationMins = CAST(DATEDIFF(SECOND,MIN(@TransactionStart),GETDATE())/60.00 AS DECIMAL(18,2));
+
+/* TempDB File utilisation */
+INSERT INTO [Inspector].[TempDB] ([Servername],[Log_Date],[DatabaseFilename], [Reserved_MB], [Unallocated_MB], [Internal_object_reserved_MB], [User_object_reserved_MB], [Version_store_reserved_MB], [UsedPct], [OldestTransactionSessionId], [OldestTransactionDurationMins], [TransactionStartTime])
+SELECT 
+	[Servername],
+	[Log_Date],
+	[DatabaseFilename],
+	[Reserved_MB],
+	[Unallocated_MB], 
+	[Internal_object_reserved_MB], 
+	[User_object_reserved_MB], 
+	[Version_store_reserved_MB], 
+	[UsedPct], 
+	[OldestTransactionSessionId], 
+	[OldestTransactionDurationMins], 
+	[TransactionStartTime]
+FROM
+(
+	SELECT 
+	@@SERVERNAME AS Servername,
+	GETDATE() AS Log_Date,
+	master_files.name AS DatabaseFilename,
+	CAST((unallocated_extent_page_count+version_store_reserved_page_count+user_object_reserved_page_count+internal_object_reserved_page_count+mixed_extent_page_count)*8/1024.00 AS DECIMAL(18,2)) AS Reserved_MB,
+	CAST(unallocated_extent_page_count*8/1024.00 AS DECIMAL(18,2)) AS Unallocated_MB, 
+	CAST((internal_object_reserved_page_count*8)/1024.00 AS DECIMAL(18,2)) AS Internal_object_reserved_MB,
+	CAST((user_object_reserved_page_count*8)/1024.00 AS DECIMAL(18,2)) AS User_object_reserved_MB,
+	CAST(version_store_reserved_page_count*8/1024.00 AS DECIMAL(18,2)) AS Version_store_reserved_MB,
+	CAST(
+			(
+				(
+				CAST((internal_object_reserved_page_count*8)/1024.00 AS DECIMAL(18,2))+
+				CAST((user_object_reserved_page_count*8)/1024.00 AS DECIMAL(18,2))+
+				CAST(version_store_reserved_page_count*8/1024.00 AS DECIMAL(18,2))
+				)
+				/CAST((unallocated_extent_page_count+version_store_reserved_page_count+user_object_reserved_page_count+internal_object_reserved_page_count+mixed_extent_page_count)*8/1024.00 AS DECIMAL(18,2))
+			 )*100.00 AS DECIMAL(18,2)
+		) AS UsedPct,
+	@SessionID AS OldestTransactionSessionId,
+	@DurationMins AS OldestTransactionDurationMins,
+	@TransactionStart AS TransactionStartTime
+	FROM tempdb.sys.dm_db_file_space_usage 
+	INNER JOIN tempdb.sys.master_files ON dm_db_file_space_usage.[file_id] = master_files.[file_id] AND dm_db_file_space_usage.[database_id] = master_files.[database_id]
+) AS TempDBUsage
+WHERE UsedPct >= @TempDBPercentUsed;
+
+END';
+
+
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[TempDBReport]') AND type in (N'P', N'PC'))
+BEGIN
+EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [Inspector].[TempDBReport] AS' 
+END
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[TempDBReport] (
+@Servername NVARCHAR(128),
+@Modulename VARCHAR(50),
+@TableHeaderColour VARCHAR(7) = ''#E6E6FA'',
+@WarningHighlight VARCHAR(7),
+@AdvisoryHighlight VARCHAR(7),
+@InfoHighlight VARCHAR(7),
+@ModuleConfig VARCHAR(20),
+@WarningLevel TINYINT,
+@ServerSpecific BIT,
+@NoClutter BIT,
+@TableTail VARCHAR(256),
+@HtmlOutput VARCHAR(MAX) OUTPUT,
+@CollectionOutOfDate BIT OUTPUT,
+@PSCollection BIT,
+@Debug BIT = 0
+)
+AS 
+BEGIN 
+--Revision date: 04/06/2021	
+
+DECLARE @TempDBPercentUsed DECIMAL(5,2);
+DECLARE @HtmlTableHead VARCHAR(2000);
+DECLARE @AgentJobOwnerExclusions VARCHAR(255);
+DECLARE @LastCollection DATETIME;
+DECLARE @ReportFrequency INT;
+
+SET @TempDBPercentUsed = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@@SERVERNAME, ''TempDB'', ''TempDBPercentUsed'') AS DECIMAL(5,2)), 75.00));
+SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
+SET @ReportFrequency *= -1;
+SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
+
+--Set columns names for the Html table
+SET @HtmlTableHead = (SELECT [Inspector].[GenerateHtmlTableheader] (
+	@Servername,
+	@Modulename,
+	@ServerSpecific,
+	''TempDB file Usage above ''+CAST(@TempDBPercentUsed AS VARCHAR(10))+''%'',
+	@TableHeaderColour,
+	''Servername,Log_Date,DatabaseFilename,Reserved_MB,Unallocated_MB,Internal_object_reserved_MB,User_object_reserved_MB,Version_store_reserved_MB,UsedPct,OldestTransactionSessionId,OldestTransactionDurationMins,TransactionStartTime''
+	)
+);
+
+/* if there has been a data collection since the last report frequency minutes ago then run the report */
+IF(@LastCollection >= DATEADD(MINUTE,@ReportFrequency,GETDATE()))
+BEGIN
+	SET @HtmlOutput = 
+	(SELECT 
+	CASE 
+		WHEN @WarningLevel IS NULL THEN @AdvisoryHighlight
+		WHEN @WarningLevel = 1 THEN @WarningHighlight
+		WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
+		WHEN @WarningLevel = 3 THEN @InfoHighlight
+	END AS [@bgcolor],
+	[Servername] AS ''td'','''',+
+	[Log_Date] AS ''td'','''',+ 
+	[DatabaseFilename] AS ''td'','''',+ 
+	[Reserved_MB] AS ''td'','''',+ 
+	[Unallocated_MB] AS ''td'','''',+ 
+	[Internal_object_reserved_MB] AS ''td'','''',+ 
+	[User_object_reserved_MB] AS ''td'','''',+ 
+	[Version_store_reserved_MB] AS ''td'','''',+ 
+	[UsedPct] AS ''td'','''',+ 
+	ISNULL(CAST([OldestTransactionSessionId] AS VARCHAR(10)),''N/A'') AS ''td'','''',+ 
+	ISNULL(CAST([OldestTransactionDurationMins] AS VARCHAR(10)),''N/A'') AS ''td'','''',+ 
+	ISNULL(CONVERT(VARCHAR(24),[TransactionStartTime],113),''N/A'') AS ''td'',''''
+	FROM [Inspector].[TempDB]
+	WHERE Servername = @Servername
+	AND Log_Date >= DATEADD(MINUTE,@ReportFrequency,GETDATE())
+	FOR XML PATH(''tr''),ELEMENTS);
+END
+ELSE 
+BEGIN 
+	SET @HtmlOutput = 
+	(SELECT 
+	CASE 
+		WHEN @WarningLevel IS NULL THEN @AdvisoryHighlight
+		WHEN @WarningLevel = 1 THEN @WarningHighlight
+		WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
+		WHEN @WarningLevel = 3 THEN @InfoHighlight
+	END AS [@bgcolor],
+	@Servername AS ''td'','''',+
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'','''', + 
+	''N/A'' AS ''td'',''''
+	FOR XML PATH(''tr''),ELEMENTS);
+
+	--Mark Collection as out of date
+	SET @CollectionOutOfDate = 1;
+END
+
+	SET @HtmlOutput = 
+		@HtmlTableHead
+		+ @HtmlOutput
+		+ @TableTail
+		+''<p><BR><p>''
+
+
+IF (@Debug = 1)
+BEGIN 
+	SELECT 
+	OBJECT_NAME(@@PROCID) AS ''Procname'',
+	@Servername AS ''@Servername'',
+	@Modulename AS ''@Modulename'',
+	@TableHeaderColour AS ''@TableHeaderColour'',
+	@WarningHighlight AS ''@WarningHighlight'',
+	@AdvisoryHighlight AS ''@AdvisoryHighlight'',
+	@InfoHighlight AS ''@InfoHighlight'',
+	@ModuleConfig AS ''@ModuleConfig'',
+	@WarningLevel AS ''@WarningLevel'',
+	@NoClutter AS ''@NoClutter'',
+	@TableTail AS ''@TableTail'',
+	@HtmlOutput AS ''@HtmlOutput'',
+	@HtmlTableHead AS ''@HtmlTableHead'',
+	@CollectionOutOfDate AS ''@CollectionOutOfDate'',
+	@PSCollection AS ''@PSCollection''
+END 
+
 END';
 
 
