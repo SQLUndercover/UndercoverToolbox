@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 08/06/2021
+Revision date: 09/06/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210608';
+DECLARE @Revisiondate DATE = '20210609';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1864,8 +1864,42 @@ END;
 			[login_name] NVARCHAR(128) NULL,
 			[host_name] NVARCHAR(128) NULL,
 			[program_name] NVARCHAR(128) NULL,
-			[Databasename] NVARCHAR(128) NULL
+			[Databasename] NVARCHAR(128) NULL,
+			[Querytext] NVARCHAR(MAX) NULL
 			);
+
+			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactions') AND name = 'Querytext')
+			BEGIN 
+				ALTER TABLE [Inspector].[LongRunningTransactions] ADD [Querytext] NVARCHAR(MAX) NULL;
+			END
+
+			IF OBJECT_ID('Inspector.LongRunningTransactionsHistory') IS NULL
+			BEGIN 
+				CREATE TABLE [Inspector].[LongRunningTransactionsHistory](
+				[ID] INT IDENTITY(1,1),
+				[Servername] NVARCHAR(128) NULL,
+				[Log_Date] DATETIME NULL,
+				[session_id] INT NULL,
+				[transaction_begin_time] DATETIME NULL,
+				[Duration_DDHHMMSS] VARCHAR(20) NULL,
+				[TransactionState] VARCHAR(20) NULL,
+				[SessionState] NVARCHAR(20) NULL,
+				[login_name] NVARCHAR(128) NULL,
+				[host_name] NVARCHAR(128) NULL,
+				[program_name] NVARCHAR(128) NULL,
+				[Databasename] NVARCHAR(128) NULL,
+				[Querytext] NVARCHAR(MAX) NULL
+				);
+
+				EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_ID] ON [Inspector].[LongRunningTransactionsHistory] ([ID] ASC);';
+				EXEC sp_executesql N'CREATE NONCLUSTERED INDEX [CIX_Log_Date_Servername] ON [Inspector].[LongRunningTransactionsHistory] ([Log_Date] ASC,[Servername] ASC);';
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'LongRunningTransactionsHistoryRetentionDays')
+			BEGIN 
+				INSERT INTO [Inspector].[Settings] ([Description], [Value])
+				VALUES('LongRunningTransactionsHistoryRetentionDays','7');
+			END 
 
 			IF OBJECT_ID('Inspector.InstanceVersionHistory') IS NULL
 			CREATE TABLE [Inspector].[InstanceVersionHistory](
@@ -2390,7 +2424,8 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''CentraliseExecutionLog'',''0''),
 		(''BackupSpaceWeekdayOffset'',''1''),
 		(''TempDBDataRetentionDays'',''7''),
-		(''TempDBPercentUsed'',''75'');
+		(''TempDBPercentUsed'',''75''),
+		(''LongRunningTransactionsHistoryRetentionDays'',''7'');
 		
 IF NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfig])
 BEGIN 
@@ -5410,13 +5445,32 @@ ALTER PROCEDURE [Inspector].[LongRunningTransactionsInsert]
 AS
 BEGIN
 
---Revision date: 08/08/2018
+--Revision date: 09/06/2021
 
 SET NOCOUNT ON;
 
 DECLARE @TransactionDurationThreshold INT = (SELECT CAST([Value] AS INT) FROM [Inspector].[Settings] WHERE [Description] = ''LongRunningTransactionThreshold'');
 DECLARE @Now DATETIME = GETDATE();
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
+DECLARE @Retention INT;
+
+SET @Retention = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@@SERVERNAME, ''LongRunningTransactions'', ''LongRunningTransactionsHistoryRetentionDays'') AS INT), 7));
+
+IF (@Retention IS NULL)
+BEGIN 
+	SET @Retention = 7;
+END 
+
+SET @Retention = @Retention*-1;
+
+DELETE FROM [Inspector].[LongRunningTransactionsHistory]
+WHERE Servername = @Servername
+AND [Log_Date] < DATEADD(DAY,@Retention,GETDATE());
+
+INSERT INTO [Inspector].[LongRunningTransactionsHistory] ([Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename],[Querytext])
+SELECT [Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename],[Querytext]
+FROM [Inspector].[LongRunningTransactions]
+WHERE [session_id] IS NOT NULL;
 
 DELETE FROM [Inspector].[LongRunningTransactions]
 WHERE Servername = @Servername;
@@ -5427,7 +5481,7 @@ BEGIN
 	SET @TransactionDurationThreshold = 300;
 END
 
-INSERT INTO [Inspector].[LongRunningTransactions] ([Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename])
+INSERT INTO [Inspector].[LongRunningTransactions] ([Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename],[Querytext])
 SELECT
 @Servername,
 @Now,
@@ -5454,10 +5508,12 @@ END AS TransactionState
 ,Sessions.host_name
 ,Sessions.program_name
 ,DB_NAME(Sessions.database_id)
+,[Querytext].[text]
 FROM sys.dm_tran_session_transactions SessionTrans
 JOIN sys.dm_tran_active_transactions ActiveTrans ON SessionTrans.transaction_id = ActiveTrans.transaction_id
 JOIN sys.dm_exec_sessions Sessions ON Sessions.session_id = SessionTrans.session_id
 JOIN sys.dm_exec_connections Connections ON Connections.session_id = Sessions.session_id
+OUTER APPLY sys.dm_exec_sql_text(Connections.most_recent_sql_handle) aS Querytext
 WHERE ActiveTrans.transaction_begin_time <= DATEADD(SECOND,-@TransactionDurationThreshold,@Now)
 ORDER BY ActiveTrans.transaction_begin_time ASC;
 
