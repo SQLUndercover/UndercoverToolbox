@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 09/06/2021
+Revision date: 11/06/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210609';
+DECLARE @Revisiondate DATE = '20210611';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -6056,7 +6056,7 @@ EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[TempDBReport] (
 )
 AS 
 BEGIN 
---Revision date: 04/06/2021	
+--Revision date: 11/06/2021	
 
 DECLARE @TempDBPercentUsed DECIMAL(5,2);
 DECLARE @HtmlTableHead VARCHAR(2000);
@@ -6093,7 +6093,7 @@ BEGIN
 		WHEN @WarningLevel = 3 THEN @InfoHighlight
 	END AS [@bgcolor],
 	[Servername] AS ''td'','''',+
-	[Log_Date] AS ''td'','''',+ 
+	CONVERT(VARCHAR(17),[Log_Date],113) AS ''td'','''',+ 
 	[DatabaseFilename] AS ''td'','''',+ 
 	[Reserved_MB] AS ''td'','''',+ 
 	[Unallocated_MB] AS ''td'','''',+ 
