@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 11/06/2021
+Revision date: 14/06/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210611';
+DECLARE @Revisiondate DATE = '20210614';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -2206,7 +2206,7 @@ END;
 			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Modules] WHERE [Modulename] = 'TempDB')
 			BEGIN 
 				INSERT INTO [Inspector].[Modules] ([ModuleConfig_Desc], [Modulename], [CollectionProcedurename], [ReportProcedurename], [ReportOrder], [WarningLevel], [ServerSpecific], [Debug], [IsActive], [HeaderText], [Frequency], [StartTime], [EndTime], [LastRunDateTime])
-				VALUES('Default','TempDB','TempDBInsert','TempDBReport',22,2,1,0,1,NULL,60,@StartTime,@EndTime,NULL);
+				VALUES('Default','TempDB','TempDBInsert','TempDBReport',22,2,1,0,1,NULL,5,@StartTime,@EndTime,NULL);
 			END 
 			
 			IF NOT EXISTS(SELECT 1 FROM [Inspector].[DefaultHeaderText] WHERE [Modulename] = 'TempDB')
@@ -2456,7 +2456,7 @@ VALUES(''Default'',''ADHocDatabaseCreations'',''ADHocDatabaseCreationsInsert'','
 (''Default'',''TopFiveDatabases'',''TopFiveDatabasesInsert'',''TopFiveDatabasesReport'',19,1,0,1,3,NULL,1440,@StartTime,@EndTime),
 (''Default'',''UnusedLogshipConfig'',''UnusedLogshipConfigInsert'',''UnusedLogshipConfigReport'',20,1,0,1,3,NULL,1440,@StartTime,@EndTime),
 (''Default'',''DatacollectionsOverdue'',''DatacollectionsOverdueInsert'',''DatacollectionsOverdueReport'',21,1,0,0,1,NULL,1440,@StartTime,@EndTime),
-(''Default'',''TempDB'',''TempDBInsert'',''TempDBReport'',22,2,1,0,1,NULL,60,@StartTime,@EndTime),
+(''Default'',''TempDB'',''TempDBInsert'',''TempDBReport'',22,2,1,0,1,NULL,5,@StartTime,@EndTime),
 (''PeriodicBackupCheck'',''BackupsCheck'',''BackupsCheckInsert'',''BackupsCheckReport'',1,1,0,1,1,NULL,120,DATEADD(HOUR,2,@StartTime),@EndTime);
 
 INSERT INTO [Inspector].[DefaultHeaderText] ([Modulename], [HeaderText])
@@ -6056,26 +6056,39 @@ EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[TempDBReport] (
 )
 AS 
 BEGIN 
---Revision date: 11/06/2021	
+--Revision date: 14/06/2021	
 
 DECLARE @TempDBPercentUsed DECIMAL(5,2);
 DECLARE @HtmlTableHead VARCHAR(2000);
 DECLARE @AgentJobOwnerExclusions VARCHAR(255);
 DECLARE @LastCollection DATETIME;
 DECLARE @ReportFrequency INT;
+DECLARE @MonitorHourStart INT;
+DECLARE @MonitorHourEnd INT;
 
+SET @MonitorHourStart = (SELECT [MonitorHourStart] FROM [Inspector].[MonitorHours] WHERE [Servername] = @Servername AND [Modulename] = @Modulename);
+SET @MonitorHourEnd = (SELECT [MonitorHourEnd] FROM [Inspector].[MonitorHours] WHERE [Servername] = @Servername AND [Modulename] = @Modulename);
 SET @TempDBPercentUsed = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@@SERVERNAME, ''TempDB'', ''TempDBPercentUsed'') AS DECIMAL(5,2)), 75.00));
 SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
 EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
 SET @ReportFrequency *= -1;
 SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
+IF @MonitorHourStart IS NULL BEGIN SET @MonitorHourStart = 0 END;
+IF @MonitorHourEnd IS NULL BEGIN SET @MonitorHourEnd = 23 END;
+
 --Set columns names for the Html table
 SET @HtmlTableHead = (SELECT [Inspector].[GenerateHtmlTableheader] (
 	@Servername,
 	@Modulename,
 	@ServerSpecific,
-	''TempDB file Usage above ''+CAST(@TempDBPercentUsed AS VARCHAR(10))+''%'',
+	''TempDB file Usage above ''+CAST(@TempDBPercentUsed AS VARCHAR(10))+''%''
+	+'' in the last ''
+	+CAST(ABS(@ReportFrequency) AS VARCHAR(6)) 
+	+''mins between the hours of ''
+	+CAST(@MonitorHourStart AS VARCHAR(10))
+	+'' and ''
+	+CAST(@MonitorHourEnd AS VARCHAR(10)),
 	@TableHeaderColour,
 	''Servername,Log_Date,DatabaseFilename,Reserved_MB,Unallocated_MB,Internal_object_reserved_MB,User_object_reserved_MB,Version_store_reserved_MB,UsedPct,OldestTransactionSessionId,OldestTransactionDurationMins,TransactionStartTime''
 	)
@@ -6107,6 +6120,7 @@ BEGIN
 	FROM [Inspector].[TempDB]
 	WHERE Servername = @Servername
 	AND Log_Date >= DATEADD(MINUTE,@ReportFrequency,GETDATE())
+	AND DATEPART(HOUR,Log_Date) BETWEEN @MonitorHourStart AND @MonitorHourEnd
 	FOR XML PATH(''tr''),ELEMENTS);
 END
 ELSE 
