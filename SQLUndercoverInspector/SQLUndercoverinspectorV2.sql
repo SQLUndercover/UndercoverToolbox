@@ -2185,10 +2185,11 @@ END;
 					UsedPct DECIMAL(10,2) NOT NULL,
 					OldestTransactionSessionId INT NULL,
 					OldestTransactionDurationMins DECIMAL(18,2) NULL,
-					TransactionStartTime DATETIME NULL
+					TransactionStartTime DATETIME NULL,
+					DateHour AS DATEPART(HOUR,Log_Date)
 				);
 
-				EXEC sp_executesql N'CREATE CLUSTERED INDEX [CIX_TempDB_Servername_Log_Date] ON [Inspector].[TempDB] ([Servername] ASC,[Log_Date] ASC);';
+				EXEC sp_executesql N'CREATE CLUSTERED INDEX [CIX_TempDB_Servername_Log_Date] ON [Inspector].[TempDB] ([Servername] ASC,[Log_Date] ASC,[DateHour] ASC);';
 			END
 
 			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'TempDBDataRetentionDays')
@@ -6120,7 +6121,7 @@ BEGIN
 	FROM [Inspector].[TempDB]
 	WHERE Servername = @Servername
 	AND Log_Date >= DATEADD(MINUTE,@ReportFrequency,GETDATE())
-	AND DATEPART(HOUR,Log_Date) BETWEEN @MonitorHourStart AND @MonitorHourEnd
+	AND [DateHour] BETWEEN @MonitorHourStart AND @MonitorHourEnd
 	FOR XML PATH(''tr''),ELEMENTS);
 END
 ELSE 
