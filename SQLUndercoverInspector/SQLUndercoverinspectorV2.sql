@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 14/06/2021
+Revision date: 25/06/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210614';
+DECLARE @Revisiondate DATE = '20210625';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -2700,6 +2700,20 @@ END
 	' 
 	END;
 
+	IF NOT EXISTS (SELECT * FROM sys.views WHERE object_id = OBJECT_ID(N'[Inspector].[ExecutionInfo]'))
+	EXEC dbo.sp_executesql @statement = N'CREATE VIEW [Inspector].[ExecutionInfo] AS SELECT 1 AS A';
+	
+	EXEC dbo.sp_executesql @statement = N'ALTER VIEW [Inspector].[ExecutionInfo]
+	AS 
+	SELECT 
+		Procname,
+		COUNT(Procname) AS ExecutionCount,
+		SUM(Duration) AS TotalDuration_Seconds,
+		AVG(Duration) AS AverageDuration_Seconds,
+		MAX(Duration) AS MaxDuration_Seconds
+	FROM Inspector.ExecutionLog
+	WHERE Procname != N''InspectorDataCollection''
+	GROUP BY Procname;';
 
 	IF NOT EXISTS (SELECT * FROM sys.views WHERE object_id = OBJECT_ID(N'[Inspector].[ModuleSchedulesDue]'))
 	BEGIN
