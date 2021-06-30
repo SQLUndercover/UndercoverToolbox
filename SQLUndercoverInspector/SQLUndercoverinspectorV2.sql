@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 25/06/2021
+Revision date: 30/06/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210625';
+DECLARE @Revisiondate DATE = '20210630';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -3329,13 +3329,14 @@ END
 			/*
 			Author: Adrian Buckman
 			Created: 23/08/2018
-			Revised: n/a
+			Revised: 30/06/2021
 			Description: Show aggregated space used by drive by server, show Average daily,monthly and yearly usage and MIN/MAX Daily Increment variances.
 			*/
 			
 			SELECT 
 			Servername,
 			Drive,
+			(SELECT TOP (1) Capacity_GB FROM [Inspector].[DriveSpace] LastCapacity WHERE LastCapacity.Servername = DriveInfo.Servername AND LastCapacity.Drive = DriveInfo.Drive) AS Capacity_GB,
 			COUNT(*) AS DaysRecorded,
 			CAST(AVG(Delta_GB) AS DECIMAL(8,2)) AS AVG_Daily_Growth_GB,
 			CAST(((AVG(Delta_GB)*365)/12) AS DECIMAL(8,2)) AS AVG_Monthly_Growth_GB,
@@ -3380,13 +3381,14 @@ END
 			/*
 			Author: Adrian Buckman
 			Created: 23/08/2018
-			Revised: n/a
+			Revised: 30/06/2021
 			Description: Show aggregated space used by drive by server, show Average daily,monthly and yearly usage and MIN/MAX Daily Increment variances.
 			*/
 			
 			SELECT 
 			Servername,
 			Drive,
+			(SELECT TOP (1) Capacity_GB FROM [Inspector].[DriveSpace] LastCapacity WHERE LastCapacity.Servername = DriveInfo.Servername AND LastCapacity.Drive = DriveInfo.Drive) AS Capacity_GB,
 			COUNT(*) AS DaysRecorded,
 			CAST(AVG(Delta_GB) AS DECIMAL(8,2)) AS AVG_Daily_Growth_GB,
 			CAST(((AVG(Delta_GB)*365)/12) AS DECIMAL(8,2)) AS AVG_Monthly_Growth_GB,
