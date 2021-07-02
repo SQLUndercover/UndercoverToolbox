@@ -1,5 +1,5 @@
 ﻿cls
-<#
+<#\
 MIT License
 ------------
 
@@ -20,42 +20,144 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #THIS SCRIPT IS STILL A WORK IN PROGRESS!
 #Author: Adrian Buckman
-#Revision date: 30/05/2020
+#Revision date: 23/06/2021
  
 #set variables
 #if you are using a Github URL this must be the raw URL.
 
-$Branch = "master" #Inspector-Dev
+#region set tls version to use
+$TLSAvailable = [enum]::GetNames([Net.SecurityProtocolType]) | where-object {$_ -in ("Tls","Tls11","Tls12")}
+
+#Select the most recent TLs version available
+$TLSToUse = $TLSAvailable | Sort-Object -Descending | select-object  -First 1
+
+#Set the Tls protocol to use 
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::$($TLSToUse)
+
+write-host "Security protocol selected: $TLSToUse" -ForegroundColor Cyan;
+#endregion
+
+
+#region clear variables 
+if($Branch) {
+    clear-variable Branch;
+}
+if($PathType) {
+    clear-variable PathType;
+}
+
+$ValidatedServers = @{};
+#endregion
+
+#region read inputs 
+while ($PathType -cnotin ("File","URL")) {
+    $PathType = Read-host "Install from local files 'File' or 'URL'? Default answer is 'URL'"
+
+    if($PathType -eq ""){
+        write-host "No selection made, defaulting to URL" -ForegroundColor Cyan;
+        $PathType = "URL";
+        Break;
+    }
+
+    if($PathType -cin ("master","Inspector-Dev")){
+        Break;
+    }
+}
+
+if($PathType -eq "URL"){
+    while ($Branch -cnotin ("master","Inspector-Dev")) {
+        $Branch = Read-host "Which branch of Inspector would you like to install , 'master' or 'Inspector-Dev'? Default answer is 'master'"
+
+        if($Branch -eq ""){
+            write-host "No selection made, defaulting to master branch" -ForegroundColor Cyan;
+            $Branch = "master";
+            Break;
+        }
+       
+        if($Branch -cin ("master","Inspector-Dev")){
+            Break;
+        }
+    }
+}
 
 #Set a URL or local path where the SQLUndercoverinspectorV2.sql file exists
-$ScriptPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/$Branch/SQLUndercoverInspector/SQLUndercoverinspectorV2.sql"
-#$ScriptPath = "C:\Temp\SQLUndercoverinspectorV2.sql"
+if($PathType -eq "URL") {
+    $ScriptPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/$Branch/SQLUndercoverInspector/SQLUndercoverinspectorV2.sql"
+    $ManifestPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/$Branch/SQLUndercoverInspector/V2%20-%20Additional%20files/Manifest.csv";
 
-#Set a URL or local path of where the Manifest.csv file exists
-$ManifestPath = "https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/$Branch/SQLUndercoverInspector/V2%20-%20Additional%20files/Manifest.csv";
-#$ManifestPath = "C:\Temp\Manifest.csv"
+} ELSE {
+    $ScriptPath = Read-host "Enter folder location where the installation files are stored"
 
-$SQLInstances = "CATACLYSM\SQL01,CATACLYSM\SQL02,CATACLYSM\SQL03CS" #if this is a linked server install ensure that the central server appears first in the list
-$LoggingDB = "SQLUndercover"
-$CustomModules = @("NONE") # @("NONE") to not include custom modules , @("ALL") to install all custommodules or name them @("CPU","BlitzWaits","Catalogue",BlitzFileStats")
+    if($ScriptPath.EndsWith("\")) {
+        $ScriptPath = $ScriptPath+"SQLUndercoverinspectorV2.sql"
+        $ManifestPath = $ScriptPath+"Manifest.csv"
+    } else {
+        $ScriptPath = $ScriptPath+"\SQLUndercoverinspectorV2.sql"
+        $ManifestPath = $ScriptPath+"\Manifest.csv"
+    }
+}
 
-$UseWindowsAuth = "Y"  #"Y" or "N"
+$SQLInstances = "";
+while ($SQLInstances -eq ""){
+    $SQLInstances = read-host "Server(s) (pipe delimited) e.g SQL01|SQL02?";
+
+    if($SQLInstances -ne ""){
+        #Remove any spaces
+        $SQLInstances = $SQLInstances.Replace(" ","");
+        break;
+    }
+}
+
+$LoggingDB = "";
+while ($LoggingDB -eq ""){
+    $LoggingDB = read-host "Database name";
+    if($LoggingDB -ne ""){
+        break;
+    }
+}
+
+[string]$CustomModulesSelection = "";
+while ($CustomModulesSelection -eq ""){
+    $CustomModulesSelection =  read-host "Custom modules to install, options are 'NONE', 'ALL' , or comma delimit from the list: CPU BlitzWaits Catalogue BlitzFileStats";
+    if($CustomModulesSelection -ne ""){
+        break;
+    }
+}
+
+[string]$UseWindowsAuth = "";
+while ($UseWindowsAuth -eq ""){
+    $UseWindowsAuth = read-host "Use windows auth Y/N?";
+
+    $UseWindowsAuth = $UseWindowsAuth.ToUpper();
+    if($UseWindowsAuth -in ("Y","N")){
+        break;
+    }
+}
+
+
+$EmailRecipients = read-host "Email address for recieving reports, Semi colon delimited eg 'Email@domain.com;Email2@domain.com'. Press enter to skip";
+
+
+#endregion
+if($EmailRecipients -eq "")  {
+    $EmailRecipients = "NULL";
+}
+
 
 $DataDrive = "S,U"
 $LogDrive = "T,V"
 #Optional Parameters
 $BackupsPath = "NULL" #"NULL" or backups Path
-$LinkedServername = "NULL" #"NULL" or Linked server name if you are not using the powershell collection but do need to centralise data into the central server - Linked server must exist.
-$EmailRecipients = "NULL" #Semi colon delimited eg "Email@domain.com;Email2@domain.com"
 
 
-
-#Do not change anything beyond this point
-
+$CustomModules = [System.Collections.ArrayList]@()
+foreach ($CustomModule in $CustomModulesSelection.split(",")) {
+    $CustomModules+=$CustomModule
+}
 
 $CustomModules = $CustomModules.ToUpper();
 IF(!$CustomModules) {
-    $CustomModules = @("NONE");
+    $CustomModules = "NONE";
 }
 
 #region Validate UseWindowsAuth value
@@ -199,9 +301,6 @@ IF ($BackupsPath -ne "NULL") {
 $BackupsPath = "'"+$BackupsPath+"'";
 };
 
-IF ($LinkedServername -ne "NULL") {
-$LinkedServername = "'"+$LinkedServername+"'";
-};
 
 IF ($EmailRecipients -ne "NULL") {
 $EmailRecipients = "'"+$EmailRecipients+"'";
@@ -217,7 +316,6 @@ EXEC [Inspector].[InspectorSetup]
 @LogDrive = '$LogDrive',	
 --Optional Parameters (Defaults Specified), ignored when @InitialSetup = 0
 @BackupsPath = $BackupsPath,
-@LinkedServername = $LinkedServername,  
 @StackNameForEmailSubject = 'SQLUndercover',	
 @EmailRecipientList = $EmailRecipients,	  
 @DriveSpaceHistoryRetentionInDays = 90, 
@@ -236,14 +334,57 @@ EXEC [Inspector].[InspectorSetup]
 ";
 
 $DBExistsQry = "SELECT CASE WHEN DB_ID('$LoggingDB') IS NOT NULL THEN 1 ELSE 0 END AS DB_ID;";
+$ServerConnQry = "SELECT 1 AS Outcome;";
 #endregion
 
 
+ForEach ($SQLInstance in $SQLInstances.Split("|"))
+{
+    if($ServerValid) {
+        clear-variable ServerValid;
+    }
+    
+    write-host "Testing connection to: $SQLInstance";
+
+    switch ($UseWindowsAuth) {
+
+        "Y" {
+                $ServerValid = Invoke-Sqlcmd -Query $ServerConnQry -ServerInstance $SQLInstance -database "master" -ConnectionTimeout 10;
+         }
+
+        "N" {
+                $ServerValid = Invoke-Sqlcmd -Query $ServerConnQry -ServerInstance $SQLInstance -database "master" -Username $SQLUser -Password $SQLPassword -ConnectionTimeout 10;
+        }
+    }
+
+    if($ServerValid) {
+        write-host "$SQLInstance - OK" -ForegroundColor DarkGreen;
+        $ValidatedServers.add($SQLInstance,1);
+    } else {
+        write-host "$SQLInstance - Unable to connect" -ForegroundColor Red;
+        $ValidatedServers.add($SQLInstance,0);
+    }
+}
+
+#Remove any servers that cannot be connected to
+foreach ($ValidatedServer in $ValidatedServers.GetEnumerator()){
+    if($ValidatedServer.Value -eq 0){
+        $SQLInstances = $SQLInstances.Replace($ValidatedServer.Key,"");
+    }
+}
+
+while ($SQLInstances.EndsWith("|")) {
+   $LastCommaPos = $SQLInstances.LastIndexOf("|");
+   $SQLInstances = $SQLInstances.Substring(0,$($LastCommaPos)); 
+   #$SQLInstances;
+}
+    
+
 #region For Each server create the InspectorSetup stored proc and execute it to install
-ForEach ($SQLInstance in $SQLInstances.Split(","))
+ForEach ($SQLInstance in $SQLInstances.Split("|"))
 {
     switch ($UseWindowsAuth) {
-    "Y" {   $DBExists = Invoke-Sqlcmd -Query $DBExistsQry -ServerInstance $SQLInstance -database "master" -ConnectionTimeout 10;
+    "Y" {   $DBExists = Invoke-Sqlcmd -Query $DBExistsQry -ServerInstance $SQLInstance -database "master" -ConnectionTimeout 10 -OutputSqlErrors $false
             IF ($DBExists.DB_ID -eq 0) {
                 While ($Confirmation -notin ("Y","N")) {
                     $Confirmation = Read-host -Prompt "Database $LoggingDB does not exist on server $SQLInstance - would you like to create it now Y/N?"
@@ -302,7 +443,7 @@ ForEach ($SQLInstance in $SQLInstances.Split(","))
 #endregion
 
 #region start custom module install 
-ForEach ($SQLInstance in $SQLInstances.Split(","))
+ForEach ($SQLInstance in $SQLInstances.Split("|"))
 {
 
 IF ($ManifestPathType -eq "URL") {
@@ -395,5 +536,7 @@ IF ($ScriptPathType -eq "URL") {
 #endregion 
 
 #region clear variables
-Clear-Variable ScriptPathType,ScriptPath,SQLInstances,LoggingDB,TempDir,DataDrive,LogDrive,BackupsPath,LinkedServername,UseWindowsAuth,InspectorURL,Build;
+Clear-Variable ScriptPathType,ScriptPath,SQLInstances,LoggingDB,TempDir,DataDrive,LogDrive,BackupsPath,UseWindowsAuth,InspectorURL,Build;
 #endregion
+
+read-host "press any key to exit";
