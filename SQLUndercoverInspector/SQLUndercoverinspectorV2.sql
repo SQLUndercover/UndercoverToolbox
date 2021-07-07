@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 30/06/2021
+Revision date: 07/07/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -104,7 +104,7 @@ CREATE PROCEDURE [Inspector].[InspectorSetup]
 @StackNameForEmailSubject VARCHAR(255) = 'SQLUndercover',	  --Specify the name for this stack that you want to show in the email subject
 @EmailRecipientList VARCHAR(1000) = NULL,	  -- This will populate the EmailRecipients table for 'DBA'
 @BackupsPath VARCHAR(255) = NULL,	  -- Backup Drive and path
-@DriveSpaceHistoryRetentionInDays INT = 90, -- Also controls growth history retention (Since V1.2)
+@DriveSpaceHistoryRetentionInDays INT = 90, -- Days to retain drive space information
 @DaysUntilDriveFullThreshold	  TINYINT = 56, -- Estimated days until drive is full - Specify the threshold for when you will start to receive alerts (Red highlight and Alert header entry)
 @FreeSpaceRemainingPercent		  TINYINT = 10,-- Specify the percentage of drive space remaining where you want to start seeing a yellow highlight against the drive
 @DriveLetterExcludes			  VARCHAR(10) = NULL, -- Exclude Drive letters from showing Yellow Advisory warnings when @FreeSpaceRemainingPercent has been reached/exceeded e.g C,D (Comma Delimited)
@@ -128,7 +128,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210630';
+DECLARE @Revisiondate DATE = '20210707';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -2336,6 +2336,12 @@ END;
 				VALUES('PSAutoUpdateModulesFrequencyMins','1440');
 			END 
 
+			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'DatabaseGrowthRetentionPeriodInDays')
+			BEGIN 
+				INSERT INTO [Inspector].[Settings] ([Description],[Value])
+				VALUES('DatabaseGrowthRetentionPeriodInDays',180);
+			END 
+			
 			--Update email banner for V2
 			IF (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = 'EmailBannerURL') = 'http://bit.ly/InspectorEmailBanner'
 			BEGIN
@@ -2400,6 +2406,7 @@ EXEC sp_executesql N'
 INSERT INTO [Inspector].[Settings] ([Description],[Value])
 VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''DriveSpaceRetentionPeriodInDays'',@DriveSpaceHistoryRetentionInDays),
+		(''DatabaseGrowthRetentionPeriodInDays'',''180''),
 		(''AGPrimaryHistoryRetentionPeriodInDays'',''90''),
 		(''FullBackupThreshold'',@FullBackupThreshold),
 		(''DiffBackupThreshold'',@DiffBackupThreshold),
@@ -3653,7 +3660,7 @@ BEGIN
 
 	DECLARE @DriveSpaceRetentionPeriodInDays VARCHAR(6);
 
-	SET @DriveSpaceRetentionPeriodInDays = (SELECT ISNULL(NULLIF([Value],''''),''90'') FROM [Inspector].[Settings] WHERE [Description] = ''DriveSpaceRetentionPeriodInDays'');
+	SET @DriveSpaceRetentionPeriodInDays = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@@SERVERNAME, ''DriveSpace'', ''DriveSpaceRetentionPeriodInDays'') AS INT), 90));
 
 	--Update IsActive flag
 	UPDATE PS
@@ -4135,10 +4142,10 @@ to reduce the number of executions performed by the TVF because on instances wit
 
 **************************/
 
-DECLARE @Retention INT = (SELECT Value From [Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'')
+DECLARE @Retention INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@@SERVERNAME, ''DriveSpace'', ''DriveSpaceRetentionPeriodInDays'') AS INT), 90));
 
 DELETE FROM [Inspector].[DriveSpace] 
-WHERE Log_Date < DATEADD(DAY,-@Retention,DATEADD(DAY,1,GETDATE()))
+WHERE Log_Date < DATEADD(DAY,-@Retention,GETDATE())
 AND Servername = @@SERVERNAME;
 
 
@@ -4624,7 +4631,7 @@ AS
 
         DECLARE @Servername NVARCHAR(128)= @@Servername;
 	    DECLARE @LastUpdated DATETIME = GETDATE();
-		DECLARE @Retention INT = (SELECT ISNULL(NULLIF([Value],''''),90) From [Inspector].[Settings] Where Description = ''DriveSpaceRetentionPeriodInDays'');
+		DECLARE @Retention INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@Servername, ''DatabaseGrowths'', ''DatabaseGrowthRetentionPeriodInDays'') AS INT), 90));
 		DECLARE @ScopeIdentity INT
 
 --Insert any databases that are present on the serverbut not present in [Inspector].[DatabaseFileSizes]
@@ -6261,7 +6268,7 @@ BEGIN
 --TableAction: 1 delete, 2 delete with retention, 3 Stage/merge
 --InsertAction: 1 ALL, 2 Todays'' data only, 3 Frequency based
 
-DECLARE @DriveSpaceRetentionPeriodInDays VARCHAR(6) = (SELECT ISNULL(NULLIF([Value],''''),''90'') FROM [Inspector].[Settings] WHERE [Description] = ''DriveSpaceRetentionPeriodInDays'')
+DECLARE @DriveSpaceRetentionPeriodInDays VARCHAR(6) = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@@SERVERNAME, ''DriveSpace'', ''DriveSpaceRetentionPeriodInDays'') AS INT), 90));
 
 IF EXISTS (SELECT 1 FROM [Inspector].[CurrentServers] WHERE [Servername] = @Servername)
 BEGIN
@@ -6454,7 +6461,7 @@ ALTER PROCEDURE [Inspector].[PSGetDriveSpaceStage]
 AS 
 BEGIN 
 
-DECLARE @DriveSpaceRetentionPeriodInDays INT = (SELECT ISNULL(NULLIF(CAST([Value] AS INT),''''),90) FROM [Inspector].[Settings] WHERE [Description] = ''DriveSpaceRetentionPeriodInDays'')
+DECLARE @DriveSpaceRetentionPeriodInDays INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@@SERVERNAME, ''DriveSpace'', ''DriveSpaceRetentionPeriodInDays'') AS INT), 90));
 
 
 --Remove old data for the server
@@ -6608,9 +6615,9 @@ EXEC sp_executesql N'
 ALTER PROCEDURE [Inspector].[PSHistCleanup]
 AS 
 BEGIN 
---Revision date: 10/04/2019
+--Revision date: 07/07/2021
 	
-DECLARE @Retention INT = (SELECT ISNULL(NULLIF([Value],''''),90) FROM [Inspector].[Settings] WHERE Description = ''DriveSpaceRetentionPeriodInDays'')
+DECLARE @Retention INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@@SERVERNAME, ''DriveSpace'', ''DriveSpaceRetentionPeriodInDays'') AS INT), 90));
 
 	--Clean up Drivespace table for history older than @Retention in days
 	DELETE FROM [Inspector].[DriveSpace] 
@@ -6635,7 +6642,7 @@ BEGIN
 --InsertAction: 1 ALL, 2 Todays'' data only
 DECLARE @DriveSpaceRetentionPeriodInDays VARCHAR(6);
 
-SET @DriveSpaceRetentionPeriodInDays = (SELECT ISNULL(NULLIF([Value],''''),''90'') FROM [Inspector].[Settings] WHERE [Description] = ''DriveSpaceRetentionPeriodInDays'');
+SET @DriveSpaceRetentionPeriodInDays = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@@SERVERNAME, ''DriveSpace'', ''DriveSpaceRetentionPeriodInDays'') AS INT), 90));
 
 
 INSERT INTO [Inspector].[PSConfig] ([Servername], [ModuleConfig_Desc], [Modulename], [Procedurename], [Tablename], [StageTablename], [StageProcname], [TableAction], [InsertAction], [RetentionInDays], [IsActive])
