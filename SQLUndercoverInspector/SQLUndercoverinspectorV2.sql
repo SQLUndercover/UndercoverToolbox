@@ -2708,6 +2708,34 @@ END
 	' 
 	END;
 
+
+	IF NOT EXISTS (SELECT * FROM sys.views WHERE object_id = OBJECT_ID(N'[Inspector].[DriveSpaceCapacityInfo]'))
+	EXEC dbo.sp_executesql @statement = N'CREATE VIEW [Inspector].[DriveSpaceCapacityInfo] AS SELECT 1 AS A;';
+	
+	EXEC dbo.sp_executesql @statement = N'ALTER VIEW [Inspector].[DriveSpaceCapacityInfo]
+	AS
+	SELECT 
+	Servername,
+	Log_Date,
+	Drive,
+	Capacity_GB,
+	AvailableSpace_GB,
+	DATEDIFF(DAY,LEAD(Log_Date,1,Log_Date) OVER(Partition by Servername,Drive ORDER BY Log_Date DESC),Log_Date) AS DaysSinceCapacityChange,
+	Capacity_GB-LEAD(Capacity_GB,1,Capacity_GB) OVER(Partition by Servername,Drive ORDER BY Log_Date DESC) AS CapacityChange
+	FROM 
+	(
+		SELECT 
+		Servername,
+		Log_Date,
+		Drive,
+		Capacity_GB,
+		AvailableSpace_GB,
+		ROW_NUMBER() OVER(Partition by Capacity_GB,Servername,Drive ORDER BY Log_Date DESC) as CapacityChange
+		FROM [Inspector].[DriveSpace] 
+	) CapacityChanges
+	WHERE CapacityChange = 1;';
+
+
 	IF NOT EXISTS (SELECT * FROM sys.views WHERE object_id = OBJECT_ID(N'[Inspector].[ExecutionInfo]'))
 	EXEC dbo.sp_executesql @statement = N'CREATE VIEW [Inspector].[ExecutionInfo] AS SELECT 1 AS A';
 	
