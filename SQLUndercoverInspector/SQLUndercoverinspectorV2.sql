@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 07/07/2021
+Revision date: 08/07/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -104,6 +104,7 @@ CREATE PROCEDURE [Inspector].[InspectorSetup]
 @StackNameForEmailSubject VARCHAR(255) = 'SQLUndercover',	  --Specify the name for this stack that you want to show in the email subject
 @EmailRecipientList VARCHAR(1000) = NULL,	  -- This will populate the EmailRecipients table for 'DBA'
 @BackupsPath VARCHAR(255) = NULL,	  -- Backup Drive and path
+@LinkedServername NVARCHAR(128) = N'DEPRECATED', -- No longer in use, left here so we didnt break the auto update feature without the need of replacing the file.
 @DriveSpaceHistoryRetentionInDays INT = 90, -- Days to retain drive space information
 @DaysUntilDriveFullThreshold	  TINYINT = 56, -- Estimated days until drive is full - Specify the threshold for when you will start to receive alerts (Red highlight and Alert header entry)
 @FreeSpaceRemainingPercent		  TINYINT = 10,-- Specify the percentage of drive space remaining where you want to start seeing a yellow highlight against the drive
@@ -128,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210707';
+DECLARE @Revisiondate DATE = '20210708';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
