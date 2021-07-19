@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 09/07/2021
+Revision date: 16/07/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210709';
+DECLARE @Revisiondate DATE = '20210716';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -2290,10 +2290,10 @@ END;
 			END
 
 			--New URL for standard email banner
-			IF (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = 'EmailBannerURL') = 'https://i2.wp.com/sqlundercover.files.wordpress.com/2017/11/inspector_whitehandle.png?ssl=1&w=450'
+			IF (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = 'EmailBannerURL') = 'http://bit.ly/InspectorEmailBanner'
 			BEGIN
 				UPDATE [Inspector].[Settings] 
-				SET [Value] = 'http://bit.ly/InspectorEmailBanner'
+				SET [Value] = 'https://bit.ly/InspectorLogoRev1'
 				WHERE [Description] = 'EmailBannerURL';
 			END
 			
@@ -2434,7 +2434,9 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''BackupSpaceWeekdayOffset'',''1''),
 		(''TempDBDataRetentionDays'',''7''),
 		(''TempDBPercentUsed'',''75''),
-		(''LongRunningTransactionsHistoryRetentionDays'',''7'');
+		(''LongRunningTransactionsHistoryRetentionDays'',''7''),
+		(''PSAutoUpdateModules'',''1''),
+		(''PSAutoUpdateModulesFrequencyMins'',''1440'');
 		
 IF NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfig])
 BEGIN 
