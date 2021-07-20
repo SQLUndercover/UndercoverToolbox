@@ -32,7 +32,7 @@ SET NOCOUNT ON;
 
 DECLARE @MonitorHourStart INT = 0; -- 0 to 23
 DECLARE @MonitorHourEnd INT = 23; -- 0 to 23
-DECLARE @Revisiondate DATETIME = '20210614';
+DECLARE @Revisiondate DATETIME = '20210720';
 DECLARE @InspectorBuild DECIMAL(4,2);
 DECLARE @SQLstmt NVARCHAR(4000);
 DECLARE @InspectorBuildString VARCHAR(6); 
@@ -292,7 +292,7 @@ EXEC('ALTER PROCEDURE [Inspector].[CPUReport] (
 )
 AS
 
---Revision date: 15/12/2020
+--Revision date: 20/07/2021
 BEGIN
 --Excluded from Warning level control
 	DECLARE @HtmlTableHead VARCHAR(4000);
@@ -312,7 +312,7 @@ BEGIN
 	CREATE TABLE #InspectorModuleReport (
 	[@bgcolor] VARCHAR(7),
 	[Servername] NVARCHAR(128), 
-	[EventTime] VARCHAR(20),
+	[EventTime] VARCHAR(24),
 	[SystemCPUUtilization] INT, 
 	[SQLCPUUtilization] INT, 
 	[OtherCPU] INT
