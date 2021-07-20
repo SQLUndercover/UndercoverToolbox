@@ -2,7 +2,7 @@
 Description: CPU Custom module for the Inspector
 			 Collect CPU % and report when % over CPU Thresholds which can be configured by changing the values for CPUThreshold in [Inspector].[Settings]
 Author: Adrian Buckman
-Revision date: 15/12/2020
+Revision date: 14/06/2021
 Credit: David Fowler for the CPU collection query body as this was a snippt taken from a stored procedure he had called sp_CPU_Time
 
 � www.sqlundercover.com 
@@ -32,9 +32,8 @@ SET NOCOUNT ON;
 
 DECLARE @MonitorHourStart INT = 0; -- 0 to 23
 DECLARE @MonitorHourEnd INT = 23; -- 0 to 23
-DECLARE @Revisiondate DATETIME = '20201215';
+DECLARE @Revisiondate DATETIME = '20210614';
 DECLARE @InspectorBuild DECIMAL(4,2);
-DECLARE @LinkedServername NVARCHAR(128);
 DECLARE @SQLstmt NVARCHAR(4000);
 DECLARE @InspectorBuildString VARCHAR(6); 
 
@@ -44,7 +43,6 @@ IF SCHEMA_ID(N'Inspector') IS NOT NULL
 BEGIN 
 
 	SET @InspectorBuild = (SELECT TRY_CAST([Value] AS DECIMAL(4,2)) FROM [Inspector].[Settings] WHERE [Description] = 'InspectorBuild');
-	SET @LinkedServername = (SELECT UPPER(TRY_CAST([Value] AS NVARCHAR(128))) FROM [Inspector].[Settings] WHERE [Description] = 'LinkedServername');
 
 	SET @InspectorBuildString = CAST(@InspectorBuild AS VARCHAR(6));
 
@@ -62,12 +60,6 @@ BEGIN
 	END
 	
 	
-	IF (@LinkedServername IS NOT NULL) AND NOT EXISTS(SELECT 1 FROM sys.servers WHERE [name] = @LinkedServername)
-	BEGIN 
-		RAISERROR('Linked server name is incorrect',11,0,@LinkedServername);
-		RETURN;
-	END 
-
 	IF OBJECT_ID('Inspector.ServerSettingThresholds') IS NULL 
 	BEGIN 
 		RAISERROR('Inspector ServerSettingThresholds table not found - please double check you are using the correct database and the Inspector base install is up to date',11,0);
@@ -200,8 +192,7 @@ END
 IF OBJECT_ID('Inspector.CPUInsert',N'P') IS NOT NULL
 BEGIN 
 
-IF @LinkedServername IS NULL 
-BEGIN 
+
 SET @SQLstmt = N'ALTER PROCEDURE [Inspector].[CPUInsert]
 AS
 BEGIN 
@@ -246,54 +237,6 @@ BEGIN
 	AND NOT EXISTS (SELECT 1 FROM Inspector.CPU WHERE CPU.EventTime  = t.EventTime AND CPU.Servername = @@SERVERNAME);
 END';
 END
-ELSE 
-BEGIN 
-SET @SQLstmt = N'ALTER PROCEDURE [Inspector].[CPUInsert]
-AS
-BEGIN 
---Revision date: 07/12/2019
-	DECLARE @ts_now BIGINT
-	DECLARE @Frequency INT 
-	DECLARE @CPUHistoryRetentionInDays INT 
-	
-	SET @CPUHistoryRetentionInDays = (SELECT ISNULL(TRY_CAST([Value] AS INT),7) FROM '+QUOTENAME(@LinkedServername)+N'.'+QUOTENAME(DB_NAME())+N'.[Inspector].[Settings] WHERE [Description] = ''CPUHistoryRetentionInDays'');
-	SET @Frequency = (SELECT MAX([Frequency]) FROM Inspector.Modules WHERE Modulename = ''CPU''); 
-	SET @ts_now = (SELECT cpu_ticks / (cpu_ticks/ms_ticks)  FROM sys.dm_os_sys_info);
-
-	IF @CPUHistoryRetentionInDays IS NULL BEGIN SET @CPUHistoryRetentionInDays = 7 END;
-
-	DELETE FROM '+QUOTENAME(@LinkedServername)+N'.'+QUOTENAME(DB_NAME())+N'.[Inspector].[CPU] 
-	WHERE [EventTime] < DATEADD(DAY,-@CPUHistoryRetentionInDays,GETDATE())
-	AND [Servername] = @@SERVERNAME;
-	
-	INSERT INTO '+QUOTENAME(@LinkedServername)+N'.'+QUOTENAME(DB_NAME())+N'.[Inspector].[CPU] (Servername,Log_Date,EventTime,SystemCPUUtilization,SQLCPUUtilization)
-	SELECT 
-	@@SERVERNAME,
-	GETDATE(),
-	EventTime, 
-	ISNULL(system_cpu_utilization_post_sp2, system_cpu_utilization_pre_sp2) AS SystemCPUUtilization,
-	ISNULL(sql_cpu_utilization_post_sp2, sql_cpu_utilization_pre_sp2) AS SQLCPUUtilization
-	FROM 
-	(
-	  SELECT 
-	    record.value(''(Record/@id)[1]'', ''int'') AS record_id,
-	    DATEADD (ms, -1 * (@ts_now - [timestamp]), GETDATE()) AS EventTime,
-	    100-record.value(''(Record/SchedulerMonitorEvent/SystemHealth/SystemIdle)[1]'', ''int'') AS system_cpu_utilization_post_sp2,
-	    record.value(''(Record/SchedulerMonitorEvent/SystemHealth/ProcessUtilization)[1]'', ''int'') AS sql_cpu_utilization_post_sp2 , 
-	    100-record.value(''(Record/SchedluerMonitorEvent/SystemHealth/SystemIdle)[1]'', ''int'') AS system_cpu_utilization_pre_sp2,
-	    record.value(''(Record/SchedluerMonitorEvent/SystemHealth/ProcessUtilization)[1]'', ''int'') AS sql_cpu_utilization_pre_sp2
-	  FROM (
-	    SELECT timestamp, CONVERT (xml, record) AS record 
-	    FROM sys.dm_os_ring_buffers 
-	    WHERE ring_buffer_type = ''RING_BUFFER_SCHEDULER_MONITOR''
-	    AND record LIKE ''%<SystemHealth>%'') AS t
-	) AS t
-	WHERE EventTime > DATEADD(MINUTE,-@Frequency,GETDATE())
-	AND NOT EXISTS (SELECT 1 FROM '+QUOTENAME(@LinkedServername)+N'.'+QUOTENAME(DB_NAME())+N'.[Inspector].[CPU] WHERE CPU.EventTime  = t.EventTime AND CPU.Servername = @@SERVERNAME);
-END';
-END
-
-END 
 
 EXEC sp_executesql @SQLstmt;
 
