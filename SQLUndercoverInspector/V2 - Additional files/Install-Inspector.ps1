@@ -326,7 +326,7 @@ EXEC [Inspector].[InspectorSetup]
 @MAXDatabaseGrowthsAllowedPerDay = 10, 
 @AgentJobOwnerExclusions = 'sa', 
 @FullBackupThreshold = 8,		
-@DiffBackupThreshold = 2,		
+@DiffBackupThreshold = 48,		
 @LogBackupThreshold = 20,		
 @DatabaseOwnerExclusions = 'sa',  
 @LongRunningTransactionThreshold = 300,	
