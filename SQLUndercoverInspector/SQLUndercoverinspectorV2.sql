@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 20/07/2021
+Revision date: 27/07/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210720';
+DECLARE @Revisiondate DATE = '20210727';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -8920,7 +8920,7 @@ ALTER PROCEDURE [Inspector].[DriveSpaceReport]
 )
 AS
 
---Revision date: 01/05/2021
+--Revision date: 27/07/2021
 BEGIN
 	SET NOCOUNT ON;
  /* Excluded from Warning level control */
@@ -8929,6 +8929,7 @@ BEGIN
 	DECLARE @FreeSpaceRemainingPercent DECIMAL(5,2);
 	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
+	DECLARE @GlobalMedianCalc BIT;
 
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug, @ModuleConfig, @Modulename);
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
@@ -8945,6 +8946,11 @@ SET @HtmlTableHead =
  @TableHeaderColour, ''Server name,Drive,Total GB,Available GB,% Free,Est.Daily Growth GB,Days Until Disk Full,Days Recorded,Usage Trend,Usage Trend AVG GB,Calculation method,Thresholds''
 )
 
+);
+
+SET @GlobalMedianCalc = 
+(
+	SELECT TRY_CAST([Value] AS BIT) FROM [Inspector].[Settings] WHERE [Description] = ''UseMedianCalculationForDriveSpaceCalc''
 );
 
 SET @DaysUntilDriveFullThreshold =
@@ -8982,7 +8988,7 @@ BEGIN
 												WHERE [DriveSpaceCalc].Servername = [DriveSpace].Servername
 												AND [DriveSpaceCalc].Drive = [DriveSpace].Drive 
 												AND [DriveSpaceCalc].MedianCalc = 1) THEN 1 
-				ELSE 0 
+				ELSE ISNULL(@GlobalMedianCalc,0) 
 			END,
 			CASE 
 				WHEN EXISTS (SELECT 1 FROM [master].[dbo].fn_SplitString(@DriveLetterExcludes, '','')  
