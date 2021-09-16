@@ -1,4 +1,4 @@
-  /*                                                                                                                      
+ï»¿  /*                                                                                                                      
                                                                                                                                                                                                                                              
               @     ,@                                                                                                  
              #@@   @@@                                                                                                  
@@ -24,7 +24,7 @@
    @@@@@@@@  ,#.    `#;   @@@@@@@@'      @@     @@   @@@@@     @@,  #@  @  @@ @   @@  @@     #@    @@    @    @@   @      
   ;#@@@@@@@@             @@@@@@@@@#,              @                                                                     
        ,@@@@+           @@@@@+`                                                                                         
-          .@@`        `@@@@                                          © www.sqlundercover.com                                                             
+          .@@`        `@@@@                                          ï¿½ www.sqlundercover.com                                                             
          +@@@@        @@@@@+                                                                                            
         @@@@@@@      @@@@@@@@#                                                                                          
          @@@@@@@    @@@@@@,                                                                                             
@@ -35,7 +35,7 @@
                   @`                                                                                                    
                   #                                                                                                     
                                                                                                                             
-sp_RestoreScript 1.8                                                                                                             
+sp_RestoreScript 1.9                                                                                                             
 Written By David Fowler
 29 June 2017
 Generate a set of backup commands to restore a database(s) to a specified time         
@@ -73,6 +73,9 @@ Support for STOPATMARK and STOPBEFOREMARK added
 
 23 November 2020 
 Fix bug with @SingleUser generating the wrong ALTER statement
+
+16 September 2021
+Fix bug where a rogue 0 was being placed after the backup file name
 
 MIT License
 ------------
@@ -412,8 +415,7 @@ BEGIN
 
 		INSERT INTO #BackupCommands (backup_finish_date, DBName, command, BackupType, AlterCommand)
 		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
-						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name,
-						0
+						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
 		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'FULL',0
@@ -501,8 +503,7 @@ BEGIN
 
 		INSERT INTO #BackupCommands (backup_finish_date, DBName, command, BackupType, AlterCommand)
 		SELECT DISTINCT  backup_finish_date, @DatabaseName AS DBName,
-						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name,
-						0
+						'RESTORE DATABASE ' + COALESCE(QUOTENAME(@RestoreAsName), QUOTENAME(@DatabaseName)) + ' FROM ' + STUFF ((SELECT ',' + physical_device_name
 		FROM BackupFilesCTE
 		WHERE StartDateRank = 1
 		FOR XML PATH('')),1,1,'') + ' WITH NORECOVERY, FILE = ' + CAST(position AS VARCHAR) AS Command, 'DIFF',0
@@ -638,7 +639,6 @@ IF EXISTS (SELECT command FROM #BackupCommandsFinal WHERE command LIKE '%***UNSU
 RAISERROR (N'One or more backups were taken to an unsupported device, possibly by a third party backup tool' , 15, 1)
 
 END
-
 
 
 
