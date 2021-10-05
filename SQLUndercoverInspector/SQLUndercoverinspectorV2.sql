@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 27/07/2021
+Revision date: 01/09/2021
 Version: 2.6
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210727';
+DECLARE @Revisiondate DATE = '20210901';
 DECLARE @Build VARCHAR(6) ='2.6'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -2355,7 +2355,7 @@ END;
 			IF (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = 'EmailBannerURL') = 'http://bit.ly/InspectorEmailBanner'
 			BEGIN
 				UPDATE [Inspector].[Settings] 
-				SET [Value] = 'http://bit.ly/InspectorV2'
+				SET [Value] = 'https://bit.ly/InspectorLogoRev1'
 				WHERE [Description] = 'EmailBannerURL';
 			END
 			
@@ -2427,7 +2427,7 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''LongRunningTransactionThreshold'',@LongRunningTransactionThreshold),
 		(''ReportDataRetention'',''30''),
 		(''BackupsPath'',@BackupsPath),
-		(''EmailBannerURL'',''http://bit.ly/InspectorV2''),
+		(''EmailBannerURL'',''https://bit.ly/InspectorLogoRev1''),
 		(''PSEmailBannerURL'',''http://bit.ly/PSInspectorEmailBanner''),
 		(''DatabaseOwnerExclusions'',@DatabaseOwnerExclusions),
 		(''AgentJobOwnerExclusions'',@AgentJobOwnerExclusions),
