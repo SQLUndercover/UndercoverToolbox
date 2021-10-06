@@ -65,8 +65,8 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 01/09/2021
-Version: 2.6
+Revision date: 06/10/2021
+Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -80,7 +80,7 @@ User guide: https://sqlundercover.com/inspectoruserguide/
 MIT License
 ------------
 
-Copyright 2019 Sql Undercover
+Copyright 2021 Sql Undercover
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files 
 (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, 
@@ -129,8 +129,8 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210901';
-DECLARE @Build VARCHAR(6) ='2.6'
+DECLARE @Revisiondate DATE = '20211006';
+DECLARE @Build VARCHAR(6) ='2.7'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
 DECLARE @JobsWithoutSchedules VARCHAR(1000);
@@ -199,7 +199,7 @@ SELECT	@Compatibility = CASE
 			ELSE 0
 		END
 FROM sys.databases
-WHERE name = DB_NAME()
+WHERE name = DB_NAME();
 
 
 IF OBJECT_ID('master.dbo.fn_SplitString') IS NULL 
@@ -1410,8 +1410,34 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			BEGIN 
 				ALTER TABLE [Inspector].[BackupsCheck] ADD [backup_preference] [nvarchar](60) NULL;
 			END 
-			
-			
+
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.BackupsCheck') AND name = 'CIX_BackupsCheck_Servername_Databasename')
+			BEGIN
+				CREATE CLUSTERED INDEX [CIX_BackupsCheck_Servername_Databasename] ON [Inspector].[BackupsCheck] (
+				[Servername],
+				[Databasename]
+				);
+			END
+
+			IF OBJECT_ID('Inspector.BackupsCheckThresholds') IS NULL
+			BEGIN
+				CREATE TABLE [Inspector].[BackupsCheckThresholds] (
+				[Servername] NVARCHAR(128) NOT NULL,
+				[Databasename] NVARCHAR(128) NOT NULL,
+				[FullThreshold] INT NOT NULL,
+				[DiffThreshold] INT NULL,
+				[LogThreshold] INT NULL,
+				[IsActive] BIT
+				);
+
+EXEC sp_executesql N'CREATE CLUSTERED INDEX [CIX_BackupsCheckThresholds_IsActive_Servername_Databasename] ON [Inspector].[BackupsCheckThresholds] 
+(
+[Servername],
+[Databasename],
+[IsActive]
+);';
+			END
+
 			IF OBJECT_ID('Inspector.DatabaseFileSizes') IS NULL
 			BEGIN
 			--New Column [LastUpdated] for 1.0.1
@@ -4522,10 +4548,19 @@ ALTER PROCEDURE [Inspector].[BackupsCheckInsert]
 AS
 BEGIN
 
---Revision date: 11/09/2018
+--Revision date: 06/10/2021
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 DECLARE @FullBackupThreshold INT = (Select [Value] FROM [Inspector].[Settings] WHERE Description = ''FullBackupThreshold'')
+DECLARE @MaxFullThreshold INT;
+
+SET @FullBackupThreshold = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,''BackupsCheck'',''FullBackupThreshold'') AS INT),8));
+SET @MaxFullThreshold = (SELECT MAX(FullThreshold) FROM [Inspector].[BackupsCheckThresholds] WHERE [IsActive] = 1);
+
+IF (@FullBackupThreshold < @MaxFullThreshold)
+BEGIN 
+	SET @FullBackupThreshold = @MaxFullThreshold;
+END 
 
 DELETE 
 FROM [Inspector].[BackupsCheck]
@@ -7661,13 +7696,19 @@ ALTER PROCEDURE [Inspector].[BackupsCheckReport]
 )
 AS
 BEGIN
---Revision date: 20/04/2021	
+--Revision date: 06/10/2021
 
 	DECLARE @FullBackupThreshold INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''FullBackupThreshold'') AS INT),8));
 	DECLARE @DiffBackupThreshold INT = (SELECT TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''DiffBackupThreshold'') AS INT));
 	DECLARE @LogBackupThreshold	INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''LogBackupThreshold'') AS INT),20));
 	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
+	DECLARE @MaxFullThreshold INT = (SELECT MAX(FullThreshold) FROM [Inspector].[BackupsCheckThresholds] WHERE [IsActive] = 1);
+
+	IF (@FullBackupThreshold < @MaxFullThreshold)
+	BEGIN 
+		SET @FullBackupThreshold = @MaxFullThreshold;
+	END 
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
 	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
@@ -7728,7 +7769,8 @@ BEGIN
 	Serverlist VARCHAR(1000),
 	primary_replica NVARCHAR(128),
 	backup_preference NVARCHAR(60),
-	NamedInstance BIT
+	NamedInstance BIT,
+	Thresholds VARCHAR(128)
 	);
 
 	DECLARE @NamedInstance BIT
@@ -7788,40 +7830,63 @@ BEGIN
 		GROUP BY Databasename,AGname,GroupingMethod,IsFullRecovery,IsSystemDB,backup_preference;
 		  
 		  
-		INSERT INTO #Validations (Databasename,AGname,FullState,DiffState,LogState,IsFullRecovery,Serverlist,primary_replica,backup_preference,NamedInstance)
+		INSERT INTO #Validations (Databasename,AGname,FullState,DiffState,LogState,IsFullRecovery,Serverlist,primary_replica,backup_preference,NamedInstance,Thresholds)
 		SELECT 
-		Databasename,
-		AGname,
+		Aggregates.Databasename,
+		Aggregates.AGname,
 		CASE
-			WHEN [LastFull] = ''19000101'' THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
-			WHEN ([LastFull] >= ''19000101'' AND [LastFull] < DATEADD(DAY,-@FullBackupThreshold,[Log_Date]) OR [LastFull] IS NULL) THEN ISNULL(CONVERT(VARCHAR(17),[LastFull],113),''More then ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' days ago'')
+			WHEN Aggregates.[LastFull] = ''19000101'' THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
+			WHEN (Aggregates.[LastFull] >= ''19000101'' AND Aggregates.[LastFull] < DATEADD(DAY,-ISNULL([Thresholds].[FullThreshold],@FullBackupThreshold),Aggregates.[Log_Date]) 
+				OR Aggregates.[LastFull] IS NULL) THEN ISNULL(CONVERT(VARCHAR(17),Aggregates.[LastFull],113),''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' days ago'')
 			ELSE ''OK'' 
 		END AS [FullState], 
 		CASE 
 			WHEN @DiffBackupThreshold IS NOT NULL 
 			THEN CASE
-					WHEN [LastDiff] = ''19000101'' AND IsSystemDB = 0 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
-					WHEN ([LastDiff] >= ''19000101'' AND [LastDiff] < DATEADD(HOUR,-@DiffBackupThreshold,[Log_Date])  OR [LastDiff] IS NULL) AND IsSystemDB = 0 THEN ISNULL(CONVERT(VARCHAR(17),[LastDiff],113),''More then ''+CAST(@DiffBackupThreshold AS VARCHAR(3))+'' Hours ago'')
-					WHEN IsSystemDB = 1 THEN ''N/A''
+					WHEN Aggregates.[LastDiff] = ''19000101'' AND Aggregates.IsSystemDB = 0 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
+					WHEN (Aggregates.[LastDiff] >= ''19000101'' AND Aggregates.[LastDiff] < DATEADD(HOUR,-ISNULL([Thresholds].[DiffThreshold],@DiffBackupThreshold),Aggregates.[Log_Date])  
+					OR Aggregates.[LastDiff] IS NULL) AND Aggregates.IsSystemDB = 0 THEN ISNULL(CONVERT(VARCHAR(17),Aggregates.[LastDiff],113),''More than ''+CAST(@DiffBackupThreshold AS VARCHAR(3))+'' Hours ago'')
+					WHEN Aggregates.IsSystemDB = 1 THEN ''N/A''
 		  			ELSE ''OK'' 
 				 END 
 			ELSE ''N/A''
 		END AS [DiffState],		  	
 		CASE 
-			WHEN  [LastLog] = ''19000101'' AND IsSystemDB = 0 AND Aggregates.IsFullRecovery = 1 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
-			WHEN (([LastLog] >= ''19000101'' AND [LastLog] < DATEADD(MINUTE,-@LogBackupThreshold,[Log_Date]) OR [LastLog] IS NULL) AND IsSystemDB = 0 AND (Aggregates.IsFullRecovery = 1 OR CAST(Aggregates.IsFullRecovery AS VARCHAR(3)) = ''N/A'')) THEN ISNULL(CONVERT(VARCHAR(17),[LastLog] ,113),''More than ''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minutes ago'')
-			WHEN Aggregates.IsFullRecovery = 0  OR IsSystemDB = 1 THEN ''N/A''
+			WHEN  Aggregates.[LastLog] = ''19000101'' AND Aggregates.IsSystemDB = 0 AND Aggregates.IsFullRecovery = 1 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
+			WHEN ((Aggregates.[LastLog] >= ''19000101'' AND Aggregates.[LastLog] < DATEADD(MINUTE,-ISNULL([Thresholds].[LogThreshold],@LogBackupThreshold),Aggregates.[Log_Date]) 
+			OR Aggregates.[LastLog] IS NULL) 
+			AND Aggregates.IsSystemDB = 0 AND (Aggregates.IsFullRecovery = 1 OR CAST(Aggregates.IsFullRecovery AS VARCHAR(3)) = ''N/A'')) THEN ISNULL(CONVERT(VARCHAR(17),[LastLog] ,113),''More than ''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minutes ago'')
+			WHEN Aggregates.IsFullRecovery = 0  OR Aggregates.IsSystemDB = 1 THEN ''N/A''
 			ELSE ''OK'' 
 		END AS [LogState],
-		CASE IsFullRecovery WHEN 1 THEN ''Y'' ELSE ''N'' END AS IsFullRecovery,
+		CASE Aggregates.IsFullRecovery 
+			WHEN 1 THEN ''Y'' 
+			ELSE ''N'' 
+		END AS IsFullRecovery,
 		STUFF(Serverlist.Serverlist,1,1,'''') AS Serverlist,
-		primary_replica,
-		backup_preference,
+		Aggregates.primary_replica,
+		Aggregates.backup_preference,
 		CASE 
-			WHEN primary_replica LIKE ''%\%'' THEN 1 
+			WHEN Aggregates.primary_replica LIKE ''%\%'' THEN 1 
 			ELSE 0 
-		END		
+		END,
+		''Full: ''+CAST(ISNULL([FullThreshold],@FullBackupThreshold) AS VARCHAR(20))+'' Day(s) , ''+
+		''Diff: ''+ISNULL(CAST((CASE 
+									WHEN [Thresholds].[Databasename] IS NOT NULL THEN [DiffThreshold]
+									ELSE @DiffBackupThreshold
+								END) AS VARCHAR(20))+'' Hour(s) , '','' Ignoring , '')+
+		''Log: ''+CAST(ISNULL([LogThreshold],@LogBackupThreshold) AS VARCHAR(20))+'' Minute(s)''
+		AS Thresholds
 		FROM #Aggregates Aggregates
+		LEFT JOIN (SELECT
+						[Servername],
+						[Databasename],
+						[FullThreshold],
+						[DiffThreshold],
+						[LogThreshold]
+					FROM [Inspector].[BackupsCheckThresholds]
+					WHERE [IsActive] = 1) Thresholds ON Aggregates.[primary_replica] = Thresholds.[Servername]
+														AND Aggregates.[Databasename] = Thresholds.[Databasename]
 		CROSS APPLY (SELECT 
 			CASE 
 				WHEN backup_preference IN (''PRIMARY'',''NON AG'') THEN '', '' + primary_replica
@@ -7849,7 +7914,8 @@ BEGIN
 		LogState AS ''td'','''', +
 		IsFullRecovery AS ''td'','''', +
 		backup_preference AS ''td'','''', +
-		Serverlist AS ''td'',''''
+		Serverlist AS ''td'','''', +
+		Thresholds AS ''td'',''''
 		FROM
 		(
 			SELECT
@@ -7872,7 +7938,8 @@ BEGIN
 				WHEN ([FullState] != ''OK'' OR [DiffState] != ''OK'' AND [DiffState] != ''N/A'') AND [LogState] = ''OK'' THEN primary_replica
 				WHEN backup_preference = ''SECONDARY_ONLY'' THEN REPLACE(REPLACE(Serverlist,'', ''+@Servername,''''),@Servername+'', '','''')
 				ELSE Serverlist
-			END AS Serverlist
+			END AS Serverlist,
+			Thresholds
 			FROM #Validations
 			WHERE ([FullState] != ''OK'' OR ([DiffState] != ''OK'' AND [DiffState] != ''N/A'') OR ([LogState] != ''OK'' AND [LogState] != ''N/A''))
 			AND Serverlist like ''%''+@Servername+''%''
