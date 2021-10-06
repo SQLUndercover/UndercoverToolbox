@@ -1430,11 +1430,10 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[IsActive] BIT
 				);
 
-EXEC sp_executesql N'CREATE CLUSTERED INDEX [CIX_BackupsCheckThresholds_IsActive_Servername_Databasename] ON [Inspector].[BackupsCheckThresholds] 
+EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_BackupsCheckThresholds_IsActive_Servername_Databasename] ON [Inspector].[BackupsCheckThresholds] 
 (
 [Servername],
-[Databasename],
-[IsActive]
+[Databasename]
 );';
 			END
 
