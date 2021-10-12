@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 06/10/2021
+Revision date: 12/10/2021
 Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20211006';
+DECLARE @Revisiondate DATE = '20211012';
 DECLARE @Build VARCHAR(6) ='2.7'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1427,7 +1427,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				[FullThreshold] INT NOT NULL,
 				[DiffThreshold] INT NULL,
 				[LogThreshold] INT NULL,
-				[IsActive] BIT
+				[IsActive] BIT NOT NULL
 				);
 
 EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_BackupsCheckThresholds_IsActive_Servername_Databasename] ON [Inspector].[BackupsCheckThresholds] 
@@ -7695,7 +7695,7 @@ ALTER PROCEDURE [Inspector].[BackupsCheckReport]
 )
 AS
 BEGIN
---Revision date: 06/10/2021
+--Revision date: 12/10/2021
 
 	DECLARE @FullBackupThreshold INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''FullBackupThreshold'') AS INT),8));
 	DECLARE @DiffBackupThreshold INT = (SELECT TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''DiffBackupThreshold'') AS INT));
@@ -7782,7 +7782,7 @@ BEGIN
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
 	--Set columns names for the Html table
-	SET @HtmlTableHead = (SELECT [Inspector].[GenerateHtmlTableheader] (@Servername,@Modulename,@ServerSpecific,''The following Databases are missing database backups:'',@TableHeaderColour,''Servername,Database name,AG name,Last Full,Last Diff,Last Log,Full Recovery,AG Backup Pref,Preferred Servers''));
+	SET @HtmlTableHead = (SELECT [Inspector].[GenerateHtmlTableheader] (@Servername,@Modulename,@ServerSpecific,''The following Databases are missing database backups:'',@TableHeaderColour,''Servername,Database name,AG name,Last Full,Last Diff,Last Log,Full Recovery,AG Backup Pref,Preferred Servers,Thresholds''));
 
 
 	/* if there has been a data collection since the last report frequency minutes ago then run the report */
