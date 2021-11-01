@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 31/10/2021
+Revision date: 01/11/2021
 Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20211031';
+DECLARE @Revisiondate DATE = '20211101';
 DECLARE @Build VARCHAR(6) ='2.7'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1948,7 +1948,6 @@ END;
 				[program_name] NVARCHAR(128) NULL,
 				[DurationInSeconds] INT NOT NULL,
 				[IsActive] BIT NOT NULL,
-				[ThresholdType] VARCHAR(60) NULL,
 				CONSTRAINT CheckTransactionsThresholds CHECK (([login_name] IS NOT NULL) OR ([host_name] IS NOT NULL) OR ([program_name] IS NOT NULL))
 				);
 				
@@ -13545,3 +13544,14 @@ EXEC [%s].[Inspector].[InspectorSetup]
 @EnableAgentJob = 1,
 @InitialSetup = 0; 
 ',0,0,@DBname,@DBname) WITH NOWAIT;
+
+
+/*
+EXEC sp_executesql N'
+EXEC [Inspector].[InspectorSetup]						     
+@Databasename = @DBname,	
+@DataDrive = ''S,U'',	
+@LogDrive = ''T,V'';',
+N'@DBname NVARCHAR(128)',
+@DBname =@DBname;
+*/
