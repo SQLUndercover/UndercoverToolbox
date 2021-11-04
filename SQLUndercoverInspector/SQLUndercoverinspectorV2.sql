@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 01/11/2021
+Revision date: 04/11/2021
 Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20211101';
+DECLARE @Revisiondate DATE = '20211104';
 DECLARE @Build VARCHAR(6) ='2.7'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -5779,7 +5779,7 @@ ORDER BY ActiveTrans.transaction_begin_time ASC;
 
 EXEC [Inspector].[LongRunningTransactionsUpdate] 
 	@Servername = @Servername,
-	@Debug = 1;
+	@Debug = 0;
 
 
 IF NOT EXISTS (SELECT 1 FROM [Inspector].[LongRunningTransactions] WHERE Servername = @Servername)
