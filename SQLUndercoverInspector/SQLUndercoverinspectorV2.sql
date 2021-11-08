@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 04/11/2021
+Revision date: 08/11/2021
 Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20211104';
+DECLARE @Revisiondate DATE = '20211108';
 DECLARE @Build VARCHAR(6) ='2.7'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1891,7 +1891,7 @@ END;
 			[host_name] NVARCHAR(128) NULL,
 			[program_name] NVARCHAR(128) NULL,
 			[Databasename] NVARCHAR(128) NULL,
-			[ThresholdType] VARCHAR(60) NULL,
+			[ThresholdType] VARCHAR(128) NULL,
 			[Querytext] NVARCHAR(MAX) NULL
 			);
 
@@ -1902,7 +1902,7 @@ END;
 
 			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactions') AND name = 'ThresholdType')
 			BEGIN 
-				ALTER TABLE [Inspector].[LongRunningTransactions] ADD [ThresholdType] VARCHAR(60) NULL;
+				ALTER TABLE [Inspector].[LongRunningTransactions] ADD [ThresholdType] VARCHAR(128) NULL;
 			END
 
 			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactions') AND [name] = N'CIX_LongRunningTransactions_Servername') 
@@ -1925,7 +1925,7 @@ END;
 				[host_name] NVARCHAR(128) NULL,
 				[program_name] NVARCHAR(128) NULL,
 				[Databasename] NVARCHAR(128) NULL,
-				[ThresholdType] VARCHAR(60) NULL,
+				[ThresholdType] VARCHAR(128) NULL,
 				[Querytext] NVARCHAR(MAX) NULL
 				);
 
@@ -1935,7 +1935,7 @@ END;
 
 			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactionsHistory') AND name = 'ThresholdType')
 			BEGIN 
-				ALTER TABLE [Inspector].[LongRunningTransactionsHistory] ADD [ThresholdType] VARCHAR(60) NULL;
+				ALTER TABLE [Inspector].[LongRunningTransactionsHistory] ADD [ThresholdType] VARCHAR(128) NULL;
 			END
 
 			IF OBJECT_ID('Inspector.LongRunningTransactionsThresholds') IS NULL
@@ -5587,15 +5587,15 @@ EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[LongRunningTransactionsUpdate]
 @Debug BIT = 0
 )
 AS
-
+SET NOCOUNT ON;
 DECLARE @Loginname NVARCHAR(128);
 DECLARE @Hostname NVARCHAR(128);
 DECLARE @Programname NVARCHAR(128);
 DECLARE @DurationInSeconds INT;
-DECLARE @ThresholdType VARCHAR(60);
+DECLARE @ThresholdType VARCHAR(128);
 DECLARE @SQLStmt NVARCHAR(1000);
 DECLARE @SQLStmtWhere NVARCHAR(1000);
-DECLARE @GlobalThreshold INT = (SELECT CAST([Value] AS INT) FROM [Inspector].[Settings] WHERE [Description] = ''LongRunningTransactionThreshold'');
+DECLARE @GlobalThreshold INT = ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@Servername,NULL,''LongRunningTransactionThreshold'') AS INT),300);
 
 /* Evaluate each threshold row and update the Transaction table with the Threhold type applied where applicable */
 DECLARE Threshold_cur CURSOR LOCAL FAST_FORWARD
@@ -5648,6 +5648,15 @@ AND [program_name] = @Programname'';
 END
 
 SET @ThresholdType = STUFF(@ThresholdType,1,3,'''');
+SET @ThresholdType = @ThresholdType 
++ ''  - ''
++CAST(@DurationInSeconds AS VARCHAR(10))
++'' Seconds ''
++CASE 
+	WHEN @DurationInSeconds > 300 THEN ''(''+CAST(CAST(CAST(@DurationInSeconds AS MONEY)/60.00 AS MONEY) AS VARCHAR(10))+'' Minutes)'' 
+	ELSE '''' 
+END;
+
 SET @SQLStmt += @SQLStmtWhere;
 
 EXEC sp_executesql @SQLStmt,
@@ -5676,6 +5685,13 @@ DEALLOCATE Threshold_cur;
 /* Update ThresholdType for the remaining rows */
 UPDATE [Inspector].[LongRunningTransactions]
 SET [ThresholdType] = ''Default''
++ ''  - ''
++CAST(@GlobalThreshold AS VARCHAR(10))
++'' Seconds ''
++CASE 
+	WHEN @GlobalThreshold > 300 THEN ''(''+CAST(CAST(CAST(@GlobalThreshold AS MONEY)/60.00 AS MONEY) AS VARCHAR(10))+'' Minutes)'' 
+	ELSE '''' 
+END
 WHERE [transaction_begin_time] < DATEADD(SECOND,-@GlobalThreshold,[Log_Date])
 AND [session_id] IS NOT NULL
 AND [ThresholdType] IS NULL;';
@@ -5688,15 +5704,15 @@ EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[LongRunningTransactionsInsert]
 AS
 BEGIN
 
---Revision date: 23/10/2021
+--Revision date: 08/11/2021
 
 SET NOCOUNT ON;
 
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 DECLARE @TransactionDurationThreshold INT;
-DECLARE @GlobalThreshold INT = (SELECT CAST([Value] AS INT) FROM [Inspector].[Settings] WHERE [Description] = ''LongRunningTransactionThreshold'');
+DECLARE @GlobalThreshold INT = ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@Servername,''LongRunningTransactions'',''LongRunningTransactionThreshold'') AS INT),300);
 DECLARE @MinThreshold INT = (SELECT MIN(DurationInSeconds) FROM [Inspector].[LongRunningTransactionsThresholds] WHERE [IsActive] = 1);
 DECLARE @Now DATETIME = GETDATE();
-DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 DECLARE @Retention INT;
 DECLARE @Loginname NVARCHAR(128);
 DECLARE @Hostname NVARCHAR(128);
@@ -5712,7 +5728,7 @@ BEGIN
 	SET @TransactionDurationThreshold = 300;
 END 
 
-SET @Retention = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@@SERVERNAME, ''LongRunningTransactions'', ''LongRunningTransactionsHistoryRetentionDays'') AS INT), 7));
+SET @Retention = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@Servername, ''LongRunningTransactions'', ''LongRunningTransactionsHistoryRetentionDays'') AS INT), 7));
 
 IF (@Retention IS NULL)
 BEGIN 
@@ -10188,7 +10204,7 @@ ALTER PROCEDURE [Inspector].[LongRunningTransactionsReport]
 )
 AS
 BEGIN
---Revision date: 23/10/2021	
+--Revision date: 08/11/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @AgentJobOwnerExclusions VARCHAR(255);
@@ -10215,7 +10231,7 @@ BEGIN
 		@Servername,
 		@Modulename,
 		@ServerSpecific,
-		''Transactions that exceed the threshold of ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+'' seconds ''+CASE WHEN @LongRunningTransactionThreshold > 300 THEN ''(''+CAST(CAST(CAST(@LongRunningTransactionThreshold AS MONEY)/60.00 AS MONEY) AS VARCHAR(10))+'' Minutes)'' ELSE '''' END,
+		''Long running transactions'',
 		@TableHeaderColour,
 		''Server name,Session id,Transaction begin time,Duration (DDHHMMSS),Transaction state,Session state,Login name,Host name,Program name,Database name,ThresholdType''
 		)
