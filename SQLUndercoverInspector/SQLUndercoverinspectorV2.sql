@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 08/11/2021
+Revision date: 09/11/2021
 Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20211108';
+DECLARE @Revisiondate DATE = '20211109';
 DECLARE @Build VARCHAR(6) ='2.7'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1900,6 +1900,12 @@ END;
 				ALTER TABLE [Inspector].[LongRunningTransactions] ADD [Querytext] NVARCHAR(MAX) NULL;
 			END
 
+			/* If the column exists already be sure it is varchar(128) as it started life as varchar(60) during development */
+			IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactions') AND [name] = N'ThresholdType' AND max_length != 128)
+			BEGIN 
+				ALTER TABLE [Inspector].[LongRunningTransactions] ALTER COLUMN [ThresholdType] VARCHAR(128);
+			END
+
 			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactions') AND name = 'ThresholdType')
 			BEGIN 
 				ALTER TABLE [Inspector].[LongRunningTransactions] ADD [ThresholdType] VARCHAR(128) NULL;
@@ -1931,6 +1937,12 @@ END;
 
 				EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_ID] ON [Inspector].[LongRunningTransactionsHistory] ([ID] ASC);';
 				EXEC sp_executesql N'CREATE NONCLUSTERED INDEX [CIX_Log_Date_Servername] ON [Inspector].[LongRunningTransactionsHistory] ([Log_Date] ASC,[Servername] ASC);';
+			END
+
+			/* If the column exists already be sure it is varchar(128) as it started life as varchar(60) during development */
+			IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactionsHistory') AND [name] = N'ThresholdType' AND max_length != 128)
+			BEGIN 
+				ALTER TABLE [Inspector].[LongRunningTransactionsHistory] ALTER COLUMN [ThresholdType] VARCHAR(128);
 			END
 
 			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactionsHistory') AND name = 'ThresholdType')
