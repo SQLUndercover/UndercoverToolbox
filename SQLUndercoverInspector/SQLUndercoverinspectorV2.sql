@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 09/11/2021
+Revision date: 12/11/2021
 Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20211109';
+DECLARE @Revisiondate DATE = '20211112';
 DECLARE @Build VARCHAR(6) ='2.7'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -2291,6 +2291,51 @@ END;
 			END
 
 
+			IF OBJECT_ID('Inspector.MemoryDumps') IS NULL 
+			BEGIN 
+				CREATE TABLE [Inspector].[MemoryDumps] (
+				[ID] INT IDENTITY(1,1) NOT NULL,
+				[Servername] NVARCHAR(128) NOT NULL,
+				[filename] NVARCHAR(256) NOT NULL,
+				[creation_time] DATETIMEOFFSET(7) NOT NULL,
+				[size_in_mb] DECIMAL(18,2) NULL
+				);
+			END
+			
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.MemoryDumps') AND [name] = N'CIX_MemoryDumps_ID')
+			BEGIN
+				CREATE CLUSTERED INDEX [CIX_MemoryDumps_ID] ON [Inspector].[MemoryDumps] (
+				[ID] ASC
+				);
+			END
+			
+			
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.MemoryDumps') AND [name] = N'IX_MemoryDumps_Servername_creation_time')
+			BEGIN
+				CREATE NONCLUSTERED INDEX [IX_MemoryDumps_Servername_creation_time] ON [Inspector].[MemoryDumps] (
+				[Servername] ASC,
+				[creation_time] asc
+				);
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'MemoryDumpsRetentionInDays')
+			BEGIN 
+				INSERT INTO [Inspector].[Settings] ([Description],[Value])
+				VALUES('MemoryDumpsRetentionInDays','180');
+			END
+			
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Modules] WHERE [Modulename] = 'MemoryDumps')
+			BEGIN 
+				INSERT INTO [Inspector].[Modules] ([ModuleConfig_Desc],[Modulename],[CollectionProcedurename],[ReportProcedurename],[ReportOrder],[WarningLevel],[ServerSpecific],[Debug],[IsActive],[HeaderText],[Frequency],[StartTime],[EndTime])
+				VALUES('Default','MemoryDumps',N'MemoryDumpsInsert',N'MemoryDumpsReport',23,2,1,0,1,NULL,1440,'08:00','17:30');
+			END
+			
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[DefaultHeaderText] WHERE [Modulename] = 'MemoryDumps')
+			BEGIN 
+				INSERT INTO [Inspector].[DefaultHeaderText] ([Modulename], [HeaderText])
+				VALUES('MemoryDumps','Recent Memory dumps found');
+			END
+
 		    IF OBJECT_ID('Inspector.PSConfig') IS NULL 
 			BEGIN
 				CREATE TABLE [Inspector].[PSConfig](
@@ -2517,7 +2562,8 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''TempDBPercentUsed'',''75''),
 		(''LongRunningTransactionsHistoryRetentionDays'',''7''),
 		(''PSAutoUpdateModules'',''1''),
-		(''PSAutoUpdateModulesFrequencyMins'',''1440'');
+		(''PSAutoUpdateModulesFrequencyMins'',''1440''),
+		(''MemoryDumpsRetentionInDays'',''180'');
 		
 IF NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfig])
 BEGIN 
@@ -2549,7 +2595,8 @@ VALUES(''Default'',''ADHocDatabaseCreations'',''ADHocDatabaseCreationsInsert'','
 (''Default'',''UnusedLogshipConfig'',''UnusedLogshipConfigInsert'',''UnusedLogshipConfigReport'',20,1,0,1,3,NULL,1440,@StartTime,@EndTime),
 (''Default'',''DatacollectionsOverdue'',''DatacollectionsOverdueInsert'',''DatacollectionsOverdueReport'',21,1,0,0,1,NULL,1440,@StartTime,@EndTime),
 (''Default'',''TempDB'',''TempDBInsert'',''TempDBReport'',22,2,1,0,1,NULL,5,@StartTime,@EndTime),
-(''PeriodicBackupCheck'',''BackupsCheck'',''BackupsCheckInsert'',''BackupsCheckReport'',1,1,0,1,1,NULL,120,DATEADD(HOUR,2,@StartTime),@EndTime);
+(''PeriodicBackupCheck'',''BackupsCheck'',''BackupsCheckInsert'',''BackupsCheckReport'',1,1,0,1,1,NULL,120,DATEADD(HOUR,2,@StartTime),@EndTime),
+(''Default'',''MemoryDumps'',N''MemoryDumpsInsert'',N''MemoryDumpsReport'',23,2,1,0,1,NULL,1440,@StartTime),@EndTime);
 
 INSERT INTO [Inspector].[DefaultHeaderText] ([Modulename], [HeaderText])
 VALUES(''ADHocDatabaseCreations'',''Potential ADhoc database creations''),
@@ -11569,6 +11616,174 @@ BEGIN
 
 END';
 
+IF OBJECT_ID('Inspector.MemoryDumpsInsert') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[MemoryDumpsInsert] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[MemoryDumpsInsert]
+AS
+SET NOCOUNT ON;
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
+DECLARE @MemoryDumpRetentionInDays INT 
+
+SET @MemoryDumpRetentionInDays = ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@Servername,''MemoryDumps'',''MemoryDumpsRetentionInDays'') AS INT),180);
+
+DELETE FROM [Inspector].[MemoryDumps] 
+WHERE [Servername] = @Servername
+AND [creation_time] < DATEADD(DAY,-@MemoryDumpRetentionInDays,SYSDATETIMEOFFSET())
+
+
+INSERT INTO [Inspector].[MemoryDumps] ([Servername],[filename],[creation_time],[size_in_mb])
+SELECT 
+	@Servername,
+	[filename],
+	[creation_time],
+	CAST(([size_in_bytes]/1048576.00) AS DECIMAL(18,2)) AS size_in_mb
+FROM sys.dm_server_memory_dumps md
+WHERE NOT EXISTS (SELECT 1 
+					FROM [Inspector].[MemoryDumps] 
+					WHERE [MemoryDumps].[creation_time] = [md].[creation_time]
+					AND [MemoryDumps].[Servername] = @Servername
+					);';
+
+IF OBJECT_ID('Inspector.MemoryDumpsReport') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[MemoryDumpsReport] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[MemoryDumpsReport] (
+@Servername NVARCHAR(128),
+@Modulename VARCHAR(50),
+@TableHeaderColour VARCHAR(7) = ''#E6E6FA'',
+@WarningHighlight VARCHAR(7),
+@AdvisoryHighlight VARCHAR(7),
+@InfoHighlight VARCHAR(7),
+@ModuleConfig VARCHAR(20),
+@WarningLevel TINYINT,
+@ServerSpecific BIT,
+@NoClutter BIT,
+@TableTail VARCHAR(256),
+@HtmlOutput VARCHAR(MAX) OUTPUT,
+@CollectionOutOfDate BIT OUTPUT,
+@PSCollection BIT,
+@Debug BIT = 0
+)
+AS
+
+DECLARE @HtmlTableHead VARCHAR(2000);
+DECLARE @LastReportDate DATETIME = [Inspector].[GetLastReportDateTime](@ModuleConfig);
+DECLARE @LastCollection DATETIME = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+
+SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
+
+--Set columns names for the Html table
+SET @HtmlTableHead = (SELECT [Inspector].[GenerateHtmlTableheader] (
+	@Servername,
+	@Modulename,
+	@ServerSpecific,
+	''Recent memory dumps'',
+	@TableHeaderColour,
+	''Server name,filename,creation time,size in MB'')
+);
+
+/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= @LastReportDate)
+	BEGIN
+		SET @HtmlOutput =(
+		SELECT
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 1 THEN @WarningHighlight
+			WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		[Servername] AS ''td'','''', +
+		CONVERT(VARCHAR(17),[creation_time],113) AS ''td'','''', +
+		[filename] AS ''td'','''', +
+		[size_in_mb] AS ''td'',''''
+		FROM [Inspector].[MemoryDumps]
+		WHERE Servername = @Servername
+		AND [creation_time] > CAST(@LastReportDate AS DATETIMEOFFSET(7))
+		ORDER BY [creation_time] ASC
+		FOR XML PATH(''tr''),ELEMENTS);
+		
+		IF @HtmlOutput IS NULL
+		BEGIN
+			SET @HtmlOutput =(
+			SELECT
+			''#FFFFFF'' AS [@bgcolor], 
+			@Servername AS ''td'','''', +
+			''No recent memory dumps found'' AS ''td'','''', +
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS);
+		END	
+
+		--If @NoClutter is on we do not want to show the table if it has @InfoHighlight against the row/s
+		IF (@NoClutter = 1)
+		BEGIN 
+			IF (@HtmlOutput LIKE ''%No recent memory dumps found%'')
+			BEGIN 
+				SET @HtmlOutput = NULL;
+			END
+		END
+
+		IF (@HtmlOutput IS NOT NULL)
+		BEGIN 
+		SET @HtmlOutput = 
+			@HtmlTableHead
+			+ @HtmlOutput
+			+ @TableTail 
+			+''<p><BR><p>''
+		END
+	END 
+	ELSE
+	BEGIN
+		SET @HtmlOutput =
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 1 THEN @WarningHighlight
+			WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor], 
+		@Servername AS ''td'','''', + 
+		''Data Collection out of date'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),Elements);
+
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
+
+		SET @HtmlOutput = 
+			@HtmlTableHead
+			+ @HtmlOutput
+			+ @TableTail 
+			+''<p><BR><p>''
+	END
+
+IF (@Debug = 1)
+BEGIN 
+	SELECT 
+	OBJECT_NAME(@@PROCID) AS ''Procname'',
+	@Servername AS ''@Servername'',
+	@Modulename AS ''@Modulename'',
+	@TableHeaderColour AS ''@TableHeaderColour'',
+	@WarningHighlight AS ''@WarningHighlight'',
+	@AdvisoryHighlight AS ''@AdvisoryHighlight'',
+	@InfoHighlight AS ''@InfoHighlight'',
+	@ModuleConfig AS ''@ModuleConfig'',
+	@WarningLevel AS ''@WarningLevel'',
+	@NoClutter AS ''@NoClutter'',
+	@TableTail AS ''@TableTail'',
+	@HtmlOutput AS ''@HtmlOutput'',
+	@HtmlTableHead AS ''@HtmlTableHead'',
+	@CollectionOutOfDate AS ''@CollectionOutOfDate'',
+	@PSCollection AS ''@PSCollection''
+END';
+
 
 IF OBJECT_ID('Inspector.InspectorDataCollection') IS NULL 
 EXEC('CREATE PROCEDURE  [Inspector].[InspectorDataCollection] AS;');
@@ -13626,7 +13841,7 @@ EXEC [%s].[Inspector].[InspectorSetup]
 ',0,0,@DBname,@DBname) WITH NOWAIT;
 
 
-
+/*
 EXEC sp_executesql N'
 EXEC [Inspector].[InspectorSetup]						     
 @Databasename = @DBname,	
@@ -13634,3 +13849,4 @@ EXEC [Inspector].[InspectorSetup]
 @LogDrive = ''T,V'';',
 N'@DBname NVARCHAR(128)',
 @DBname =@DBname;
+*/
