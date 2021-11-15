@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 12/11/2021
+Revision date: 15/11/2021
 Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20211112';
+DECLARE @Revisiondate DATE = '20211115';
 DECLARE @Build VARCHAR(6) ='2.7'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -2336,6 +2336,37 @@ END;
 				VALUES('MemoryDumps','Recent Memory dumps found');
 			END
 
+			IF OBJECT_ID('Inspector.AgentJobsDesiredState') IS NULL 
+			BEGIN 
+				CREATE TABLE [Inspector].[AgentJobsDesiredState] (
+				[Servername] NVARCHAR(128) NOT NULL,
+				[JobName] NVARCHAR(128) NOT NULL,
+				[DesiredState] BIT NOT NULL,
+				[Enabled] BIT NOT NULL,
+				[LastChecked] DATETIME NULL
+				);
+			END
+			
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.AgentJobsDesiredState') AND [name] = N'CIX_AgentJobsDesiredState_Servername_JobName')
+			BEGIN
+				CREATE CLUSTERED INDEX [CIX_AgentJobsDesiredState_Servername_JobName] ON [Inspector].[AgentJobsDesiredState] (
+				[Servername] ASC,
+				[JobName] ASC
+				);
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Modules] WHERE [Modulename] = 'AgentJobsDesiredState')
+			BEGIN 
+				INSERT INTO [Inspector].[Modules] ([ModuleConfig_Desc],[Modulename],[CollectionProcedurename],[ReportProcedurename],[ReportOrder],[WarningLevel],[ServerSpecific],[Debug],[IsActive],[HeaderText],[Frequency],[StartTime],[EndTime])
+				VALUES('Default','AgentJobsDesiredState',N'AgentJobsDesiredStateInsert',N'AgentJobsDesiredStateReport',24,2,1,0,1,NULL,1440,'08:00','17:30');
+			END
+			
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[DefaultHeaderText] WHERE [Modulename] = 'AgentJobsDesiredState')
+			BEGIN 
+				INSERT INTO [Inspector].[DefaultHeaderText] ([Modulename], [HeaderText])
+				VALUES('AgentJobsDesiredState','Agent jobs where desired state not met');
+			END
+
 		    IF OBJECT_ID('Inspector.PSConfig') IS NULL 
 			BEGIN
 				CREATE TABLE [Inspector].[PSConfig](
@@ -2596,7 +2627,8 @@ VALUES(''Default'',''ADHocDatabaseCreations'',''ADHocDatabaseCreationsInsert'','
 (''Default'',''DatacollectionsOverdue'',''DatacollectionsOverdueInsert'',''DatacollectionsOverdueReport'',21,1,0,0,1,NULL,1440,@StartTime,@EndTime),
 (''Default'',''TempDB'',''TempDBInsert'',''TempDBReport'',22,2,1,0,1,NULL,5,@StartTime,@EndTime),
 (''PeriodicBackupCheck'',''BackupsCheck'',''BackupsCheckInsert'',''BackupsCheckReport'',1,1,0,1,1,NULL,120,DATEADD(HOUR,2,@StartTime),@EndTime),
-(''Default'',''MemoryDumps'',N''MemoryDumpsInsert'',N''MemoryDumpsReport'',23,2,1,0,1,NULL,1440,@StartTime),@EndTime);
+(''Default'',''MemoryDumps'',N''MemoryDumpsInsert'',N''MemoryDumpsReport'',23,2,1,0,1,NULL,1440,@StartTime,@EndTime),
+(''Default'',''AgentJobsDesiredState'',N''AgentJobsDesiredStateInsert'',N''AgentJobsDesiredStateReport'',24,2,1,0,1,NULL,1440,@StartTime,@EndTime);
 
 INSERT INTO [Inspector].[DefaultHeaderText] ([Modulename], [HeaderText])
 VALUES(''ADHocDatabaseCreations'',''Potential ADhoc database creations''),
@@ -2619,7 +2651,8 @@ VALUES(''ADHocDatabaseCreations'',''Potential ADhoc database creations''),
 (''ServerSettings'',''Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values''),
 (''SuspectPages'',''Suspect database pages found''),
 (''UnusedLogshipConfig'',''Unused log shipping config found''),
-(''TempDB'',''TempDB file usage higher than your threshold'');
+(''TempDB'',''TempDB file usage higher than your threshold''),
+(''AgentJobsDesiredState'',''Agent jobs where desired state not met'');
 
 INSERT INTO [Inspector].[EmailConfig] (ModuleConfig_Desc,EmailSubject)
 VALUES (''Default'',''SQLUndercover Inspector check ''),(''PeriodicBackupCheck'',''SQLUndercover Backups Report'');
@@ -11784,6 +11817,185 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END';
 
+IF OBJECT_ID('Inspector.AgentJobsDesiredStateInsert') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[AgentJobsDesiredStateInsert] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[AgentJobsDesiredStateInsert]
+AS
+SET NOCOUNT ON;
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
+
+/* Insert jobs that do not exist in the Inspector table , assume that the current enabled flag is the desiredstate */
+INSERT INTO [Inspector].[AgentJobsDesiredState] ([Servername],[JobName],[DesiredState],[Enabled],[LastChecked])
+SELECT 
+	@Servername,
+	[name],
+	CAST([enabled] AS BIT),
+	CAST([enabled] AS BIT),
+	GETDATE()
+FROM [msdb].[dbo].[sysjobs]
+WHERE NOT EXISTS (SELECT 1 
+					FROM [Inspector].[AgentJobsDesiredState] 
+					WHERE [AgentJobsDesiredState].[JobName] = [sysjobs].[name]
+					AND [Servername] = @Servername
+					);
+
+/* Update the MsdbEnabled column with the current enabled value in msdb */
+UPDATE DesiredState
+SET [Enabled] = CAST([enabled] AS BIT), 
+	[LastChecked] = GETDATE()
+FROM [Inspector].[AgentJobsDesiredState] DesiredState
+INNER JOIN [msdb].[dbo].[sysjobs] ON [DesiredState].[JobName] = [sysjobs].[name]
+WHERE [Servername] = @Servername;
+';
+
+
+
+IF OBJECT_ID('Inspector.AgentJobsDesiredStateReport') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[AgentJobsDesiredStateReport] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[AgentJobsDesiredStateReport] (
+@Servername NVARCHAR(128),
+@Modulename VARCHAR(50),
+@TableHeaderColour VARCHAR(7) = ''#E6E6FA'',
+@WarningHighlight VARCHAR(7),
+@AdvisoryHighlight VARCHAR(7),
+@InfoHighlight VARCHAR(7),
+@ModuleConfig VARCHAR(20),
+@WarningLevel TINYINT,
+@ServerSpecific BIT,
+@NoClutter BIT,
+@TableTail VARCHAR(256),
+@HtmlOutput VARCHAR(MAX) OUTPUT,
+@CollectionOutOfDate BIT OUTPUT,
+@PSCollection BIT,
+@Debug BIT = 0
+)
+AS
+
+DECLARE @HtmlTableHead VARCHAR(2000);
+DECLARE @LastReportDate DATETIME = [Inspector].[GetLastReportDateTime](@ModuleConfig);
+DECLARE @LastCollection DATETIME = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+
+SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
+
+--Set columns names for the Html table
+SET @HtmlTableHead = (SELECT [Inspector].[GenerateHtmlTableheader] (
+	@Servername,
+	@Modulename,
+	@ServerSpecific,
+	''Agent jobs not matching your desired state'',
+	@TableHeaderColour,
+	''Server name,Job name,Desired state,Enabled in msdb,Last checked,Code to enable'')
+);
+
+/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= @LastReportDate)
+	BEGIN
+		SET @HtmlOutput =(
+		SELECT
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 1 THEN @WarningHighlight
+			WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		[Servername] AS ''td'','''', +
+		[JobName] AS ''td'','''', +
+		[DesiredState] AS ''td'','''', +
+		[Enabled] AS ''td'','''', +
+		CONVERT(VARCHAR(17),[LastChecked],113) AS ''td'','''', +
+		''EXEC msdb.dbo.sp_update_job @job_name = N''''''+[JobName]+'''''', @enabled = ''+CAST([DesiredState] AS CHAR)+'';'' AS ''td'',''''
+		FROM [Inspector].[AgentJobsDesiredState]
+		WHERE Servername = @Servername
+		AND [LastChecked] > @LastReportDate
+		AND [Enabled] != [DesiredState]
+		ORDER BY [JobName] ASC
+		FOR XML PATH(''tr''),ELEMENTS);
+		
+		IF @HtmlOutput IS NULL
+		BEGIN
+			SET @HtmlOutput =(
+			SELECT
+			''#FFFFFF'' AS [@bgcolor], 
+			@Servername AS ''td'','''', +
+			''No Agent jobs not matching your desired state'' AS ''td'','''', +
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS);
+		END	
+
+		--If @NoClutter is on we do not want to show the table if it has @InfoHighlight against the row/s
+		IF (@NoClutter = 1)
+		BEGIN 
+			IF (@HtmlOutput LIKE ''%No Agent jobs not matching your desired state%'')
+			BEGIN 
+				SET @HtmlOutput = NULL;
+			END
+		END
+
+		IF (@HtmlOutput IS NOT NULL)
+		BEGIN 
+		SET @HtmlOutput = 
+			@HtmlTableHead
+			+ @HtmlOutput
+			+ @TableTail 
+			+''<p><BR><p>''
+		END
+	END 
+	ELSE
+	BEGIN
+		SET @HtmlOutput =
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 1 THEN @WarningHighlight
+			WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor], 
+		@Servername AS ''td'','''', + 
+		''Data Collection out of date'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),Elements);
+
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
+
+		SET @HtmlOutput = 
+			@HtmlTableHead
+			+ @HtmlOutput
+			+ @TableTail 
+			+''<p><BR><p>''
+	END
+
+IF (@Debug = 1)
+BEGIN 
+	SELECT 
+	OBJECT_NAME(@@PROCID) AS ''Procname'',
+	@Servername AS ''@Servername'',
+	@Modulename AS ''@Modulename'',
+	@TableHeaderColour AS ''@TableHeaderColour'',
+	@WarningHighlight AS ''@WarningHighlight'',
+	@AdvisoryHighlight AS ''@AdvisoryHighlight'',
+	@InfoHighlight AS ''@InfoHighlight'',
+	@ModuleConfig AS ''@ModuleConfig'',
+	@WarningLevel AS ''@WarningLevel'',
+	@NoClutter AS ''@NoClutter'',
+	@TableTail AS ''@TableTail'',
+	@HtmlOutput AS ''@HtmlOutput'',
+	@HtmlTableHead AS ''@HtmlTableHead'',
+	@CollectionOutOfDate AS ''@CollectionOutOfDate'',
+	@PSCollection AS ''@PSCollection''
+END'; 
 
 IF OBJECT_ID('Inspector.InspectorDataCollection') IS NULL 
 EXEC('CREATE PROCEDURE  [Inspector].[InspectorDataCollection] AS;');
