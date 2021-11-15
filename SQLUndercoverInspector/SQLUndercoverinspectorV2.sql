@@ -2652,6 +2652,7 @@ VALUES(''ADHocDatabaseCreations'',''Potential ADhoc database creations''),
 (''SuspectPages'',''Suspect database pages found''),
 (''UnusedLogshipConfig'',''Unused log shipping config found''),
 (''TempDB'',''TempDB file usage higher than your threshold''),
+(''MemoryDumps'',''Recent Memory dumps found''),
 (''AgentJobsDesiredState'',''Agent jobs where desired state not met'');
 
 INSERT INTO [Inspector].[EmailConfig] (ModuleConfig_Desc,EmailSubject)
