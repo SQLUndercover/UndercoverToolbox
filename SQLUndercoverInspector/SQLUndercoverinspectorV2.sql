@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 15/11/2021
+Revision date: 16/11/2021
 Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20211115';
+DECLARE @Revisiondate DATE = '20211116';
 DECLARE @Build VARCHAR(6) ='2.7'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -11832,9 +11832,9 @@ DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 INSERT INTO [Inspector].[AgentJobsDesiredState] ([Servername],[JobName],[DesiredState],[Enabled],[LastChecked])
 SELECT 
 	@Servername,
-	[name],
-	CAST([enabled] AS BIT),
-	CAST([enabled] AS BIT),
+	[sysjobs].[name],
+	CAST([sysjobs].[enabled] AS BIT),
+	CAST([sysjobs].[enabled] AS BIT),
 	GETDATE()
 FROM [msdb].[dbo].[sysjobs]
 WHERE NOT EXISTS (SELECT 1 
@@ -11845,7 +11845,7 @@ WHERE NOT EXISTS (SELECT 1
 
 /* Update the MsdbEnabled column with the current enabled value in msdb */
 UPDATE DesiredState
-SET [Enabled] = CAST([enabled] AS BIT), 
+SET [Enabled] = CAST([sysjobs].[enabled] AS BIT), 
 	[LastChecked] = GETDATE()
 FROM [Inspector].[AgentJobsDesiredState] DesiredState
 INNER JOIN [msdb].[dbo].[sysjobs] ON [DesiredState].[JobName] = [sysjobs].[name]
