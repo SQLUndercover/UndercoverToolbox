@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 16/11/2021
+Revision date: 01/12/2021
 Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20211116';
+DECLARE @Revisiondate DATE = '20211201';
 DECLARE @Build VARCHAR(6) ='2.7'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -8161,6 +8161,7 @@ BEGIN
 			ELSE ''OK'' 
 		END AS [FullState], 
 		CASE 
+			WHEN [Thresholds].[Databasename] IS NOT NULL AND [Thresholds].[DiffThreshold] IS NULL THEN ''N/A''
 			WHEN @DiffBackupThreshold IS NOT NULL 
 			THEN CASE
 					WHEN Aggregates.[LastDiff] = ''19000101'' AND Aggregates.IsSystemDB = 0 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
