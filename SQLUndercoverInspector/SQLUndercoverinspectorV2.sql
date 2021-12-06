@@ -65,8 +65,8 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 27/07/2021
-Version: 2.6
+Revision date: 06/12/2021
+Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -80,7 +80,7 @@ User guide: https://sqlundercover.com/inspectoruserguide/
 MIT License
 ------------
 
-Copyright 2019 Sql Undercover
+Copyright 2021 Sql Undercover
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files 
 (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, 
@@ -129,8 +129,8 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20210727';
-DECLARE @Build VARCHAR(6) ='2.6'
+DECLARE @Revisiondate DATE = '20211206';
+DECLARE @Build VARCHAR(6) ='2.7'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
 DECLARE @JobsWithoutSchedules VARCHAR(1000);
@@ -199,7 +199,7 @@ SELECT	@Compatibility = CASE
 			ELSE 0
 		END
 FROM sys.databases
-WHERE name = DB_NAME()
+WHERE name = DB_NAME();
 
 
 IF OBJECT_ID('master.dbo.fn_SplitString') IS NULL 
@@ -1410,8 +1410,33 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 			BEGIN 
 				ALTER TABLE [Inspector].[BackupsCheck] ADD [backup_preference] [nvarchar](60) NULL;
 			END 
-			
-			
+
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.BackupsCheck') AND name = 'CIX_BackupsCheck_Servername_Databasename')
+			BEGIN
+				CREATE CLUSTERED INDEX [CIX_BackupsCheck_Servername_Databasename] ON [Inspector].[BackupsCheck] (
+				[Servername],
+				[Databasename]
+				);
+			END
+
+			IF OBJECT_ID('Inspector.BackupsCheckThresholds') IS NULL
+			BEGIN
+				CREATE TABLE [Inspector].[BackupsCheckThresholds] (
+				[Servername] NVARCHAR(128) NOT NULL,
+				[Databasename] NVARCHAR(128) NOT NULL,
+				[FullThreshold] INT NOT NULL,
+				[DiffThreshold] INT NULL,
+				[LogThreshold] INT NULL,
+				[IsActive] BIT NOT NULL
+				);
+
+EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_BackupsCheckThresholds_IsActive_Servername_Databasename] ON [Inspector].[BackupsCheckThresholds] 
+(
+[Servername],
+[Databasename]
+);';
+			END
+
 			IF OBJECT_ID('Inspector.DatabaseFileSizes') IS NULL
 			BEGIN
 			--New Column [LastUpdated] for 1.0.1
@@ -1866,12 +1891,29 @@ END;
 			[host_name] NVARCHAR(128) NULL,
 			[program_name] NVARCHAR(128) NULL,
 			[Databasename] NVARCHAR(128) NULL,
+			[ThresholdType] VARCHAR(128) NULL,
 			[Querytext] NVARCHAR(MAX) NULL
 			);
 
 			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactions') AND name = 'Querytext')
 			BEGIN 
 				ALTER TABLE [Inspector].[LongRunningTransactions] ADD [Querytext] NVARCHAR(MAX) NULL;
+			END
+
+			/* If the column exists already be sure it is varchar(128) as it started life as varchar(60) during development */
+			IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactions') AND [name] = N'ThresholdType' AND max_length != 128)
+			BEGIN 
+				ALTER TABLE [Inspector].[LongRunningTransactions] ALTER COLUMN [ThresholdType] VARCHAR(128);
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactions') AND name = 'ThresholdType')
+			BEGIN 
+				ALTER TABLE [Inspector].[LongRunningTransactions] ADD [ThresholdType] VARCHAR(128) NULL;
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactions') AND [name] = N'CIX_LongRunningTransactions_Servername') 
+			BEGIN 
+				EXEC sp_executesql N'CREATE CLUSTERED INDEX [CIX_LongRunningTransactions_Servername] ON [Inspector].[LongRunningTransactions] ([Servername]);';
 			END
 
 			IF OBJECT_ID('Inspector.LongRunningTransactionsHistory') IS NULL
@@ -1889,11 +1931,42 @@ END;
 				[host_name] NVARCHAR(128) NULL,
 				[program_name] NVARCHAR(128) NULL,
 				[Databasename] NVARCHAR(128) NULL,
+				[ThresholdType] VARCHAR(128) NULL,
 				[Querytext] NVARCHAR(MAX) NULL
 				);
 
 				EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_ID] ON [Inspector].[LongRunningTransactionsHistory] ([ID] ASC);';
 				EXEC sp_executesql N'CREATE NONCLUSTERED INDEX [CIX_Log_Date_Servername] ON [Inspector].[LongRunningTransactionsHistory] ([Log_Date] ASC,[Servername] ASC);';
+			END
+
+			/* If the column exists already be sure it is varchar(128) as it started life as varchar(60) during development */
+			IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactionsHistory') AND [name] = N'ThresholdType' AND max_length != 128)
+			BEGIN 
+				ALTER TABLE [Inspector].[LongRunningTransactionsHistory] ALTER COLUMN [ThresholdType] VARCHAR(128);
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.LongRunningTransactionsHistory') AND name = 'ThresholdType')
+			BEGIN 
+				ALTER TABLE [Inspector].[LongRunningTransactionsHistory] ADD [ThresholdType] VARCHAR(128) NULL;
+			END
+
+			IF OBJECT_ID('Inspector.LongRunningTransactionsThresholds') IS NULL
+			BEGIN 
+				CREATE TABLE [Inspector].[LongRunningTransactionsThresholds] (
+				[ID] INT IDENTITY(1,1),
+				[Servername] NVARCHAR(128) NOT NULL,
+				[login_name] NVARCHAR(128) NULL, 
+				[host_name] NVARCHAR(128) NULL, 
+				[program_name] NVARCHAR(128) NULL,
+				[DurationInSeconds] INT NOT NULL,
+				[IsActive] BIT NOT NULL,
+				CONSTRAINT CheckTransactionsThresholds CHECK (([login_name] IS NOT NULL) OR ([host_name] IS NOT NULL) OR ([program_name] IS NOT NULL))
+				);
+				
+				EXEC sp_executesql N'CREATE CLUSTERED INDEX [CIX_LongRunningTransactionsThresholds_Servername_IsActive] ON [Inspector].[LongRunningTransactionsThresholds] (
+				[Servername] ASC,
+				[IsActive] DESC
+				);';
 			END
 
 			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'LongRunningTransactionsHistoryRetentionDays')
@@ -2218,6 +2291,82 @@ END;
 			END
 
 
+			IF OBJECT_ID('Inspector.MemoryDumps') IS NULL 
+			BEGIN 
+				CREATE TABLE [Inspector].[MemoryDumps] (
+				[ID] INT IDENTITY(1,1) NOT NULL,
+				[Servername] NVARCHAR(128) NOT NULL,
+				[filename] NVARCHAR(256) NOT NULL,
+				[creation_time] DATETIMEOFFSET(7) NOT NULL,
+				[size_in_mb] DECIMAL(18,2) NULL
+				);
+			END
+			
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.MemoryDumps') AND [name] = N'CIX_MemoryDumps_ID')
+			BEGIN
+				CREATE CLUSTERED INDEX [CIX_MemoryDumps_ID] ON [Inspector].[MemoryDumps] (
+				[ID] ASC
+				);
+			END
+			
+			
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.MemoryDumps') AND [name] = N'IX_MemoryDumps_Servername_creation_time')
+			BEGIN
+				CREATE NONCLUSTERED INDEX [IX_MemoryDumps_Servername_creation_time] ON [Inspector].[MemoryDumps] (
+				[Servername] ASC,
+				[creation_time] asc
+				);
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'MemoryDumpsRetentionInDays')
+			BEGIN 
+				INSERT INTO [Inspector].[Settings] ([Description],[Value])
+				VALUES('MemoryDumpsRetentionInDays','180');
+			END
+			
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Modules] WHERE [Modulename] = 'MemoryDumps')
+			BEGIN 
+				INSERT INTO [Inspector].[Modules] ([ModuleConfig_Desc],[Modulename],[CollectionProcedurename],[ReportProcedurename],[ReportOrder],[WarningLevel],[ServerSpecific],[Debug],[IsActive],[HeaderText],[Frequency],[StartTime],[EndTime])
+				VALUES('Default','MemoryDumps',N'MemoryDumpsInsert',N'MemoryDumpsReport',23,2,1,0,1,NULL,1440,'08:00','17:30');
+			END
+			
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[DefaultHeaderText] WHERE [Modulename] = 'MemoryDumps')
+			BEGIN 
+				INSERT INTO [Inspector].[DefaultHeaderText] ([Modulename], [HeaderText])
+				VALUES('MemoryDumps','Recent Memory dumps found');
+			END
+
+			IF OBJECT_ID('Inspector.AgentJobsDesiredState') IS NULL 
+			BEGIN 
+				CREATE TABLE [Inspector].[AgentJobsDesiredState] (
+				[Servername] NVARCHAR(128) NOT NULL,
+				[JobName] NVARCHAR(128) NOT NULL,
+				[DesiredState] BIT NOT NULL,
+				[Enabled] BIT NOT NULL,
+				[LastChecked] DATETIME NULL
+				);
+			END
+			
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.AgentJobsDesiredState') AND [name] = N'CIX_AgentJobsDesiredState_Servername_JobName')
+			BEGIN
+				CREATE CLUSTERED INDEX [CIX_AgentJobsDesiredState_Servername_JobName] ON [Inspector].[AgentJobsDesiredState] (
+				[Servername] ASC,
+				[JobName] ASC
+				);
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Modules] WHERE [Modulename] = 'AgentJobsDesiredState')
+			BEGIN 
+				INSERT INTO [Inspector].[Modules] ([ModuleConfig_Desc],[Modulename],[CollectionProcedurename],[ReportProcedurename],[ReportOrder],[WarningLevel],[ServerSpecific],[Debug],[IsActive],[HeaderText],[Frequency],[StartTime],[EndTime])
+				VALUES('Default','AgentJobsDesiredState',N'AgentJobsDesiredStateInsert',N'AgentJobsDesiredStateReport',24,2,1,0,1,NULL,1440,'08:00','17:30');
+			END
+			
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[DefaultHeaderText] WHERE [Modulename] = 'AgentJobsDesiredState')
+			BEGIN 
+				INSERT INTO [Inspector].[DefaultHeaderText] ([Modulename], [HeaderText])
+				VALUES('AgentJobsDesiredState','Agent jobs where desired state not met');
+			END
+
 		    IF OBJECT_ID('Inspector.PSConfig') IS NULL 
 			BEGIN
 				CREATE TABLE [Inspector].[PSConfig](
@@ -2355,7 +2504,7 @@ END;
 			IF (SELECT [Value] FROM [Inspector].[Settings] WHERE [Description] = 'EmailBannerURL') = 'http://bit.ly/InspectorEmailBanner'
 			BEGIN
 				UPDATE [Inspector].[Settings] 
-				SET [Value] = 'http://bit.ly/InspectorV2'
+				SET [Value] = 'https://bit.ly/InspectorLogoRev1'
 				WHERE [Description] = 'EmailBannerURL';
 			END
 			
@@ -2427,7 +2576,7 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''LongRunningTransactionThreshold'',@LongRunningTransactionThreshold),
 		(''ReportDataRetention'',''30''),
 		(''BackupsPath'',@BackupsPath),
-		(''EmailBannerURL'',''http://bit.ly/InspectorV2''),
+		(''EmailBannerURL'',''https://bit.ly/InspectorLogoRev1''),
 		(''PSEmailBannerURL'',''http://bit.ly/PSInspectorEmailBanner''),
 		(''DatabaseOwnerExclusions'',@DatabaseOwnerExclusions),
 		(''AgentJobOwnerExclusions'',@AgentJobOwnerExclusions),
@@ -2444,7 +2593,8 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''TempDBPercentUsed'',''75''),
 		(''LongRunningTransactionsHistoryRetentionDays'',''7''),
 		(''PSAutoUpdateModules'',''1''),
-		(''PSAutoUpdateModulesFrequencyMins'',''1440'');
+		(''PSAutoUpdateModulesFrequencyMins'',''1440''),
+		(''MemoryDumpsRetentionInDays'',''180'');
 		
 IF NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfig])
 BEGIN 
@@ -2476,7 +2626,9 @@ VALUES(''Default'',''ADHocDatabaseCreations'',''ADHocDatabaseCreationsInsert'','
 (''Default'',''UnusedLogshipConfig'',''UnusedLogshipConfigInsert'',''UnusedLogshipConfigReport'',20,1,0,1,3,NULL,1440,@StartTime,@EndTime),
 (''Default'',''DatacollectionsOverdue'',''DatacollectionsOverdueInsert'',''DatacollectionsOverdueReport'',21,1,0,0,1,NULL,1440,@StartTime,@EndTime),
 (''Default'',''TempDB'',''TempDBInsert'',''TempDBReport'',22,2,1,0,1,NULL,5,@StartTime,@EndTime),
-(''PeriodicBackupCheck'',''BackupsCheck'',''BackupsCheckInsert'',''BackupsCheckReport'',1,1,0,1,1,NULL,120,DATEADD(HOUR,2,@StartTime),@EndTime);
+(''PeriodicBackupCheck'',''BackupsCheck'',''BackupsCheckInsert'',''BackupsCheckReport'',1,1,0,1,1,NULL,120,DATEADD(HOUR,2,@StartTime),@EndTime),
+(''Default'',''MemoryDumps'',N''MemoryDumpsInsert'',N''MemoryDumpsReport'',23,2,1,0,1,NULL,1440,@StartTime,@EndTime),
+(''Default'',''AgentJobsDesiredState'',N''AgentJobsDesiredStateInsert'',N''AgentJobsDesiredStateReport'',24,2,1,0,1,NULL,1440,@StartTime,@EndTime);
 
 INSERT INTO [Inspector].[DefaultHeaderText] ([Modulename], [HeaderText])
 VALUES(''ADHocDatabaseCreations'',''Potential ADhoc database creations''),
@@ -2499,7 +2651,9 @@ VALUES(''ADHocDatabaseCreations'',''Potential ADhoc database creations''),
 (''ServerSettings'',''Cost Threshold for parallelism, MAXDOP or Max Server memory set to default values''),
 (''SuspectPages'',''Suspect database pages found''),
 (''UnusedLogshipConfig'',''Unused log shipping config found''),
-(''TempDB'',''TempDB file usage higher than your threshold'');
+(''TempDB'',''TempDB file usage higher than your threshold''),
+(''MemoryDumps'',''Recent Memory dumps found''),
+(''AgentJobsDesiredState'',''Agent jobs where desired state not met'');
 
 INSERT INTO [Inspector].[EmailConfig] (ModuleConfig_Desc,EmailSubject)
 VALUES (''Default'',''SQLUndercover Inspector check ''),(''PeriodicBackupCheck'',''SQLUndercover Backups Report'');
@@ -4522,10 +4676,19 @@ ALTER PROCEDURE [Inspector].[BackupsCheckInsert]
 AS
 BEGIN
 
---Revision date: 11/09/2018
+--Revision date: 06/10/2021
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 DECLARE @FullBackupThreshold INT = (Select [Value] FROM [Inspector].[Settings] WHERE Description = ''FullBackupThreshold'')
+DECLARE @MaxFullThreshold INT;
+
+SET @FullBackupThreshold = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,''BackupsCheck'',''FullBackupThreshold'') AS INT),8));
+SET @MaxFullThreshold = (SELECT MAX(FullThreshold) FROM [Inspector].[BackupsCheckThresholds] WHERE [IsActive] = 1);
+
+IF (@FullBackupThreshold < @MaxFullThreshold)
+BEGIN 
+	SET @FullBackupThreshold = @MaxFullThreshold;
+END 
 
 DELETE 
 FROM [Inspector].[BackupsCheck]
@@ -5507,25 +5670,210 @@ WHERE DBs.Servername = @Servername;
 
 END';
 
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[LongRunningTransactionsUpdate]') AND type in (N'P', N'PC'))
+BEGIN
+	EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [Inspector].[LongRunningTransactionsUpdate] AS' 
+END
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[LongRunningTransactionsUpdate] (
+@Servername NVARCHAR(128),
+@Debug BIT = 0
+)
+AS
+SET NOCOUNT ON;
+DECLARE @Loginname NVARCHAR(128);
+DECLARE @Hostname NVARCHAR(128);
+DECLARE @Programname NVARCHAR(128);
+DECLARE @DurationInSeconds INT;
+DECLARE @ThresholdType VARCHAR(128);
+DECLARE @UPDSQLStmt NVARCHAR(1000);
+DECLARE @UPDSQLStmtWhere NVARCHAR(1000);
+DECLARE @DELSQLStmt NVARCHAR(1000);
+DECLARE @DELSQLStmtWhere NVARCHAR(1000);
+DECLARE @GlobalThreshold INT = ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@Servername,NULL,''LongRunningTransactionThreshold'') AS INT),300);
+
+/* Evaluate each threshold row and update the Transaction table with the Threhold type applied where applicable */
+DECLARE Threshold_cur CURSOR LOCAL FAST_FORWARD
+FOR 
+SELECT 
+[login_name], 
+[host_name], 
+[program_name], 
+[DurationInSeconds]
+FROM [Inspector].[LongRunningTransactionsThresholds]
+WHERE [IsActive] = 1 
+AND [Servername] = @Servername;
+
+OPEN Threshold_cur
+
+FETCH NEXT FROM Threshold_cur INTO @Loginname, @Hostname, @Programname, @DurationInSeconds
+
+WHILE @@FETCH_STATUS = 0 
+BEGIN 
+
+SET @UPDSQLStmtWhere = N'''';
+SET @ThresholdType = N'''';
+
+SET @UPDSQLStmt = N''
+/* Statement generated by procedure: [Inspector].[LongRunningTransactionsUpdate] */
+UPDATE [Inspector].[LongRunningTransactions]
+SET [ThresholdType] = @ThresholdType 
+WHERE [Servername] = @Servername
+AND [transaction_begin_time] < DATEADD(SECOND,-@DurationInSeconds,[Log_Date])
+AND [session_id] IS NOT NULL'';
+
+IF (@Loginname IS NOT NULL) 
+BEGIN 
+	SET @ThresholdType += '' | Loginname'';
+	SET @UPDSQLStmtWhere += N''
+AND [login_name] = @Loginname'';
+END
+
+IF (@Hostname IS NOT NULL) 
+BEGIN 
+	SET @ThresholdType += '' | Hostname'';
+	SET @UPDSQLStmtWhere += N''
+AND [host_name] = @Hostname'';
+END
+
+IF (@Programname IS NOT NULL) 
+BEGIN 
+	SET @ThresholdType += '' | Programname'';
+	SET @UPDSQLStmtWhere += N''
+AND [program_name] = @Programname'';
+END
+
+SET @ThresholdType = STUFF(@ThresholdType,1,3,'''');
+SET @ThresholdType = @ThresholdType 
++ ''  - ''
++CAST(@DurationInSeconds AS VARCHAR(10))
++'' Seconds ''
++CASE 
+	WHEN @DurationInSeconds > 300 THEN ''(''+CAST(CAST(CAST(@DurationInSeconds AS MONEY)/60.00 AS MONEY) AS VARCHAR(10))+'' Minutes)'' 
+	ELSE '''' 
+END;
+
+SET @UPDSQLStmt += @UPDSQLStmtWhere;
+
+IF(@Debug = 1)
+BEGIN 
+	RAISERROR(''%s'',0,0,@UPDSQLStmt) WITH NOWAIT;
+END 
+
+EXEC sp_executesql @UPDSQLStmt,
+N''@Servername NVARCHAR(128),
+@Loginname NVARCHAR(128),
+@Hostname NVARCHAR(128),
+@Programname NVARCHAR(128),
+@DurationInSeconds INT,
+@ThresholdType VARCHAR(128)'',
+@Servername = @Servername,
+@Loginname = @Loginname,
+@Hostname = @Hostname,
+@Programname = @Programname,
+@DurationInSeconds = @DurationInSeconds,
+@ThresholdType = @ThresholdType;
+
+/* Remove rows which match your thresholds based on Loginname, and/or hostname and/or program name but do not exceed the duration threshold set */
+SET @DELSQLStmtWhere = N'''';
+
+SET @DELSQLStmt = N''
+/* Statement generated by procedure: [Inspector].[LongRunningTransactionsUpdate] */
+DELETE FROM [Inspector].[LongRunningTransactions]
+WHERE [Servername] = @Servername
+AND [transaction_begin_time] >= DATEADD(SECOND,-@DurationInSeconds,[Log_Date])
+AND [session_id] IS NOT NULL'';
+
+IF (@Loginname IS NOT NULL) 
+BEGIN 
+	SET @DELSQLStmtWhere += N''
+AND [login_name] = @Loginname'';
+END
+
+IF (@Hostname IS NOT NULL) 
+BEGIN 
+	SET @DELSQLStmtWhere += N''
+AND [host_name] = @Hostname'';
+END
+
+IF (@Programname IS NOT NULL) 
+BEGIN 
+	SET @DELSQLStmtWhere += N''
+AND [program_name] = @Programname'';
+END
+
+SET @DELSQLStmt += @DELSQLStmtWhere;
+
+EXEC sp_executesql @DELSQLStmt,
+N''@Servername NVARCHAR(128),
+@Loginname NVARCHAR(128),
+@Hostname NVARCHAR(128),
+@Programname NVARCHAR(128),
+@DurationInSeconds INT'',
+@Servername = @Servername,
+@Loginname = @Loginname,
+@Hostname = @Hostname,
+@Programname = @Programname,
+@DurationInSeconds = @DurationInSeconds;
+
+IF(@Debug = 1)
+BEGIN 
+	RAISERROR(''%s'',0,0,@DELSQLStmt) WITH NOWAIT;
+END 
+
+	FETCH NEXT FROM Threshold_cur INTO @Loginname, @Hostname, @Programname, @DurationInSeconds
+END 
+
+CLOSE Threshold_cur
+DEALLOCATE Threshold_cur;
+
+/* Update ThresholdType for the remaining rows */
+UPDATE [Inspector].[LongRunningTransactions]
+SET [ThresholdType] = ''Default''
++ ''  - ''
++CAST(@GlobalThreshold AS VARCHAR(10))
++'' Seconds ''
++CASE 
+	WHEN @GlobalThreshold > 300 THEN ''(''+CAST(CAST(CAST(@GlobalThreshold AS MONEY)/60.00 AS MONEY) AS VARCHAR(10))+'' Minutes)'' 
+	ELSE '''' 
+END
+WHERE [transaction_begin_time] < DATEADD(SECOND,-@GlobalThreshold,[Log_Date])
+AND [session_id] IS NOT NULL
+AND [ThresholdType] IS NULL;';
+
 
 IF OBJECT_ID('Inspector.LongRunningTransactionsInsert') IS NULL
 EXEC('CREATE PROCEDURE  [Inspector].[LongRunningTransactionsInsert] AS;');
 
-EXEC sp_executesql N'
-ALTER PROCEDURE [Inspector].[LongRunningTransactionsInsert]
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[LongRunningTransactionsInsert]
 AS
 BEGIN
 
---Revision date: 09/06/2021
+--Revision date: 08/11/2021
 
 SET NOCOUNT ON;
 
-DECLARE @TransactionDurationThreshold INT = (SELECT CAST([Value] AS INT) FROM [Inspector].[Settings] WHERE [Description] = ''LongRunningTransactionThreshold'');
-DECLARE @Now DATETIME = GETDATE();
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
+DECLARE @TransactionDurationThreshold INT;
+DECLARE @GlobalThreshold INT = ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@Servername,''LongRunningTransactions'',''LongRunningTransactionThreshold'') AS INT),300);
+DECLARE @MinThreshold INT = (SELECT MIN(DurationInSeconds) FROM [Inspector].[LongRunningTransactionsThresholds] WHERE [IsActive] = 1);
+DECLARE @Now DATETIME = GETDATE();
 DECLARE @Retention INT;
+DECLARE @Loginname NVARCHAR(128);
+DECLARE @Hostname NVARCHAR(128);
+DECLARE @Programname NVARCHAR(128);
+DECLARE @DurationInSeconds INT;
+DECLARE @SQLStmt NVARCHAR(1000);
 
-SET @Retention = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@@SERVERNAME, ''LongRunningTransactions'', ''LongRunningTransactionsHistoryRetentionDays'') AS INT), 7));
+/* Get the minimum Threshold so that we make sure we capture all the transactions we need, the update that follows will flag which transactions need to be included */
+SELECT @TransactionDurationThreshold = MIN(Threshold) FROM (VALUES(@GlobalThreshold),(@MinThreshold)) x (Threshold);
+
+IF (@TransactionDurationThreshold IS NULL) 
+BEGIN 
+	SET @TransactionDurationThreshold = 300;
+END 
+
+SET @Retention = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@Servername, ''LongRunningTransactions'', ''LongRunningTransactionsHistoryRetentionDays'') AS INT), 7));
 
 IF (@Retention IS NULL)
 BEGIN 
@@ -5538,8 +5886,8 @@ DELETE FROM [Inspector].[LongRunningTransactionsHistory]
 WHERE Servername = @Servername
 AND [Log_Date] < DATEADD(DAY,@Retention,GETDATE());
 
-INSERT INTO [Inspector].[LongRunningTransactionsHistory] ([Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename],[Querytext])
-SELECT [Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename],[Querytext]
+INSERT INTO [Inspector].[LongRunningTransactionsHistory] ([Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename],[Querytext],[ThresholdType])
+SELECT [Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename],[Querytext],[ThresholdType]
 FROM [Inspector].[LongRunningTransactions]
 WHERE [session_id] IS NOT NULL;
 
@@ -5552,7 +5900,7 @@ BEGIN
 	SET @TransactionDurationThreshold = 300;
 END
 
-INSERT INTO [Inspector].[LongRunningTransactions] ([Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename],[Querytext])
+INSERT INTO [Inspector].[LongRunningTransactions] ([Servername], [Log_Date], [session_id], [transaction_begin_time], [Duration_DDHHMMSS], [TransactionState], [SessionState], [login_name], [host_name], [program_name], [Databasename],[Querytext],[ThresholdType])
 SELECT
 @Servername,
 @Now,
@@ -5580,6 +5928,7 @@ END AS TransactionState
 ,Sessions.program_name
 ,DB_NAME(Sessions.database_id)
 ,[Querytext].[text]
+,NULL
 FROM sys.dm_tran_session_transactions SessionTrans
 JOIN sys.dm_tran_active_transactions ActiveTrans ON SessionTrans.transaction_id = ActiveTrans.transaction_id
 JOIN sys.dm_exec_sessions Sessions ON Sessions.session_id = SessionTrans.session_id
@@ -5587,6 +5936,12 @@ JOIN sys.dm_exec_connections Connections ON Connections.session_id = Sessions.se
 OUTER APPLY sys.dm_exec_sql_text(Connections.most_recent_sql_handle) aS Querytext
 WHERE ActiveTrans.transaction_begin_time <= DATEADD(SECOND,-@TransactionDurationThreshold,@Now)
 ORDER BY ActiveTrans.transaction_begin_time ASC;
+
+
+EXEC [Inspector].[LongRunningTransactionsUpdate] 
+	@Servername = @Servername,
+	@Debug = 0;
+
 
 IF NOT EXISTS (SELECT 1 FROM [Inspector].[LongRunningTransactions] WHERE Servername = @Servername)
 BEGIN 
@@ -7661,13 +8016,19 @@ ALTER PROCEDURE [Inspector].[BackupsCheckReport]
 )
 AS
 BEGIN
---Revision date: 20/04/2021	
+--Revision date: 12/10/2021
 
 	DECLARE @FullBackupThreshold INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''FullBackupThreshold'') AS INT),8));
 	DECLARE @DiffBackupThreshold INT = (SELECT TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''DiffBackupThreshold'') AS INT));
 	DECLARE @LogBackupThreshold	INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''LogBackupThreshold'') AS INT),20));
 	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
+	DECLARE @MaxFullThreshold INT = (SELECT MAX(FullThreshold) FROM [Inspector].[BackupsCheckThresholds] WHERE [IsActive] = 1);
+
+	IF (@FullBackupThreshold < @MaxFullThreshold)
+	BEGIN 
+		SET @FullBackupThreshold = @MaxFullThreshold;
+	END 
 
 	SET @LastCollection = [Inspector].[GetLastCollectionDateTime] (@Modulename);
 	EXEC [Inspector].[GetModuleConfigFrequency] @ModuleConfig, @Frequency = @ReportFrequency OUTPUT;
@@ -7728,7 +8089,8 @@ BEGIN
 	Serverlist VARCHAR(1000),
 	primary_replica NVARCHAR(128),
 	backup_preference NVARCHAR(60),
-	NamedInstance BIT
+	NamedInstance BIT,
+	Thresholds VARCHAR(128)
 	);
 
 	DECLARE @NamedInstance BIT
@@ -7741,7 +8103,7 @@ BEGIN
 	SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
 
 	--Set columns names for the Html table
-	SET @HtmlTableHead = (SELECT [Inspector].[GenerateHtmlTableheader] (@Servername,@Modulename,@ServerSpecific,''The following Databases are missing database backups:'',@TableHeaderColour,''Servername,Database name,AG name,Last Full,Last Diff,Last Log,Full Recovery,AG Backup Pref,Preferred Servers''));
+	SET @HtmlTableHead = (SELECT [Inspector].[GenerateHtmlTableheader] (@Servername,@Modulename,@ServerSpecific,''The following Databases are missing database backups:'',@TableHeaderColour,''Servername,Database name,AG name,Last Full,Last Diff,Last Log,Full Recovery,AG Backup Pref,Preferred Servers,Thresholds''));
 
 
 	/* if there has been a data collection since the last report frequency minutes ago then run the report */
@@ -7788,40 +8150,64 @@ BEGIN
 		GROUP BY Databasename,AGname,GroupingMethod,IsFullRecovery,IsSystemDB,backup_preference;
 		  
 		  
-		INSERT INTO #Validations (Databasename,AGname,FullState,DiffState,LogState,IsFullRecovery,Serverlist,primary_replica,backup_preference,NamedInstance)
+		INSERT INTO #Validations (Databasename,AGname,FullState,DiffState,LogState,IsFullRecovery,Serverlist,primary_replica,backup_preference,NamedInstance,Thresholds)
 		SELECT 
-		Databasename,
-		AGname,
+		Aggregates.Databasename,
+		Aggregates.AGname,
 		CASE
-			WHEN [LastFull] = ''19000101'' THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
-			WHEN ([LastFull] >= ''19000101'' AND [LastFull] < DATEADD(DAY,-@FullBackupThreshold,[Log_Date]) OR [LastFull] IS NULL) THEN ISNULL(CONVERT(VARCHAR(17),[LastFull],113),''More then ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' days ago'')
+			WHEN Aggregates.[LastFull] = ''19000101'' THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
+			WHEN (Aggregates.[LastFull] >= ''19000101'' AND Aggregates.[LastFull] < DATEADD(DAY,-ISNULL([Thresholds].[FullThreshold],@FullBackupThreshold),Aggregates.[Log_Date]) 
+				OR Aggregates.[LastFull] IS NULL) THEN ISNULL(CONVERT(VARCHAR(17),Aggregates.[LastFull],113),''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' days ago'')
 			ELSE ''OK'' 
 		END AS [FullState], 
 		CASE 
+			WHEN [Thresholds].[Databasename] IS NOT NULL AND [Thresholds].[DiffThreshold] IS NULL THEN ''N/A''
 			WHEN @DiffBackupThreshold IS NOT NULL 
 			THEN CASE
-					WHEN [LastDiff] = ''19000101'' AND IsSystemDB = 0 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
-					WHEN ([LastDiff] >= ''19000101'' AND [LastDiff] < DATEADD(HOUR,-@DiffBackupThreshold,[Log_Date])  OR [LastDiff] IS NULL) AND IsSystemDB = 0 THEN ISNULL(CONVERT(VARCHAR(17),[LastDiff],113),''More then ''+CAST(@DiffBackupThreshold AS VARCHAR(3))+'' Hours ago'')
-					WHEN IsSystemDB = 1 THEN ''N/A''
+					WHEN Aggregates.[LastDiff] = ''19000101'' AND Aggregates.IsSystemDB = 0 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
+					WHEN (Aggregates.[LastDiff] >= ''19000101'' AND Aggregates.[LastDiff] < DATEADD(HOUR,-ISNULL([Thresholds].[DiffThreshold],@DiffBackupThreshold),Aggregates.[Log_Date])  
+					OR Aggregates.[LastDiff] IS NULL) AND Aggregates.IsSystemDB = 0 THEN ISNULL(CONVERT(VARCHAR(17),Aggregates.[LastDiff],113),''More than ''+CAST(@DiffBackupThreshold AS VARCHAR(3))+'' Hours ago'')
+					WHEN Aggregates.IsSystemDB = 1 THEN ''N/A''
 		  			ELSE ''OK'' 
 				 END 
 			ELSE ''N/A''
 		END AS [DiffState],		  	
 		CASE 
-			WHEN  [LastLog] = ''19000101'' AND IsSystemDB = 0 AND Aggregates.IsFullRecovery = 1 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
-			WHEN (([LastLog] >= ''19000101'' AND [LastLog] < DATEADD(MINUTE,-@LogBackupThreshold,[Log_Date]) OR [LastLog] IS NULL) AND IsSystemDB = 0 AND (Aggregates.IsFullRecovery = 1 OR CAST(Aggregates.IsFullRecovery AS VARCHAR(3)) = ''N/A'')) THEN ISNULL(CONVERT(VARCHAR(17),[LastLog] ,113),''More than ''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minutes ago'')
-			WHEN Aggregates.IsFullRecovery = 0  OR IsSystemDB = 1 THEN ''N/A''
+			WHEN  Aggregates.[LastLog] = ''19000101'' AND Aggregates.IsSystemDB = 0 AND Aggregates.IsFullRecovery = 1 THEN ''More than ''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Days Ago''
+			WHEN ((Aggregates.[LastLog] >= ''19000101'' AND Aggregates.[LastLog] < DATEADD(MINUTE,-ISNULL([Thresholds].[LogThreshold],@LogBackupThreshold),Aggregates.[Log_Date]) 
+			OR Aggregates.[LastLog] IS NULL) 
+			AND Aggregates.IsSystemDB = 0 AND (Aggregates.IsFullRecovery = 1 OR CAST(Aggregates.IsFullRecovery AS VARCHAR(3)) = ''N/A'')) THEN ISNULL(CONVERT(VARCHAR(17),[LastLog] ,113),''More than ''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minutes ago'')
+			WHEN Aggregates.IsFullRecovery = 0  OR Aggregates.IsSystemDB = 1 THEN ''N/A''
 			ELSE ''OK'' 
 		END AS [LogState],
-		CASE IsFullRecovery WHEN 1 THEN ''Y'' ELSE ''N'' END AS IsFullRecovery,
+		CASE Aggregates.IsFullRecovery 
+			WHEN 1 THEN ''Y'' 
+			ELSE ''N'' 
+		END AS IsFullRecovery,
 		STUFF(Serverlist.Serverlist,1,1,'''') AS Serverlist,
-		primary_replica,
-		backup_preference,
+		Aggregates.primary_replica,
+		Aggregates.backup_preference,
 		CASE 
-			WHEN primary_replica LIKE ''%\%'' THEN 1 
+			WHEN Aggregates.primary_replica LIKE ''%\%'' THEN 1 
 			ELSE 0 
-		END		
+		END,
+		''Full: ''+CAST(ISNULL([FullThreshold],@FullBackupThreshold) AS VARCHAR(20))+'' Day(s) , ''+
+		''Diff: ''+ISNULL(CAST((CASE 
+									WHEN [Thresholds].[Databasename] IS NOT NULL THEN [DiffThreshold]
+									ELSE @DiffBackupThreshold
+								END) AS VARCHAR(20))+'' Hour(s) , '','' Ignoring , '')+
+		''Log: ''+CAST(ISNULL([LogThreshold],@LogBackupThreshold) AS VARCHAR(20))+'' Minute(s)''
+		AS Thresholds
 		FROM #Aggregates Aggregates
+		LEFT JOIN (SELECT
+						[Servername],
+						[Databasename],
+						[FullThreshold],
+						[DiffThreshold],
+						[LogThreshold]
+					FROM [Inspector].[BackupsCheckThresholds]
+					WHERE [IsActive] = 1) Thresholds ON Aggregates.[primary_replica] = Thresholds.[Servername]
+														AND Aggregates.[Databasename] = Thresholds.[Databasename]
 		CROSS APPLY (SELECT 
 			CASE 
 				WHEN backup_preference IN (''PRIMARY'',''NON AG'') THEN '', '' + primary_replica
@@ -7849,7 +8235,8 @@ BEGIN
 		LogState AS ''td'','''', +
 		IsFullRecovery AS ''td'','''', +
 		backup_preference AS ''td'','''', +
-		Serverlist AS ''td'',''''
+		Serverlist AS ''td'','''', +
+		Thresholds AS ''td'',''''
 		FROM
 		(
 			SELECT
@@ -7872,7 +8259,8 @@ BEGIN
 				WHEN ([FullState] != ''OK'' OR [DiffState] != ''OK'' AND [DiffState] != ''N/A'') AND [LogState] = ''OK'' THEN primary_replica
 				WHEN backup_preference = ''SECONDARY_ONLY'' THEN REPLACE(REPLACE(Serverlist,'', ''+@Servername,''''),@Servername+'', '','''')
 				ELSE Serverlist
-			END AS Serverlist
+			END AS Serverlist,
+			Thresholds
 			FROM #Validations
 			WHERE ([FullState] != ''OK'' OR ([DiffState] != ''OK'' AND [DiffState] != ''N/A'') OR ([LogState] != ''OK'' AND [LogState] != ''N/A''))
 			AND Serverlist like ''%''+@Servername+''%''
@@ -7904,7 +8292,7 @@ BEGIN
 		SET  @HtmlOutput =  
 		CASE 
 			WHEN @HtmlOutput LIKE ''%No backup issues present%'' AND @NoClutter = 1 THEN ''''
-			ELSE ISNULL(@HtmlTableHead, '''') + ISNULL(@HtmlOutput, '''') +''</table><p><font style="color: Black; background-color: ''+@WarningHighlight+''">Warning Highlight Thresholds:</font><br>
+			ELSE ISNULL(@HtmlTableHead, '''') + ISNULL(@HtmlOutput, '''') +''</table><p><font style="color: Black; background-color: White">Global Thresholds:</font><br>
 		Last FULL backup older than <b>''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Day/s</b><br>
 		''+ CASE WHEN @DiffBackupThreshold IS NOT NULL THEN ''Last DIFF backup older than <b>''+ CAST(@DiffBackupThreshold AS VARCHAR(3))+'' Hour/s</b><br>'' ELSE ''DIFF backups excluded from check</b><br>'' END +
 		''Last Log backup older than <b>''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minute/s</b><br>
@@ -9962,7 +10350,7 @@ ALTER PROCEDURE [Inspector].[LongRunningTransactionsReport]
 )
 AS
 BEGIN
---Revision date: 20/04/2021	
+--Revision date: 08/11/2021	
 
 	DECLARE @HtmlTableHead VARCHAR(2000);
 	DECLARE @AgentJobOwnerExclusions VARCHAR(255);
@@ -9989,9 +10377,9 @@ BEGIN
 		@Servername,
 		@Modulename,
 		@ServerSpecific,
-		''Transactions that exceed the threshold of ''+CAST(@LongRunningTransactionThreshold AS VARCHAR(8))+'' seconds ''+CASE WHEN @LongRunningTransactionThreshold > 300 THEN ''(''+CAST(CAST(CAST(@LongRunningTransactionThreshold AS MONEY)/60.00 AS MONEY) AS VARCHAR(10))+'' Minutes)'' ELSE '''' END,
+		''Long running transactions'',
 		@TableHeaderColour,
-		''Server name,Session id,Transaction begin time,Duration (DDHHMMSS),Transaction state,Session state,Login name,Host name,Program name,Database name''
+		''Server name,Session id,Transaction begin time,Duration (DDHHMMSS),Transaction state,Session state,Login name,Host name,Program name,Database name,ThresholdType''
 		)
 	);
 
@@ -10014,7 +10402,8 @@ BEGIN
 		[login_name] AS ''td'','''',+
 		[host_name] AS ''td'','''',+
 		[program_name] AS ''td'','''',+
-		[Databasename] AS ''td'',''''
+		[Databasename] AS ''td'','''',+
+		[ThresholdType] AS ''td'',''''
 		FROM [Inspector].[LongRunningTransactions]
 		WHERE Servername = @Servername
 		AND [transaction_begin_time] IS NOT NULL
@@ -10027,6 +10416,7 @@ BEGIN
 			''#FFFFFF'' AS [@bgcolor],
 			[Servername] AS ''td'','''',+
 			''No Long running transactions'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
 			''N/A'' AS ''td'','''',+
 			''N/A'' AS ''td'','''',+
 			''N/A'' AS ''td'','''',+
@@ -10061,6 +10451,7 @@ BEGIN
 		''N/A'' AS ''td'','''', + 
 		''N/A'' AS ''td'','''', + 
 		''N/A'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''',+
 		''N/A'' AS ''td'',''''
 		FOR XML PATH(''tr''),ELEMENTS);
 			
@@ -11260,6 +11651,353 @@ BEGIN
 
 END';
 
+IF OBJECT_ID('Inspector.MemoryDumpsInsert') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[MemoryDumpsInsert] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[MemoryDumpsInsert]
+AS
+SET NOCOUNT ON;
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
+DECLARE @MemoryDumpRetentionInDays INT 
+
+SET @MemoryDumpRetentionInDays = ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@Servername,''MemoryDumps'',''MemoryDumpsRetentionInDays'') AS INT),180);
+
+DELETE FROM [Inspector].[MemoryDumps] 
+WHERE [Servername] = @Servername
+AND [creation_time] < DATEADD(DAY,-@MemoryDumpRetentionInDays,SYSDATETIMEOFFSET())
+
+
+INSERT INTO [Inspector].[MemoryDumps] ([Servername],[filename],[creation_time],[size_in_mb])
+SELECT 
+	@Servername,
+	[filename],
+	[creation_time],
+	CAST(([size_in_bytes]/1048576.00) AS DECIMAL(18,2)) AS size_in_mb
+FROM sys.dm_server_memory_dumps md
+WHERE NOT EXISTS (SELECT 1 
+					FROM [Inspector].[MemoryDumps] 
+					WHERE [MemoryDumps].[creation_time] = [md].[creation_time]
+					AND [MemoryDumps].[Servername] = @Servername
+					);';
+
+IF OBJECT_ID('Inspector.MemoryDumpsReport') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[MemoryDumpsReport] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[MemoryDumpsReport] (
+@Servername NVARCHAR(128),
+@Modulename VARCHAR(50),
+@TableHeaderColour VARCHAR(7) = ''#E6E6FA'',
+@WarningHighlight VARCHAR(7),
+@AdvisoryHighlight VARCHAR(7),
+@InfoHighlight VARCHAR(7),
+@ModuleConfig VARCHAR(20),
+@WarningLevel TINYINT,
+@ServerSpecific BIT,
+@NoClutter BIT,
+@TableTail VARCHAR(256),
+@HtmlOutput VARCHAR(MAX) OUTPUT,
+@CollectionOutOfDate BIT OUTPUT,
+@PSCollection BIT,
+@Debug BIT = 0
+)
+AS
+
+DECLARE @HtmlTableHead VARCHAR(2000);
+DECLARE @LastReportDate DATETIME = [Inspector].[GetLastReportDateTime](@ModuleConfig);
+DECLARE @LastCollection DATETIME = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+
+SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
+
+--Set columns names for the Html table
+SET @HtmlTableHead = (SELECT [Inspector].[GenerateHtmlTableheader] (
+	@Servername,
+	@Modulename,
+	@ServerSpecific,
+	''Recent memory dumps'',
+	@TableHeaderColour,
+	''Server name,filename,creation time,size in MB'')
+);
+
+/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= @LastReportDate)
+	BEGIN
+		SET @HtmlOutput =(
+		SELECT
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 1 THEN @WarningHighlight
+			WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		[Servername] AS ''td'','''', +
+		CONVERT(VARCHAR(17),[creation_time],113) AS ''td'','''', +
+		[filename] AS ''td'','''', +
+		[size_in_mb] AS ''td'',''''
+		FROM [Inspector].[MemoryDumps]
+		WHERE Servername = @Servername
+		AND [creation_time] > CAST(@LastReportDate AS DATETIMEOFFSET(7))
+		ORDER BY [creation_time] ASC
+		FOR XML PATH(''tr''),ELEMENTS);
+		
+		IF @HtmlOutput IS NULL
+		BEGIN
+			SET @HtmlOutput =(
+			SELECT
+			''#FFFFFF'' AS [@bgcolor], 
+			@Servername AS ''td'','''', +
+			''No recent memory dumps found'' AS ''td'','''', +
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS);
+		END	
+
+		--If @NoClutter is on we do not want to show the table if it has @InfoHighlight against the row/s
+		IF (@NoClutter = 1)
+		BEGIN 
+			IF (@HtmlOutput LIKE ''%No recent memory dumps found%'')
+			BEGIN 
+				SET @HtmlOutput = NULL;
+			END
+		END
+
+		IF (@HtmlOutput IS NOT NULL)
+		BEGIN 
+		SET @HtmlOutput = 
+			@HtmlTableHead
+			+ @HtmlOutput
+			+ @TableTail 
+			+''<p><BR><p>''
+		END
+	END 
+	ELSE
+	BEGIN
+		SET @HtmlOutput =
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 1 THEN @WarningHighlight
+			WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor], 
+		@Servername AS ''td'','''', + 
+		''Data Collection out of date'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),Elements);
+
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
+
+		SET @HtmlOutput = 
+			@HtmlTableHead
+			+ @HtmlOutput
+			+ @TableTail 
+			+''<p><BR><p>''
+	END
+
+IF (@Debug = 1)
+BEGIN 
+	SELECT 
+	OBJECT_NAME(@@PROCID) AS ''Procname'',
+	@Servername AS ''@Servername'',
+	@Modulename AS ''@Modulename'',
+	@TableHeaderColour AS ''@TableHeaderColour'',
+	@WarningHighlight AS ''@WarningHighlight'',
+	@AdvisoryHighlight AS ''@AdvisoryHighlight'',
+	@InfoHighlight AS ''@InfoHighlight'',
+	@ModuleConfig AS ''@ModuleConfig'',
+	@WarningLevel AS ''@WarningLevel'',
+	@NoClutter AS ''@NoClutter'',
+	@TableTail AS ''@TableTail'',
+	@HtmlOutput AS ''@HtmlOutput'',
+	@HtmlTableHead AS ''@HtmlTableHead'',
+	@CollectionOutOfDate AS ''@CollectionOutOfDate'',
+	@PSCollection AS ''@PSCollection''
+END';
+
+IF OBJECT_ID('Inspector.AgentJobsDesiredStateInsert') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[AgentJobsDesiredStateInsert] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[AgentJobsDesiredStateInsert]
+AS
+SET NOCOUNT ON;
+DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
+
+/* Insert jobs that do not exist in the Inspector table , assume that the current enabled flag is the desiredstate */
+INSERT INTO [Inspector].[AgentJobsDesiredState] ([Servername],[JobName],[DesiredState],[Enabled],[LastChecked])
+SELECT 
+	@Servername,
+	[sysjobs].[name],
+	CAST([sysjobs].[enabled] AS BIT),
+	CAST([sysjobs].[enabled] AS BIT),
+	GETDATE()
+FROM [msdb].[dbo].[sysjobs]
+WHERE NOT EXISTS (SELECT 1 
+					FROM [Inspector].[AgentJobsDesiredState] 
+					WHERE [AgentJobsDesiredState].[JobName] = [sysjobs].[name]
+					AND [Servername] = @Servername
+					);
+
+/* Update the MsdbEnabled column with the current enabled value in msdb */
+UPDATE DesiredState
+SET [Enabled] = CAST([sysjobs].[enabled] AS BIT), 
+	[LastChecked] = GETDATE()
+FROM [Inspector].[AgentJobsDesiredState] DesiredState
+INNER JOIN [msdb].[dbo].[sysjobs] ON [DesiredState].[JobName] = [sysjobs].[name]
+WHERE [Servername] = @Servername;
+';
+
+
+
+IF OBJECT_ID('Inspector.AgentJobsDesiredStateReport') IS NULL
+BEGIN 
+	EXEC sp_executesql N'CREATE PROCEDURE [Inspector].[AgentJobsDesiredStateReport] AS;';
+END 
+
+EXEC sp_executesql N'ALTER PROCEDURE [Inspector].[AgentJobsDesiredStateReport] (
+@Servername NVARCHAR(128),
+@Modulename VARCHAR(50),
+@TableHeaderColour VARCHAR(7) = ''#E6E6FA'',
+@WarningHighlight VARCHAR(7),
+@AdvisoryHighlight VARCHAR(7),
+@InfoHighlight VARCHAR(7),
+@ModuleConfig VARCHAR(20),
+@WarningLevel TINYINT,
+@ServerSpecific BIT,
+@NoClutter BIT,
+@TableTail VARCHAR(256),
+@HtmlOutput VARCHAR(MAX) OUTPUT,
+@CollectionOutOfDate BIT OUTPUT,
+@PSCollection BIT,
+@Debug BIT = 0
+)
+AS
+
+DECLARE @HtmlTableHead VARCHAR(2000);
+DECLARE @LastReportDate DATETIME = [Inspector].[GetLastReportDateTime](@ModuleConfig);
+DECLARE @LastCollection DATETIME = [Inspector].[GetLastCollectionDateTime] (@Modulename);
+
+SET @Debug = [Inspector].[GetDebugFlag](@Debug,@ModuleConfig,@Modulename);
+
+--Set columns names for the Html table
+SET @HtmlTableHead = (SELECT [Inspector].[GenerateHtmlTableheader] (
+	@Servername,
+	@Modulename,
+	@ServerSpecific,
+	''Agent jobs not matching your desired state'',
+	@TableHeaderColour,
+	''Server name,Job name,Desired state,Enabled in msdb,Last checked,Code to enable'')
+);
+
+/* if there has been a data collection since the last report frequency minutes ago then run the report */
+	IF(@LastCollection >= @LastReportDate)
+	BEGIN
+		SET @HtmlOutput =(
+		SELECT
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 1 THEN @WarningHighlight
+			WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor],
+		[Servername] AS ''td'','''', +
+		[JobName] AS ''td'','''', +
+		[DesiredState] AS ''td'','''', +
+		[Enabled] AS ''td'','''', +
+		CONVERT(VARCHAR(17),[LastChecked],113) AS ''td'','''', +
+		''EXEC msdb.dbo.sp_update_job @job_name = N''''''+[JobName]+'''''', @enabled = ''+CAST([DesiredState] AS CHAR)+'';'' AS ''td'',''''
+		FROM [Inspector].[AgentJobsDesiredState]
+		WHERE Servername = @Servername
+		AND [LastChecked] > @LastReportDate
+		AND [Enabled] != [DesiredState]
+		ORDER BY [JobName] ASC
+		FOR XML PATH(''tr''),ELEMENTS);
+		
+		IF @HtmlOutput IS NULL
+		BEGIN
+			SET @HtmlOutput =(
+			SELECT
+			''#FFFFFF'' AS [@bgcolor], 
+			@Servername AS ''td'','''', +
+			''No Agent jobs not matching your desired state'' AS ''td'','''', +
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'','''',+
+			''N/A'' AS ''td'',''''
+			FOR XML PATH(''tr''),ELEMENTS);
+		END	
+
+		--If @NoClutter is on we do not want to show the table if it has @InfoHighlight against the row/s
+		IF (@NoClutter = 1)
+		BEGIN 
+			IF (@HtmlOutput LIKE ''%No Agent jobs not matching your desired state%'')
+			BEGIN 
+				SET @HtmlOutput = NULL;
+			END
+		END
+
+		IF (@HtmlOutput IS NOT NULL)
+		BEGIN 
+		SET @HtmlOutput = 
+			@HtmlTableHead
+			+ @HtmlOutput
+			+ @TableTail 
+			+''<p><BR><p>''
+		END
+	END 
+	ELSE
+	BEGIN
+		SET @HtmlOutput =
+		(SELECT 
+		CASE 
+			WHEN @WarningLevel IS NULL THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 1 THEN @WarningHighlight
+			WHEN @WarningLevel = 2 THEN @AdvisoryHighlight
+			WHEN @WarningLevel = 3 THEN @InfoHighlight
+		END AS [@bgcolor], 
+		@Servername AS ''td'','''', + 
+		''Data Collection out of date'' AS ''td'','''', + 
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'','''', +
+		''N/A'' AS ''td'',''''
+		FOR XML PATH(''tr''),Elements);
+
+		--Mark Collection as out of date
+		SET @CollectionOutOfDate = 1;
+
+		SET @HtmlOutput = 
+			@HtmlTableHead
+			+ @HtmlOutput
+			+ @TableTail 
+			+''<p><BR><p>''
+	END
+
+IF (@Debug = 1)
+BEGIN 
+	SELECT 
+	OBJECT_NAME(@@PROCID) AS ''Procname'',
+	@Servername AS ''@Servername'',
+	@Modulename AS ''@Modulename'',
+	@TableHeaderColour AS ''@TableHeaderColour'',
+	@WarningHighlight AS ''@WarningHighlight'',
+	@AdvisoryHighlight AS ''@AdvisoryHighlight'',
+	@InfoHighlight AS ''@InfoHighlight'',
+	@ModuleConfig AS ''@ModuleConfig'',
+	@WarningLevel AS ''@WarningLevel'',
+	@NoClutter AS ''@NoClutter'',
+	@TableTail AS ''@TableTail'',
+	@HtmlOutput AS ''@HtmlOutput'',
+	@HtmlTableHead AS ''@HtmlTableHead'',
+	@CollectionOutOfDate AS ''@CollectionOutOfDate'',
+	@PSCollection AS ''@PSCollection''
+END'; 
 
 IF OBJECT_ID('Inspector.InspectorDataCollection') IS NULL 
 EXEC('CREATE PROCEDURE  [Inspector].[InspectorDataCollection] AS;');
@@ -13315,3 +14053,14 @@ EXEC [%s].[Inspector].[InspectorSetup]
 @EnableAgentJob = 1,
 @InitialSetup = 0; 
 ',0,0,@DBname,@DBname) WITH NOWAIT;
+
+
+/*
+EXEC sp_executesql N'
+EXEC [Inspector].[InspectorSetup]						     
+@Databasename = @DBname,	
+@DataDrive = ''S,U'',	
+@LogDrive = ''T,V'';',
+N'@DBname NVARCHAR(128)',
+@DBname =@DBname;
+*/
