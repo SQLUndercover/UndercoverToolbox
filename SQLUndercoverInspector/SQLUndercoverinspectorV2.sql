@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 01/12/2021
+Revision date: 06/12/2021
 Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20211201';
+DECLARE @Revisiondate DATE = '20211206';
 DECLARE @Build VARCHAR(6) ='2.7'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -8292,7 +8292,7 @@ BEGIN
 		SET  @HtmlOutput =  
 		CASE 
 			WHEN @HtmlOutput LIKE ''%No backup issues present%'' AND @NoClutter = 1 THEN ''''
-			ELSE ISNULL(@HtmlTableHead, '''') + ISNULL(@HtmlOutput, '''') +''</table><p><font style="color: Black; background-color: ''+@WarningHighlight+''">Warning Highlight Thresholds:</font><br>
+			ELSE ISNULL(@HtmlTableHead, '''') + ISNULL(@HtmlOutput, '''') +''</table><p><font style="color: Black; background-color: White">Global Thresholds:</font><br>
 		Last FULL backup older than <b>''+CAST(@FullBackupThreshold AS VARCHAR(3))+'' Day/s</b><br>
 		''+ CASE WHEN @DiffBackupThreshold IS NOT NULL THEN ''Last DIFF backup older than <b>''+ CAST(@DiffBackupThreshold AS VARCHAR(3))+'' Hour/s</b><br>'' ELSE ''DIFF backups excluded from check</b><br>'' END +
 		''Last Log backup older than <b>''+CAST(@LogBackupThreshold AS VARCHAR(3))+'' Minute/s</b><br>
