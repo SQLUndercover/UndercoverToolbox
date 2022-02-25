@@ -360,7 +360,7 @@ function Invoke-SQLUndercoverInspector {
 
             $ExecutedModules = $ExecutedModules |
                 Where-Object { $_.Servername -ne $CentralServer } |
-                Select-Object -Property Servername, Modulename, Tablename, StageTablename, StageProcname, TableAction, InsertAction, RetentionInDays, Frequency
+                Select-Object -Property Servername, Modulename, Tablename, StageTablename, StageProcname, TableAction, InsertAction, RetentionInDays, Frequency, DateColName
 
             if ($Servername -ne $CentralServer) {
                 Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] [$Servername] - Starting data retrieval loop..."
@@ -376,6 +376,7 @@ function Invoke-SQLUndercoverInspector {
                 $InsertAction = $Module.InsertAction.ToString().split(',')
                 $RetentionInDays = $Module.RetentionInDays.ToString().split(',')
                 $Frequency = $Module.Frequency
+                $DateColName = $Module.DateColName
 
                 #Add a 2 minute buffer just in case the collection runs on.
                 $Frequency = $Frequency+15;
@@ -407,7 +408,7 @@ function Invoke-SQLUndercoverInspector {
                         }
                         { $_ -eq 2 } {
                             Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Append the retention period to the WHERE clause."
-                            $DeleteQry = $DeleteQry + "AND [Log_Date] < DATEADD(DAY, -@Retention, GETDATE())', N'@Servername nvarchar(128), @Retention int', @Servername = '$Servername', @Retention = $($RetentionInDays[$Pos]);"
+                            $DeleteQry = $DeleteQry + "AND [$DateColName] < DATEADD(DAY, -@Retention, GETDATE())', N'@Servername nvarchar(128), @Retention int', @Servername = '$Servername', @Retention = $($RetentionInDays[$Pos]);"
                         }
                         { $_ -eq 1 } {
                             Write-Verbose "[$((Get-Date).TimeOfDay) PROCESS] Append params to statement with no retention"
@@ -437,16 +438,16 @@ function Invoke-SQLUndercoverInspector {
                         }
                         { $_ -eq 2 } {
                             #Get data recorded for today only for the current server
-                            $InsertQuery = "EXEC sp_executesql N'DECLARE @Today DATE = CAST(GETDATE() AS DATE); SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Log_Date >= @Today AND Servername = @Servername',N'@Servername NVARCHAR(128)',@Servername = '$Servername'"
+                            $InsertQuery = "EXEC sp_executesql N'DECLARE @Today DATE = CAST(GETDATE() AS DATE); SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE [$DateColName] >= @Today AND Servername = @Servername',N'@Servername NVARCHAR(128)',@Servername = '$Servername'"
                         }
                         { $_ -eq 3 } {
                             #Get data recorded forModule frequency mins ago for the current server
                             IF($($Tablename[$Pos]) -eq "DatabaseFileSizes") {
                                 $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE [LastUpdated] >= DATEADD(MINUTE,-@Frequency,GETDATE()) AND Servername = @Servername',N'@Servername NVARCHAR(128),@Frequency INT',@Servername = '$Servername',@Frequency = $Frequency"                        
                             } ELSEIF ($($Tablename[$Pos]) -eq "AGDatabases"){
-                                $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE ([Log_Date] >= DATEADD(MINUTE,-@Frequency,GETDATE()) OR [LastUpdated] >= DATEADD(MINUTE,-@Frequency,GETDATE())) AND Servername = @Servername',N'@Servername NVARCHAR(128),@Frequency INT',@Servername = '$Servername',@Frequency = $Frequency"                        
+                                $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE ([$DateColName] >= DATEADD(MINUTE,-@Frequency,GETDATE()) OR [LastUpdated] >= DATEADD(MINUTE,-@Frequency,GETDATE())) AND Servername = @Servername',N'@Servername NVARCHAR(128),@Frequency INT',@Servername = '$Servername',@Frequency = $Frequency"                        
                             } ELSE {
-                                $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE Log_Date >= DATEADD(MINUTE,-@Frequency,GETDATE()) AND Servername = @Servername',N'@Servername NVARCHAR(128),@Frequency INT',@Servername = '$Servername',@Frequency = $Frequency"                        
+                                $InsertQuery = "EXEC sp_executesql N'SELECT $($Columnnames.Columnnames) FROM [$LoggingDB].[Inspector].[$($Tablename[$Pos])] WHERE [$DateColName] >= DATEADD(MINUTE,-@Frequency,GETDATE()) AND Servername = @Servername',N'@Servername NVARCHAR(128),@Frequency INT',@Servername = '$Servername',@Frequency = $Frequency"                        
                                 }
                         }
                         }

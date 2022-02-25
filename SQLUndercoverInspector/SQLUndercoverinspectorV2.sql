@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 06/12/2021
+Revision date: 25/02/2022
 Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20211206';
+DECLARE @Revisiondate DATE = '20220225';
 DECLARE @Build VARCHAR(6) ='2.7'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -2382,7 +2382,8 @@ END;
 					[InsertAction] VARCHAR(3) NOT NULL,
 					[InsertAction_Desc] AS CAST(REPLACE(REPLACE(REPLACE([InsertAction],'1','All data'),'2','Todays data only'),'3','Frequency based') AS VARCHAR(50)),
 					[RetentionInDays] VARCHAR(7) NULL,
-					[IsActive] BIT NOT NULL
+					[IsActive] BIT NOT NULL,
+					[DateColName] NVARCHAR(128) NULL DEFAULT N'Log_Date'
 				);
 			END
 
@@ -2396,6 +2397,11 @@ END;
 			BEGIN 
 				ALTER TABLE [Inspector].[PSConfig] ADD [InsertAction_Desc] AS CAST(REPLACE(REPLACE(REPLACE([InsertAction],'1','All data'),'2','Todays data only'),'3','Frequency based') AS VARCHAR(50));
 			END 
+
+			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.PSConfig') AND [name] = 'DateColName' )
+			BEGIN
+				ALTER TABLE [Inspector].[PSConfig] ADD [DateColName] NVARCHAR(128) NULL DEFAULT N'Log_Date';
+			END
 
 			--Insert new settings for V1.2
 			IF NOT EXISTS (SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'LongRunningTransactionThreshold')
@@ -3783,13 +3789,25 @@ END
 			[Log_Date] [datetime] NULL,
 			[Drive] [nvarchar](128) NULL,
 			[Capacity_GB] [decimal](10, 2) NULL,
-			[AvailableSpace_GB] [decimal](10, 2) NULL
+			[AvailableSpace_GB] [decimal](10, 2) NULL,
+			[UsedSpaceGB] [decimal](10,2) NULL,
+			[PrevUsedSpace_GB] [decimal](10,2) NULL
 			);	 
 
 			--Increase column length to accomodate shared storage names such as \\ClusterStorage
 			IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.PSDriveSpaceStage') AND [name] = 'Drive' AND max_length != 256)
 			BEGIN 
 				ALTER TABLE [Inspector].[PSDriveSpaceStage] ALTER COLUMN [Drive] NVARCHAR(128);
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.PSDriveSpaceStage') AND [name] = 'UsedSpaceGB' )
+			BEGIN
+				ALTER TABLE [Inspector].[PSDriveSpaceStage] ADD [UsedSpaceGB] DECIMAL(10,2) NULL;
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.[PSDriveSpaceStage]') AND [name] = 'PrevUsedSpace_GB' )
+			BEGIN			
+				ALTER TABLE [Inspector].[PSDriveSpaceStage] ADD [PrevUsedSpace_GB] DECIMAL(10,2) NULL;
 			END
 
 			IF OBJECT_ID('Inspector.PSInstanceVersionHistoryStage') IS NULL
@@ -6685,7 +6703,8 @@ SELECT DISTINCT
 [PSConfig].TableAction,
 [PSConfig].InsertAction,
 [PSConfig].RetentionInDays,
-(SELECT [Frequency] FROM [Inspector].[Modules] WHERE [Modules].[ModuleConfig_Desc] = [PSConfig].[ModuleConfig_Desc] AND [Modules].[Modulename] = [PSConfig].[Modulename]) AS [Frequency]
+(SELECT [Frequency] FROM [Inspector].[Modules] WHERE [Modules].[ModuleConfig_Desc] = [PSConfig].[ModuleConfig_Desc] AND [Modules].[Modulename] = [PSConfig].[Modulename]) AS [Frequency],
+[PSConfig].DateColName
 FROM
 (
 	SELECT 
@@ -6727,7 +6746,8 @@ CASE
 	ELSE ''2'' 
 END	AS InsertAction, 
 NULL AS RetentionInDays,
-1 AS [Frequency]
+1 AS [Frequency],
+''Log_Date''
 FROM
 (
 	SELECT 
@@ -7047,7 +7067,7 @@ DECLARE @DriveSpaceRetentionPeriodInDays VARCHAR(6);
 SET @DriveSpaceRetentionPeriodInDays = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold](@@SERVERNAME, ''DriveSpace'', ''DriveSpaceRetentionPeriodInDays'') AS INT), 90));
 
 
-INSERT INTO [Inspector].[PSConfig] ([Servername], [ModuleConfig_Desc], [Modulename], [Procedurename], [Tablename], [StageTablename], [StageProcname], [TableAction], [InsertAction], [RetentionInDays], [IsActive])
+INSERT INTO [Inspector].[PSConfig] ([Servername], [ModuleConfig_Desc], [Modulename], [Procedurename], [Tablename], [StageTablename], [StageProcname], [TableAction], [InsertAction], [RetentionInDays], [IsActive], [DateColName])
 SELECT 
 Servername,
 ModuleConfig_Desc,
@@ -7059,7 +7079,8 @@ StageProcname,
 TableAction,
 InsertAction,
 RetentionInDays,
-1
+1,
+''Log_Date''
 FROM
 (
 	SELECT 
@@ -7124,7 +7145,6 @@ FROM
 		[Servername], 
 		ISNULL([ModuleConfig_Desc], ''Default'') AS [ModuleConfig_Desc]
 		FROM [Inspector].[CurrentServers]
-		--WHERE Servername = @Servername
 		WHERE IsActive = 1
 	) AS ActiveServers
 	INNER JOIN [Inspector].[PSEnabledModules] ON [ActiveServers].ModuleConfig_Desc = [PSEnabledModules].[ModuleConfig_Desc]
@@ -13878,6 +13898,15 @@ AND [PSConfig].[Tablename] IS NOT NULL;';
 EXEC sp_executesql N'
 UPDATE [Inspector].[PSConfig]
 SET [InsertAction] = REPLACE(REPLACE([InsertAction],''1'',''3''),''2'',''3'');';
+
+EXEC sp_executesql N'UPDATE [Inspector].[PSConfig]
+SET [DateColName] = 
+	CASE 
+		WHEN [Modulename] = ''AgentJobsDesiredState'' THEN N''LastChecked''
+		WHEN [Modulename] = ''MemoryDumps'' THEN N''creation_time''
+		ELSE N''Log_date''
+	END
+WHERE [DateColName] IS NULL;';
 
 --Update Inspector Build 
 UPDATE [Inspector].[Settings]
