@@ -12625,7 +12625,7 @@ BEGIN
 	Instance start: <b>''+ISNULL(CONVERT(VARCHAR(17),@InstanceStart,113),''Not Recorded'')+'' (Uptime: ''+ISNULL(CAST(@InstanceUptime AS VARCHAR(6)),''N/A'')+CASE WHEN @InstanceUptime IS NOT NULL THEN '' Days)'' ELSE '')'' END + ''</b><BR>
 	Instance Version/Edition: <b>''+ISNULL(@InstanceVersionInfo,''Not Recorded'')+''</b><BR>
 	Physical Servername: <b>''+ISNULL(@PhysicalServername,''Not Recorded'')+''</b><BR>''
-	+[Inspector].[GetServerInfo](@Serverlist)
+	+ISNULL([Inspector].[GetServerInfo](@Serverlist),''--- no data ---'')
 	+''<p></p>''
 	+''ModuleConfig used: <b>''+@ModuleConfigDetermined+ ''</b><BR> 
 	Disabled Modules: <b>''+@DisabledModules+''</b><BR></p><p></p><BR></BR>''
