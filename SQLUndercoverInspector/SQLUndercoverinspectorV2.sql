@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 25/02/2022
+Revision date: 11/01/2023
 Version: 2.7
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,8 +129,8 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20220225';
-DECLARE @Build VARCHAR(6) ='2.7'
+DECLARE @Revisiondate DATE = '20230111';
+DECLARE @Build VARCHAR(6) ='2.8'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
 DECLARE @JobsWithoutSchedules VARCHAR(1000);
@@ -474,7 +474,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 					[Frequency] SMALLINT NOT NULL,
 					[StartTime] TIME(0) NOT NULL,
 					[EndTime] TIME(0) NOT NULL,
-					[LastRunDateTime] DATETIME NULL
+					[LastRunDateTime] DATETIME NULL,
+					[WasSuccessful] BIT NULL
 				);
 
 				IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CheckModuleWarningLevel' AND type = N'C' AND parent_object_id = OBJECT_ID(N'Inspector.Modules'))
@@ -577,6 +578,11 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				END
 			END
 			
+			/* Add new WasSuccessful column if not exists*/
+			IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.Modules') AND [name] = N'WasSuccessful')
+			BEGIN 
+				ALTER TABLE [Inspector].[Modules] ADD [WasSuccessful] BIT NULL;
+			END
 
 			IF OBJECT_ID('Inspector.ModuleWarningLevel') IS NULL
 			BEGIN
@@ -1010,7 +1016,8 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 						[Frequency] SMALLINT NOT NULL,
 						[StartTime] TIME(0) NOT NULL,
 						[EndTime] TIME(0) NOT NULL,
-						[LastRunDateTime] DATETIME NULL
+						[LastRunDateTime] DATETIME NULL,
+						[WasSuccessful] BIT NULL
 					);
 				END
 			
@@ -1026,6 +1033,7 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 						[StartTime] TIME(0) NOT NULL,
 						[EndTime] TIME(0) NOT NULL,
 						[LastRunDateTime] DATETIME NULL,
+						[WasSuccessful] BIT NULL,
 						[ReportWarningsOnly] TINYINT NOT NULL,
 						[NoClutter] BIT NOT NULL,
 						[ShowDisabledModules] BIT NOT NULL,
@@ -1046,6 +1054,12 @@ IF (@DataDrive IS NOT NULL AND @LogDrive IS NOT NULL)
 				BEGIN 
 					ALTER TABLE [Inspector].[ModuleConfig] ADD [RunDay] VARCHAR(70) NULL;
 				END 
+
+				/* Add new WasSuccessful column if not exists */
+				IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.ModuleConfig') AND [name] = N'WasSuccessful')
+				BEGIN 
+					ALTER TABLE [Inspector].[ModuleConfig] ADD [WasSuccessful] BIT NULL;
+				END
 
 				--Update RunDay column if it is NULL , its the same behaviour as the update but it just shows users the supported format
 				EXEC sp_executesql N'
@@ -12035,7 +12049,7 @@ ALTER PROCEDURE [Inspector].[InspectorDataCollection]
 AS 
 BEGIN 
 
---Revision date: 24/05/2020
+--Revision date: 11/01/2023
 
 SET NOCOUNT ON;
 
@@ -12172,7 +12186,7 @@ BEGIN
 	   
 				--Update LastRunDateTime
 				UPDATE [Inspector].[Modules] 
-				SET LastRunDateTime = GETDATE() 
+				SET LastRunDateTime = GETDATE(),[WasSuccessful] = CASE WHEN @ErrorMessage IS NULL THEN 1 ELSE 0 END 
 				WHERE ModuleConfig_Desc = @ModuleConfig_Desc
 				AND Modulename = @Modulename;
 	   
@@ -12265,7 +12279,7 @@ EXEC('CREATE PROCEDURE  [Inspector].[SQLUnderCoverInspectorReport] AS;');
 EXEC sp_executesql N'
 /*********************************************
 --Author: Adrian Buckman
---Revision date: 29/05/2021
+--Revision date: 11/01/2023
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 *********************************************/
 
@@ -12971,6 +12985,9 @@ BEGIN
 
 	END 
 
+	UPDATE [Inspector].[ModuleConfig]
+	SET WasSuccessful = CASE WHEN @ErrorMessage IS NULL THEN 1 ELSE 0 END
+	WHERE [ModuleConfig_Desc] = @ModuleConfig;
 
 	FETCH NEXT FROM ReportProc_cur INTO @ModuleConfig,@TableHeaderColour,@Modulename,@ReportProcedurename,@ServerSpecific,@Frequency  
 	END
