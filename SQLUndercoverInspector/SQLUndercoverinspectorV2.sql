@@ -65,8 +65,8 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 11/01/2023
-Version: 2.7
+Revision date: 12/01/2023
+Version: 2.8
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
 			 Creates [Inspector].[InspectorSetup] stored procedure.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20230111';
+DECLARE @Revisiondate DATE = '20230112';
 DECLARE @Build VARCHAR(6) ='2.8'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1451,6 +1451,7 @@ EXEC sp_executesql N'CREATE UNIQUE CLUSTERED INDEX [CIX_BackupsCheckThresholds_I
 );';
 			END
 
+
 			IF OBJECT_ID('Inspector.DatabaseFileSizes') IS NULL
 			BEGIN
 			--New Column [LastUpdated] for 1.0.1
@@ -2554,7 +2555,7 @@ END;
 			
 			IF (EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'FullBackupThreshold') AND @CurrentBuild < 2.8)
 			BEGIN 
-				RAISERROR('Updating your FullBackupThreshold threshold from days to hours if required',0,0) WITH NOWAIT;
+				RAISERROR('Updating your FullBackupThreshold threshold from days to hours if required in [Inspector].[Settings]',0,0) WITH NOWAIT;
 
 				UPDATE [Inspector].[Settings]
 				SET [Value] = [Value]*24
@@ -2562,6 +2563,15 @@ END;
 				AND [Value] IS NOT NULL;
 
 			END
+
+			/* Convert Full backuo threshold to hours from day */
+			IF (@CurrentBuild < 2.8)
+			BEGIN
+				RAISERROR('Updating your Full backup thresholds from days to hours in [Inspector].[BackupsCheckThresholds]',0,0) WITH NOWAIT;
+
+				UPDATE [Inspector].[BackupsCheckThresholds] 
+				SET [FullThreshold] = [FullThreshold]*24;
+			END	
 --Populate config
 IF @InitialSetup = 1 
 BEGIN
