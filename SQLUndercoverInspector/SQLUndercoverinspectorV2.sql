@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 12/01/2023
+Revision date: 05/02/2023
 Version: 2.8
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20230112';
+DECLARE @Revisiondate DATE = '20230205';
 DECLARE @Build VARCHAR(6) ='2.8'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -4727,7 +4727,7 @@ ALTER PROCEDURE [Inspector].[BackupsCheckInsert]
 AS
 BEGIN
 
---Revision date: 06/10/2021
+--Revision date: 05/02/2023
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 DECLARE @FullBackupThreshold INT = (Select [Value] FROM [Inspector].[Settings] WHERE Description = ''FullBackupThreshold'')
@@ -4825,7 +4825,7 @@ FROM
 (SELECT [Database_id],[backuplog].[database_name],[backuplog].[type],MAX([backuplog].[backup_finish_date]) AS backup_finish_date                                   
 FROM msdb.dbo.backupset backuplog
 INNER JOIN #DatabaseList ON #DatabaseList.Databasename = backuplog.database_name  
-WHERE backup_finish_date > DATEADD(HOUR,-@FullBackupThreshold,CAST(GETDATE() AS DATE))
+WHERE backup_finish_date > DATEADD(HOUR,-@FullBackupThreshold,GETDATE())
 GROUP BY Database_id,backuplog.database_name,backuplog.type ) p
 PIVOT( MAX(backup_finish_date) FOR type IN ([D],[I],[L])) d
 ORDER BY Database_id ASC
@@ -4864,7 +4864,7 @@ N''Non AG'' AS backup_preference
 FROM 
 (SELECT [backuplog].[database_name],[backuplog].[type],MAX(backuplog.backup_finish_date) AS backup_finish_date                                     
 FROM msdb.dbo.backupset backuplog                         
-WHERE backup_finish_date > DATEADD(HOUR,-@FullBackupThreshold,CAST(GETDATE() AS DATE))
+WHERE backup_finish_date > DATEADD(HOUR,-@FullBackupThreshold,GETDATE())
 GROUP BY backuplog.database_name,backuplog.type ) p
 PIVOT( MAX(backup_finish_date) FOR type IN ([D],[I],[L])) d
 RIGHT JOIN sys.databases dbs ON d.database_name = dbs.name
