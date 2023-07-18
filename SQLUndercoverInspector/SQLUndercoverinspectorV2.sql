@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 05/02/2023
+Revision date: 18/07/2023
 Version: 2.8
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20230205';
+DECLARE @Revisiondate DATE = '20230718';
 DECLARE @Build VARCHAR(6) ='2.8'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -1991,14 +1991,15 @@ END;
 			END 
 
 			IF OBJECT_ID('Inspector.InstanceVersionHistory') IS NULL
-			CREATE TABLE [Inspector].[InstanceVersionHistory](
-			[Servername] NVARCHAR(128) NOT NULL,
-			[Log_Date] DATETIME NOT NULL,
-			[CollectionDatetime] DATETIME NOT NULL,
-			[VersionNo] NVARCHAR(128) NULL,
-			[Edition] NVARCHAR(128) NULL
-			);
-
+			BEGIN
+				CREATE TABLE [Inspector].[InstanceVersionHistory](
+				[Servername] NVARCHAR(128) NOT NULL,
+				[Log_Date] DATETIME NOT NULL,
+				[CollectionDatetime] DATETIME NOT NULL,
+				[VersionNo] NVARCHAR(128) NULL,
+				[Edition] NVARCHAR(128) NULL
+				);
+			END
 			--Extend the length of the VersionNo column to NVARCHAR(128) to accomodate additionally logged information #93
 			IF (SELECT max_length FROM sys.columns WHERE object_id = OBJECT_ID('Inspector.InstanceVersionHistory') AND name = 'VersionNo') < 256
 			BEGIN 
@@ -2006,12 +2007,14 @@ END;
 			END
 
 			IF OBJECT_ID('Inspector.UnusedLogshipConfig') IS NULL
-			CREATE TABLE [Inspector].[UnusedLogshipConfig] (
-			Servername NVARCHAR(128),
-			Log_Date DATETIME,
-			Databasename NVARCHAR(128),
-			Databasestate NVARCHAR(128)
-			);
+			BEGIN
+				CREATE TABLE [Inspector].[UnusedLogshipConfig] (
+				Servername NVARCHAR(128),
+				Log_Date DATETIME,
+				Databasename NVARCHAR(128),
+				Databasestate NVARCHAR(128)
+				);
+			END
 
 			IF OBJECT_ID('Inspector.ExecutionLog') IS NULL
 			BEGIN
@@ -2361,7 +2364,7 @@ END;
 				[LastChecked] DATETIME NULL
 				);
 			END
-			
+	
 			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID('Inspector.AgentJobsDesiredState') AND [name] = N'CIX_AgentJobsDesiredState_Servername_JobName')
 			BEGIN
 				CREATE CLUSTERED INDEX [CIX_AgentJobsDesiredState_Servername_JobName] ON [Inspector].[AgentJobsDesiredState] (
@@ -2380,6 +2383,268 @@ END;
 			BEGIN 
 				INSERT INTO [Inspector].[DefaultHeaderText] ([Modulename], [HeaderText])
 				VALUES('AgentJobsDesiredState','Agent jobs where desired state not met');
+			END
+
+			IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[AgentJobs]') AND type in (N'U'))
+			BEGIN
+				CREATE TABLE [Inspector].[AgentJobs](
+					[Servername] [nvarchar](128) NULL,
+					[Log_Date] [datetime] NOT NULL,
+					[job_id] [uniqueidentifier] NOT NULL,
+					[job_name] [sysname] NOT NULL,
+					[job_enabled] [tinyint] NOT NULL,
+					[job_date_created] [datetime] NOT NULL,
+					[job_date_modified] [datetime] NOT NULL,
+					[start_step_id] [int] NOT NULL,
+					[owner_sid] [varbinary](85) NOT NULL,
+					[notify_level_eventlog] [int] NOT NULL,
+					[notify_level_email] [int] NOT NULL,
+					[notify_level_netsend] [int] NOT NULL,
+					[notify_level_page] [int] NOT NULL,
+					[notify_email_operator_id] [int] NOT NULL,
+					[notify_netsend_operator_id] [int] NOT NULL,
+					[notify_page_operator_id] [int] NOT NULL,
+					[delete_level] [int] NOT NULL,
+					[step_id] [int] NULL,
+					[step_name] [sysname] NULL,
+					[subsystem] [nvarchar](40) NULL,
+					[command] [nvarchar](max) NULL,
+					[additional_parameters] [nvarchar](max) NULL,
+					[cmdexec_success_code] [int] NULL,
+					[on_success_action] [tinyint] NULL,
+					[on_success_step_id] [int] NULL,
+					[on_fail_action] [tinyint] NULL,
+					[on_fail_step_id] [int] NULL,
+					[database_name] [sysname] NULL,
+					[retry_attempts] [int] NULL,
+					[output_file_name] [nvarchar](200) NULL,
+					[step_uid] [uniqueidentifier] NULL,
+					[schedule_id] [int] NULL,
+					[schedule_enabled] [int] NULL,
+					[freq_type] [int] NULL,
+					[freq_interval] [int] NULL,
+					[freq_subday_type] [int] NULL,
+					[freq_subday_interval] [int] NULL,
+					[freq_relative_interval] [int] NULL,
+					[freq_recurrence_factor] [int] NULL,
+					[active_start_date] [int] NULL,
+					[active_end_date] [int] NULL,
+					[active_start_time] [int] NULL,
+					[active_end_time] [int] NULL,
+					[schedule_date_created] [datetime] NULL,
+					[schedule_date_modified] [datetime] NULL
+				);
+			END
+
+
+			IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID(N'[Inspector].[AgentJobs]') AND name = N'CIX_AgentJobs_Servername_job_id')
+			BEGIN 
+				CREATE CLUSTERED INDEX [CIX_AgentJobs_Servername_job_id] ON [Inspector].[AgentJobs]
+				(
+					[Servername] ASC,
+					[job_id] ASC
+				);
+			END
+
+
+			IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[AgentJobsAudit]') AND type in (N'U'))
+			BEGIN
+				CREATE TABLE [Inspector].[AgentJobsAudit](
+					[ID] [int] IDENTITY(1,1) NOT NULL,
+					[Servername] [nvarchar](128) NULL,
+					[Log_Date] [datetime] NOT NULL,
+					[audit_date] [datetime] NOT NULL,
+					[job_id] [uniqueidentifier] NOT NULL,
+					[job_name] [sysname] NOT NULL,
+					[job_enabled] [tinyint] NOT NULL,
+					[job_date_created] [datetime] NOT NULL,
+					[job_date_modified] [datetime] NOT NULL,
+					[start_step_id] [int] NOT NULL,
+					[owner_sid] [varbinary](85) NOT NULL,
+					[notify_level_eventlog] [int] NOT NULL,
+					[notify_level_email] [int] NOT NULL,
+					[notify_level_netsend] [int] NOT NULL,
+					[notify_level_page] [int] NOT NULL,
+					[notify_email_operator_id] [int] NOT NULL,
+					[notify_netsend_operator_id] [int] NOT NULL,
+					[notify_page_operator_id] [int] NOT NULL,
+					[delete_level] [int] NOT NULL,
+					[step_id] [int] NULL,
+					[step_name] [sysname] NULL,
+					[subsystem] [nvarchar](40) NULL,
+					[command] [nvarchar](max) NULL,
+					[additional_parameters] [nvarchar](max) NULL,
+					[cmdexec_success_code] [int] NULL,
+					[on_success_action] [tinyint] NULL,
+					[on_success_step_id] [int] NULL,
+					[on_fail_action] [tinyint] NULL,
+					[on_fail_step_id] [int] NULL,
+					[database_name] [sysname] NULL,
+					[retry_attempts] [int] NULL,
+					[output_file_name] [nvarchar](200) NULL,
+					[step_uid] [uniqueidentifier] NULL,
+					[schedule_id] [int] NULL,
+					[schedule_enabled] [int] NULL,
+					[freq_type] [int] NULL,
+					[freq_interval] [int] NULL,
+					[freq_subday_type] [int] NULL,
+					[freq_subday_interval] [int] NULL,
+					[freq_relative_interval] [int] NULL,
+					[freq_recurrence_factor] [int] NULL,
+					[active_start_date] [int] NULL,
+					[active_end_date] [int] NULL,
+					[active_start_time] [int] NULL,
+					[active_end_time] [int] NULL,
+					[schedule_date_created] [datetime] NULL,
+					[schedule_date_modified] [datetime] NULL
+				);
+			END
+
+			
+			IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID(N'[Inspector].[AgentJobsAudit]') AND name = N'CIX_AgentJobsAudit_ID')
+			BEGIN
+				CREATE CLUSTERED INDEX [CIX_AgentJobsAudit_ID] ON [Inspector].[AgentJobsAudit]
+				(
+					[ID] ASC
+				);
+			END
+
+
+			IF NOT EXISTS (SELECT * FROM sys.triggers WHERE object_id = OBJECT_ID(N'[Inspector].[AgentJobsChangeAudit]'))
+			EXEC dbo.sp_executesql @statement = N'
+			CREATE TRIGGER [Inspector].[AgentJobsChangeAudit] ON [Inspector].[AgentJobs]
+			AFTER UPDATE 
+			AS 
+			BEGIN 
+				SET NOCOUNT ON;
+			
+				INSERT INTO [Inspector].[AgentJobsAudit] ([Servername], [Log_Date], [audit_date], [job_id], [job_name], [job_enabled], [job_date_created], [job_date_modified], [start_step_id], [owner_sid], [notify_level_eventlog], [notify_level_email], [notify_level_netsend], [notify_level_page], [notify_email_operator_id], [notify_netsend_operator_id], [notify_page_operator_id], [delete_level], [step_id], [step_name], [subsystem], [command], [additional_parameters], [cmdexec_success_code], [on_success_action], [on_success_step_id], [on_fail_action], [on_fail_step_id], [database_name], [retry_attempts], [output_file_name], [step_uid], [schedule_id], [schedule_enabled], [freq_type], [freq_interval], [freq_subday_type], [freq_subday_interval], [freq_relative_interval], [freq_recurrence_factor], [active_start_date], [active_end_date], [active_start_time], [active_end_time], [schedule_date_created], [schedule_date_modified])
+				SELECT 
+					d.[Servername],
+					d.[Log_Date],
+					GETDATE(),
+					d.[job_id],
+					d.[job_name],
+					d.[job_enabled],
+					d.[job_date_created],
+					d.[job_date_modified],
+					d.[start_step_id],
+					d.[owner_sid],
+					d.[notify_level_eventlog],
+					d.[notify_level_email],
+					d.[notify_level_netsend],
+					d.[notify_level_page],
+					d.[notify_email_operator_id],
+					d.[notify_netsend_operator_id],
+					d.[notify_page_operator_id],
+					d.[delete_level],
+					d.[step_id],
+					d.[step_name],
+					d.[subsystem],
+					d.[command],
+					d.[additional_parameters],
+					d.[cmdexec_success_code],
+					d.[on_success_action],
+					d.[on_success_step_id],
+					d.[on_fail_action],
+					d.[on_fail_step_id],
+					d.[database_name],
+					d.[retry_attempts],
+					d.[output_file_name],
+					d.[step_uid],
+					d.[schedule_id],
+					d.[schedule_enabled],
+					d.[freq_type],
+					d.[freq_interval],
+					d.[freq_subday_type],
+					d.[freq_subday_interval],
+					d.[freq_relative_interval],
+					d.[freq_recurrence_factor],
+					d.[active_start_date],
+					d.[active_end_date],
+					d.[active_start_time],
+					d.[active_end_time],
+					d.[schedule_date_created],
+					d.[schedule_date_modified]
+				FROM inserted i 
+				INNER JOIN deleted d ON i.[Servername] = d.[Servername]
+										AND i.[job_id] = d.[job_id]
+										AND i.[step_id] = d.[step_id];
+			END ';
+
+
+			EXEC dbo.sp_executesql @statement = N'ALTER TRIGGER [Inspector].[AgentJobsChangeAudit] ON [Inspector].[AgentJobs]
+			AFTER UPDATE 
+			AS 
+			BEGIN 
+				SET NOCOUNT ON;
+			
+				INSERT INTO [Inspector].[AgentJobsAudit] ([Servername], [Log_Date], [audit_date], [job_id], [job_name], [job_enabled], [job_date_created], [job_date_modified], [start_step_id], [owner_sid], [notify_level_eventlog], [notify_level_email], [notify_level_netsend], [notify_level_page], [notify_email_operator_id], [notify_netsend_operator_id], [notify_page_operator_id], [delete_level], [step_id], [step_name], [subsystem], [command], [additional_parameters], [cmdexec_success_code], [on_success_action], [on_success_step_id], [on_fail_action], [on_fail_step_id], [database_name], [retry_attempts], [output_file_name], [step_uid], [schedule_id], [schedule_enabled], [freq_type], [freq_interval], [freq_subday_type], [freq_subday_interval], [freq_relative_interval], [freq_recurrence_factor], [active_start_date], [active_end_date], [active_start_time], [active_end_time], [schedule_date_created], [schedule_date_modified])
+				SELECT 
+					d.[Servername],
+					d.[Log_Date],
+					GETDATE(),
+					d.[job_id],
+					d.[job_name],
+					d.[job_enabled],
+					d.[job_date_created],
+					d.[job_date_modified],
+					d.[start_step_id],
+					d.[owner_sid],
+					d.[notify_level_eventlog],
+					d.[notify_level_email],
+					d.[notify_level_netsend],
+					d.[notify_level_page],
+					d.[notify_email_operator_id],
+					d.[notify_netsend_operator_id],
+					d.[notify_page_operator_id],
+					d.[delete_level],
+					d.[step_id],
+					d.[step_name],
+					d.[subsystem],
+					d.[command],
+					d.[additional_parameters],
+					d.[cmdexec_success_code],
+					d.[on_success_action],
+					d.[on_success_step_id],
+					d.[on_fail_action],
+					d.[on_fail_step_id],
+					d.[database_name],
+					d.[retry_attempts],
+					d.[output_file_name],
+					d.[step_uid],
+					d.[schedule_id],
+					d.[schedule_enabled],
+					d.[freq_type],
+					d.[freq_interval],
+					d.[freq_subday_type],
+					d.[freq_subday_interval],
+					d.[freq_relative_interval],
+					d.[freq_recurrence_factor],
+					d.[active_start_date],
+					d.[active_end_date],
+					d.[active_start_time],
+					d.[active_end_time],
+					d.[schedule_date_created],
+					d.[schedule_date_modified]
+				FROM inserted i 
+				INNER JOIN deleted d ON i.[Servername] = d.[Servername]
+										AND i.[job_id] = d.[job_id]
+										AND i.[step_id] = d.[step_id];
+			END';
+
+			ALTER TABLE [Inspector].[AgentJobs] ENABLE TRIGGER [AgentJobsChangeAudit];
+
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Modules] WHERE [Modulename] = 'AgentJobs')
+			BEGIN 
+				INSERT INTO [Inspector].[Modules] ([ModuleConfig_Desc],[Modulename],[CollectionProcedurename],[ReportProcedurename],[ReportOrder],[WarningLevel],[ServerSpecific],[Debug],[IsActive],[HeaderText],[Frequency],[StartTime],[EndTime])
+				VALUES('Default','AgentJobs',N'AgentJobsInsert',NULL,25,2,1,0,1,NULL,30,'00:00','23:59');
+			END
+			
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[DefaultHeaderText] WHERE [Modulename] = 'AgentJobsDesiredState')
+			BEGIN 
+				INSERT INTO [Inspector].[DefaultHeaderText] ([Modulename], [HeaderText])
+				VALUES('AgentJobs','Agent jobs modified');
 			END
 
 		    IF OBJECT_ID('Inspector.PSConfig') IS NULL 
@@ -2667,7 +2932,8 @@ VALUES(''Default'',''ADHocDatabaseCreations'',''ADHocDatabaseCreationsInsert'','
 (''Default'',''TempDB'',''TempDBInsert'',''TempDBReport'',22,2,1,0,1,NULL,5,@StartTime,@EndTime),
 (''PeriodicBackupCheck'',''BackupsCheck'',''BackupsCheckInsert'',''BackupsCheckReport'',1,1,0,1,1,NULL,120,DATEADD(HOUR,2,@StartTime),@EndTime),
 (''Default'',''MemoryDumps'',N''MemoryDumpsInsert'',N''MemoryDumpsReport'',23,2,1,0,1,NULL,1440,@StartTime,@EndTime),
-(''Default'',''AgentJobsDesiredState'',N''AgentJobsDesiredStateInsert'',N''AgentJobsDesiredStateReport'',24,2,1,0,1,NULL,1440,@StartTime,@EndTime);
+(''Default'',''AgentJobsDesiredState'',N''AgentJobsDesiredStateInsert'',N''AgentJobsDesiredStateReport'',24,2,1,0,1,NULL,1440,@StartTime,@EndTime),
+(''Default'',''AgentJobs'',N''AgentJobsInsert'',NULL,25,2,1,0,1,NULL,30,@StartTime,@EndTime);
 
 INSERT INTO [Inspector].[DefaultHeaderText] ([Modulename], [HeaderText])
 VALUES(''ADHocDatabaseCreations'',''Potential ADhoc database creations''),
@@ -2692,7 +2958,8 @@ VALUES(''ADHocDatabaseCreations'',''Potential ADhoc database creations''),
 (''UnusedLogshipConfig'',''Unused log shipping config found''),
 (''TempDB'',''TempDB file usage higher than your threshold''),
 (''MemoryDumps'',''Recent Memory dumps found''),
-(''AgentJobsDesiredState'',''Agent jobs where desired state not met'');
+(''AgentJobsDesiredState'',''Agent jobs where desired state not met''),
+(''AgentJobs'',''Agent jobs modified'');
 
 INSERT INTO [Inspector].[EmailConfig] (ModuleConfig_Desc,EmailSubject)
 VALUES (''Default'',''SQLUndercover Inspector check ''),(''PeriodicBackupCheck'',''SQLUndercover Backups Report'');
@@ -12052,6 +12319,237 @@ BEGIN
 	@PSCollection AS ''@PSCollection''
 END'; 
 
+
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[AgentJobInsert]') AND type in (N'P', N'PC'))
+BEGIN
+	EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [Inspector].[AgentJobInsert] AS' 
+END
+
+
+
+EXEC dbo.sp_executesql @statement = N'ALTER PROCEDURE [Inspector].[AgentJobInsert]
+AS
+BEGIN
+
+	SET NOCOUNT ON;
+
+	INSERT INTO [Inspector].[AgentJobs] ([Servername], [Log_Date], [job_id], [job_name], [job_enabled], [job_date_created], [job_date_modified], [start_step_id], [owner_sid], [notify_level_eventlog], [notify_level_email], [notify_level_netsend], [notify_level_page], [notify_email_operator_id], [notify_netsend_operator_id], [notify_page_operator_id], [delete_level], [step_id], [step_name], [subsystem], [command], [additional_parameters], [cmdexec_success_code], [on_success_action], [on_success_step_id], [on_fail_action], [on_fail_step_id], [database_name], [retry_attempts], [output_file_name], [step_uid], [schedule_id], [schedule_enabled], [freq_type], [freq_interval], [freq_subday_type], [freq_subday_interval], [freq_relative_interval], [freq_recurrence_factor], [active_start_date], [active_end_date], [active_start_time], [active_end_time], [schedule_date_created], [schedule_date_modified])
+	SELECT  
+		@@SERVERNAME AS Servername,
+		GETDATE() AS Log_date,
+		j.[job_id],
+		j.[name] AS job_name,
+		j.[enabled] AS job_enabled,
+		j.[date_created] AS job_date_created,
+		j.[date_modified] AS job_date_modified,
+		j.[start_step_id],
+		j.[owner_sid],
+		j.[notify_level_eventlog],
+		j.[notify_level_email],
+		j.[notify_level_netsend], 
+		j.[notify_level_page], 
+		j.[notify_email_operator_id], 
+		j.[notify_netsend_operator_id], 
+		j.[notify_page_operator_id], 
+		j.[delete_level],
+		js.[step_id],
+		js.[step_name],
+		js.[subsystem],
+		js.[command],
+		js.[additional_parameters],
+		js.[cmdexec_success_code],
+		js.[on_success_action],
+		js.[on_success_step_id],
+		js.[on_fail_action],
+		js.[on_fail_step_id],
+		js.[database_name],
+		js.[retry_attempts],
+		js.[output_file_name],
+		js.[step_uid],
+		jsch.[schedule_id],
+		sch.[enabled] AS schedule_enabled,
+		sch.[freq_type],
+		sch.[freq_interval], 
+		sch.[freq_subday_type], 
+		sch.[freq_subday_interval], 
+		sch.[freq_relative_interval], 
+		sch.[freq_recurrence_factor], 
+		sch.[active_start_date], 
+		sch.[active_end_date],  
+		sch.[active_start_time],
+		sch.[active_end_time],
+		sch.[date_created] AS schedule_date_created, 
+		sch.[date_modified] AS schedule_date_modified
+	FROM msdb.dbo.sysjobs j
+	LEFT JOIN msdb.dbo.sysjobsteps js ON j.job_id = js.job_id
+	LEFT JOIN msdb.dbo.sysjobschedules jsch ON j.job_id = jsch.job_id
+	LEFT JOIN msdb.dbo.sysschedules sch ON jsch.schedule_id = sch.schedule_id
+	WHERE NOT EXISTS (SELECT 1 
+						FROM [Inspector].[AgentJobs] aj 
+						WHERE [Servername] = @@SERVERNAME 
+						AND aj.[job_id] = j.[job_id]
+					);
+	
+	
+	/* Update the Inspector.AgentJobs table , this will fire a trigger to insert into the old values into Inspector.AgentJobsAudit */
+	WITH JobChanges AS (
+		SELECT 
+			j.[job_id],
+			j.[name] AS job_name,
+			j.[enabled] AS job_enabled,
+			j.[date_created] AS job_date_created,
+			j.[date_modified] AS job_date_modified,
+			j.[start_step_id],
+			j.[owner_sid],
+			j.[notify_level_eventlog],
+			j.[notify_level_email],
+			j.[notify_level_netsend],
+			j.[notify_level_page],
+			j.[notify_email_operator_id],
+			j.[notify_netsend_operator_id],
+			j.[notify_page_operator_id],
+			j.[delete_level],
+			js.[step_id],
+			js.[step_name],
+			js.[subsystem],
+			js.[command],
+			js.[additional_parameters],
+			js.[cmdexec_success_code],
+			js.[on_success_action],
+			js.[on_success_step_id],
+			js.[on_fail_action],
+			js.[on_fail_step_id],
+			js.[database_name],
+			js.[retry_attempts],
+			js.[output_file_name],
+			js.[step_uid],
+			jsch.[schedule_id],
+			sch.[enabled] AS schedule_enabled,
+			sch.[freq_type],
+			sch.[freq_interval],
+			sch.[freq_subday_type],
+			sch.[freq_subday_interval],
+			sch.[freq_relative_interval],
+			sch.[freq_recurrence_factor],
+			sch.[active_start_date],
+			sch.[active_end_date],
+			sch.[date_created] AS schedule_date_created,
+			sch.[date_modified] AS schedule_date_modified
+		FROM msdb.dbo.sysjobs j
+		LEFT JOIN msdb.dbo.sysjobsteps js ON j.job_id = js.job_id
+		LEFT JOIN msdb.dbo.sysjobschedules jsch ON j.job_id = jsch.job_id
+		LEFT JOIN msdb.dbo.sysschedules sch ON jsch.schedule_id = sch.schedule_id
+		WHERE EXISTS (SELECT 1 
+						FROM [Inspector].[AgentJobs] aj 
+						WHERE aj.[job_id] = j.[job_id]
+						AND aj.[step_id] = js.[step_id]
+						AND (
+								/* job has been modified */
+								j.[date_modified] > aj.[job_date_modified] 
+								OR 
+								(	/* schedule has been modified or added */
+									(sch.[date_modified] > ISNULL(aj.[schedule_date_modified],0))
+									OR 
+									/* schedule has been removed */
+									(sch.[date_modified] IS NULL AND aj.[schedule_date_modified] IS NOT NULL)
+								)
+							)
+						AND [Servername] = @@SERVERNAME
+					)
+		EXCEPT
+		SELECT 
+			[job_id],
+			[job_name],
+			[job_enabled],
+			[job_date_created],
+			[job_date_modified],
+			[start_step_id],
+			[owner_sid],
+			[notify_level_eventlog],
+			[notify_level_email],
+			[notify_level_netsend],
+			[notify_level_page],
+			[notify_email_operator_id],
+			[notify_netsend_operator_id],
+			[notify_page_operator_id],
+			[delete_level],
+			[step_id],
+			[step_name],
+			[subsystem],
+			[command],
+			[additional_parameters],
+			[cmdexec_success_code],
+			[on_success_action],
+			[on_success_step_id],
+			[on_fail_action],
+			[on_fail_step_id],
+			[database_name],
+			[retry_attempts],
+			[output_file_name],
+			[step_uid],
+			[schedule_id],
+			[schedule_enabled],
+			[freq_type],
+			[freq_interval],
+			[freq_subday_type],
+			[freq_subday_interval],
+			[freq_relative_interval],
+			[freq_recurrence_factor],
+			[active_start_date],
+			[active_end_date],
+			[schedule_date_created],
+			[schedule_date_modified]
+		FROM [Inspector].[AgentJobs]
+	) 
+	UPDATE aj2
+	SET [Log_Date] = GETDATE(), 
+		[job_id] = JobChanges.[job_id],
+		[job_name] = JobChanges.[job_name],
+		[job_enabled] = JobChanges.[job_enabled], 
+		[job_date_created] = JobChanges.[job_date_created], 
+		[job_date_modified] = JobChanges.[job_date_modified], 
+		[start_step_id] = JobChanges.[start_step_id], 
+		[owner_sid] = JobChanges.[owner_sid], 
+		[notify_level_eventlog] = JobChanges.[notify_level_eventlog], 
+		[notify_level_email] = JobChanges.[notify_level_email], 
+		[notify_level_netsend] = JobChanges.[notify_level_netsend], 
+		[notify_level_page] = JobChanges.[notify_level_page], 
+		[notify_email_operator_id] = JobChanges.[notify_email_operator_id], 
+		[notify_netsend_operator_id] = JobChanges.[notify_netsend_operator_id], 
+		[notify_page_operator_id] = JobChanges.[notify_page_operator_id], 
+		[delete_level] = JobChanges.[delete_level], 
+		[step_id] = JobChanges.[step_id], 
+		[step_name] = JobChanges.[step_name], 
+		[subsystem] = JobChanges.[subsystem], 
+		[command] = JobChanges.[command], 
+		[additional_parameters] = JobChanges.[additional_parameters], 
+		[cmdexec_success_code] = JobChanges.[cmdexec_success_code], 
+		[on_success_action] = JobChanges.[on_success_action], 
+		[on_success_step_id] = JobChanges.[on_success_step_id], 
+		[on_fail_action] = JobChanges.[on_fail_action], 
+		[on_fail_step_id] = JobChanges.[on_fail_step_id], 
+		[database_name] = JobChanges.[database_name], 
+		[retry_attempts] = JobChanges.[retry_attempts], 
+		[output_file_name] = JobChanges.[output_file_name], 
+		[step_uid] = JobChanges.[step_uid], 
+		[schedule_id] = JobChanges.[schedule_id], 
+		[schedule_enabled] = JobChanges.[schedule_enabled], 
+		[freq_type] = JobChanges.[freq_type], 
+		[freq_interval] = JobChanges.[freq_interval], 
+		[freq_subday_type] = JobChanges.[freq_subday_type], 
+		[freq_subday_interval] = JobChanges.[freq_subday_interval],
+		[freq_relative_interval] = JobChanges.[freq_relative_interval], 
+		[freq_recurrence_factor] = JobChanges.[freq_recurrence_factor], 
+		[active_start_date] = JobChanges.[active_start_date], 
+		[active_end_date] = JobChanges.[active_end_date], 
+		[schedule_date_created] = JobChanges.[schedule_date_created], 
+		[schedule_date_modified] = JobChanges.[schedule_date_modified]
+	FROM JobChanges
+	INNER JOIN [Inspector].[AgentJobs] aj2 ON aj2.job_id = JobChanges.job_id AND  aj2.step_id = JobChanges.step_id 
+	WHERE aj2.[Servername] = @@SERVERNAME;
+END';
+
+
 IF OBJECT_ID('Inspector.InspectorDataCollection') IS NULL 
 EXEC('CREATE PROCEDURE  [Inspector].[InspectorDataCollection] AS;');
 
@@ -12068,7 +12566,7 @@ ALTER PROCEDURE [Inspector].[InspectorDataCollection]
 AS 
 BEGIN 
 
---Revision date: 11/01/2023
+--Revision date: 19/07/2023
 
 SET NOCOUNT ON;
 
@@ -12200,7 +12698,19 @@ BEGIN
 				END
 				ELSE 
 				BEGIN 
-					RAISERROR(''No collection required for Module: %s'',0,0,@Modulename) WITH NOWAIT;
+					RAISERROR(''Collection procedure %s does not exist for Module: %s'',0,0,@CollectionProcedurename,@Modulename) WITH NOWAIT;
+					SET @ErrorMessage = ''Collection procedure does not exist for Module'';
+					SET @CollectionStart = GETDATE();
+
+					EXEC [Inspector].[ExecutionLogInsert] 
+						@RunDatetime = @CollectionStart, 
+						@Servername = @Servername, 
+						@ModuleConfigDesc = @ModuleConfig_Desc,
+						@Procname = @CollectionProcedurename, 
+						@Frequency = @Frequency,
+						@Duration = 0,
+						@PSCollection = @PSCollection,
+						@ErrorMessage = @ErrorMessage;
 				END 
 	   
 				--Update LastRunDateTime
