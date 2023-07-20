@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 18/07/2023
+Revision date: 19/07/2023
 Version: 2.8
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20230718';
+DECLARE @Revisiondate DATE = '20230719';
 DECLARE @Build VARCHAR(6) ='2.8'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -4994,14 +4994,19 @@ ALTER PROCEDURE [Inspector].[BackupsCheckInsert]
 AS
 BEGIN
 
---Revision date: 05/02/2023
+--Revision date: 19/07/2023
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME;
 DECLARE @FullBackupThreshold INT = (Select [Value] FROM [Inspector].[Settings] WHERE Description = ''FullBackupThreshold'')
 DECLARE @MaxFullThreshold INT;
 
 SET @FullBackupThreshold = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,''BackupsCheck'',''FullBackupThreshold'') AS INT),168));
-SET @MaxFullThreshold = (SELECT MAX(FullThreshold) FROM [Inspector].[BackupsCheckThresholds] WHERE [IsActive] = 1);
+SET @MaxFullThreshold = (SELECT MAX(FullThreshold) FROM [Inspector].[BackupsCheckThresholds] WHERE [Servername] = @Servername AND [IsActive] = 1);
+
+IF (@MaxFullThreshold IS NULL)
+BEGIN 
+	SET @MaxFullThreshold = @FullBackupThreshold;
+END
 
 IF (@FullBackupThreshold < @MaxFullThreshold)
 BEGIN 
@@ -8336,14 +8341,19 @@ ALTER PROCEDURE [Inspector].[BackupsCheckReport]
 )
 AS
 BEGIN
---Revision date: 12/10/2021
+--Revision date: 19/07/2023
 
 	DECLARE @FullBackupThreshold INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''FullBackupThreshold'') AS INT),168));
 	DECLARE @DiffBackupThreshold INT = (SELECT TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''DiffBackupThreshold'') AS INT));
 	DECLARE @LogBackupThreshold	INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,@Modulename,''LogBackupThreshold'') AS INT),20));
 	DECLARE @LastCollection DATETIME;
 	DECLARE @ReportFrequency INT;
-	DECLARE @MaxFullThreshold INT = (SELECT MAX(FullThreshold) FROM [Inspector].[BackupsCheckThresholds] WHERE [IsActive] = 1);
+	DECLARE @MaxFullThreshold INT = (SELECT MAX(FullThreshold) FROM [Inspector].[BackupsCheckThresholds] WHERE [Servername] = @Servername AND [IsActive] = 1);
+
+	IF (@MaxFullThreshold IS NULL)
+	BEGIN 
+		SET @MaxFullThreshold = @FullBackupThreshold;
+	END
 
 	IF (@FullBackupThreshold < @MaxFullThreshold)
 	BEGIN 
@@ -12320,14 +12330,14 @@ BEGIN
 END'; 
 
 
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[AgentJobInsert]') AND type in (N'P', N'PC'))
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[AgentJobsInsert]') AND type in (N'P', N'PC'))
 BEGIN
-	EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [Inspector].[AgentJobInsert] AS' 
+	EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [Inspector].[AgentJobsInsert] AS' 
 END
 
 
 
-EXEC dbo.sp_executesql @statement = N'ALTER PROCEDURE [Inspector].[AgentJobInsert]
+EXEC dbo.sp_executesql @statement = N'ALTER PROCEDURE [Inspector].[AgentJobsInsert]
 AS
 BEGIN
 
