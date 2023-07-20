@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 19/07/2023
+Revision date: 20/07/2023
 Version: 2.8
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20230719';
+DECLARE @Revisiondate DATE = '20230720';
 DECLARE @Build VARCHAR(6) ='2.8'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -12818,7 +12818,7 @@ EXEC('CREATE PROCEDURE  [Inspector].[SQLUnderCoverInspectorReport] AS;');
 EXEC sp_executesql N'
 /*********************************************
 --Author: Adrian Buckman
---Revision date: 11/01/2023
+--Revision date: 20/07/2023
 --Description: SQLUnderCoverInspectorReport - Report and email from Central logging tables.
 *********************************************/
 
@@ -12844,7 +12844,7 @@ OR @ModuleDesc IS NULL
 BEGIN
 
 --Check if a database filename resync is required following installation of V1.4 or manually triggered via the setting 
-DECLARE @DatabaseFilenameSync BIT = (SELECT TRY_CONVERT(BIT,ISNULL(NULLIF([Value],''''),1)) FROM [Inspector].[Settings] WHERE [Description] = ''InspectorUpgradeFilenameSync'')
+DECLARE @DatabaseFilenameSync BIT = (SELECT TRY_CONVERT(BIT,ISNULL(NULLIF([Value],''''),0)) FROM [Inspector].[Settings] WHERE [Description] = ''InspectorUpgradeFilenameSync'')
 
 IF (@DatabaseFilenameSync = 1)
 BEGIN 
