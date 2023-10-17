@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 20/07/2023
+Revision date: 17/10/2023
 Version: 2.8
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20230720';
+DECLARE @Revisiondate DATE = '20231017';
 DECLARE @Build VARCHAR(6) ='2.8'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -3225,7 +3225,7 @@ END
 	BEGIN
 	EXEC dbo.sp_executesql @statement = N'CREATE VIEW [Inspector].[ModuleSchedulesDue] 
 	AS 
-	--Revision date: 13/03/2020
+	--Revision date: 17/10/2023
 	
 		SELECT 
 		[Schedules].[Modulename],
@@ -3265,13 +3265,13 @@ END
 		----Check that the current interval (if there is one) is exactly divisible by the Frequency
 		AND ((RowNum%Frequency = 0)
 		--Check if no run has occured (NULL) OR if the last run is before the start time for today
-		OR (LastRunDateTime IS NULL OR LastRunDateTime < Schedules.StartDatetime))' 
+		OR (LastRunDateTime IS NULL OR LastRunDateTime < Schedules.StartDatetime OR LastRunDateTime < DATEADD(MINUTE,-Frequency,DATEADD(MINUTE,RowNum,Schedules.StartDatetime)) ))' 
 	END
 	ELSE 
 	BEGIN 
 	EXEC dbo.sp_executesql @statement = N'ALTER VIEW [Inspector].[ModuleSchedulesDue] 
 	AS 
-	--Revision date: 13/04/2020
+	--Revision date: 17/10/2023
 	
 		SELECT 
 		[Schedules].[Modulename],
@@ -3311,7 +3311,7 @@ END
 		----Check that the current interval (if there is one) is exactly divisible by the Frequency
 		AND ((RowNum%Frequency = 0)
 		--Check if no run has occured (NULL) OR if the last run is before the start time for today
-		OR (LastRunDateTime IS NULL OR LastRunDateTime < Schedules.StartDatetime))' 
+		OR (LastRunDateTime IS NULL OR LastRunDateTime < Schedules.StartDatetime OR LastRunDateTime < DATEADD(MINUTE,-Frequency,DATEADD(MINUTE,RowNum,Schedules.StartDatetime)) ))' 
 	END 
 
 
