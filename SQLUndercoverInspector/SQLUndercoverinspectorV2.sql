@@ -65,7 +65,7 @@ GO
 Author: Adrian Buckman
 Created Date: 15/07/2017
 
-Revision date: 17/10/2023
+Revision date: 11/11/2023
 Version: 2.8
 
 Description: SQLUndercover Inspector setup script Case sensitive compatible.
@@ -129,7 +129,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 
-DECLARE @Revisiondate DATE = '20231017';
+DECLARE @Revisiondate DATE = '20231111';
 DECLARE @Build VARCHAR(6) ='2.8'
 
 DECLARE @JobID UNIQUEIDENTIFIER;
@@ -2107,6 +2107,40 @@ END;
 				);
 			END
 
+			IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Inspector].[BackupSpaceHistory]') AND type in (N'U'))
+			BEGIN
+				CREATE TABLE [Inspector].[BackupSpaceHistory](
+					[ID] [int] IDENTITY(1,1) NOT NULL,
+					[Servername] [nvarchar](128) NOT NULL,
+					[Log_Date] [datetime] NULL,
+					[BackupPath] [varchar](256) NULL,
+					[FreeSpaceInGB] DECIMAL(10,2) NULL
+				);
+			END
+			
+			IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID(N'[Inspector].[BackupSpaceHistory]') AND name = N'CIX_BackupSpaceHistory_ID')
+			BEGIN
+				CREATE UNIQUE CLUSTERED INDEX [CIX_BackupSpaceHistory_ID] ON [Inspector].[BackupSpaceHistory]
+				(
+					[ID] ASC
+				);
+			END
+
+			IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID(N'[Inspector].[BackupSpaceHistory]') AND name = N'IX_BackupSpaceHistory_Servername_Log_Date')
+			BEGIN
+				CREATE NONCLUSTERED INDEX [IX_BackupSpaceHistory_Servername_Log_Date] ON [Inspector].[BackupSpaceHistory]
+				(	
+					[Servername] ASC,
+					[Log_Date] ASC
+				);
+			END
+
+			IF NOT EXISTS(SELECT 1 FROM [Inspector].[Settings] WHERE [Description] = 'BackupSpaceRetentionDays')
+			BEGIN 
+				INSERT INTO [Inspector].[Settings] ([Description], [Value])
+				VALUES('BackupSpaceRetentionDays','30');
+			END 
+
 			IF OBJECT_ID('Inspector.DefaultHeaderText') IS NULL
 			BEGIN
 				CREATE TABLE [Inspector].[DefaultHeaderText](
@@ -2898,7 +2932,8 @@ VALUES  (''SQLUndercoverInspectorEmailSubject'',@StackNameForEmailSubject),
 		(''LongRunningTransactionsHistoryRetentionDays'',''7''),
 		(''PSAutoUpdateModules'',''1''),
 		(''PSAutoUpdateModulesFrequencyMins'',''1440''),
-		(''MemoryDumpsRetentionInDays'',''180'');
+		(''MemoryDumpsRetentionInDays'',''180''),
+		(''BackupSpaceRetentionDays'',''30'');
 		
 IF NOT EXISTS (SELECT 1 FROM [Inspector].[ModuleConfig])
 BEGIN 
@@ -11665,13 +11700,18 @@ ALTER PROCEDURE [Inspector].[BackupSpaceInsert]
 AS
 BEGIN
 SET NOCOUNT ON;
---Revision date: 18/12/2019
+--Revision date: 11/11/2023
 
 DECLARE @Servername NVARCHAR(128) = @@SERVERNAME
 DECLARE @BackupPath NVARCHAR(1000) = (SELECT NULLIF([Value],'''') From [Inspector].[Settings] where [Description] = ''BackupsPath'');
+DECLARE @BackupSpaceRetentionDays INT = (SELECT ISNULL(TRY_CAST([Inspector].[GetServerModuleThreshold] (@Servername,''BackupSpace'',''BackupSpaceRetentionDays'') AS INT),30));
 
 DELETE FROM [Inspector].[BackupSpace]
 WHERE Servername = @Servername;
+
+DELETE FROM [Inspector].[BackupSpaceHistory]
+WHERE Servername = @Servername
+AND [Log_Date] < DATEADD(DAY,-@BackupSpaceRetentionDays,GETDATE());
 
 WITH BackupPaths AS (
 SELECT CAST(StringElement AS VARCHAR(256)) AS BackupPath 
@@ -11738,7 +11778,7 @@ ALTER PROCEDURE [Inspector].[BackupSpaceReport]
 )
 AS
 BEGIN
---Revision date: 23/11/2020
+--Revision date: 11/11/2023
 --Excluded from Warning level control
 	DECLARE @BackupPathToCheck VARCHAR(256)
 	DECLARE @BackupPaths NVARCHAR(1000) 
@@ -11848,7 +11888,7 @@ BEGIN
 						SET @ErrorEncounteredText = ''Unable to determine free space for the Backup Path Specified in [Inspector].[Settings]'';
 					END 
 					
-					SET @FreeSpace_GB = ((CAST(@FreeSpace_Bytes AS MONEY)/1024)/1000)/1000;
+					SET @FreeSpace_GB = ((CAST(@FreeSpace_Bytes AS MONEY)/1024)/1024)/1024;
 				END
 					
 			END
@@ -11882,6 +11922,9 @@ BEGIN
 		BEGIN
 			IF @ErrorEncountered = 0 
 			BEGIN 
+				INSERT INTO [Inspector].[BackupSpaceHistory] ([Servername], [Log_Date], [BackupPath], [FreeSpaceInGB])
+				VALUES(@@SERVERNAME,GETDATE(),@BackupPathToCheck,CAST(@FreeSpace_GB AS DECIMAL(10,2)));
+
 				SET @BackupSpaceLessStorageSpace = CAST(@FreeSpace_GB AS DECIMAL(10,1)) - @BackupSizeForNextWeekday
 				SELECT @HtmlOutput = @HtmlOutput +
 				(SELECT 
