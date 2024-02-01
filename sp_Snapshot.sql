@@ -1,7 +1,7 @@
 /******************************************************************
 
 Author: David Fowler
-Revision date: 15 August 2019
+Revision date: 26 January 2024
 Version: 2
 
 © www.sqlundercover.com 
@@ -22,132 +22,141 @@ software.
 
 ******************************************************************/
 
-
-USE master
-GO
- 
-ALTER PROCEDURE sp_Snapshot
-(@DatabaseList NVARCHAR(4000),
-@ListOnly BIT = 0)
- 
+CREATE OR ALTER PROC sp_snapshot (
+	@DatabaseList NVARCHAR(4000)
+	,@Suffix NVARCHAR(100) = 'snapshot'
+	,@FilePath NVARCHAR(255) = ''
+	,@Timestamp BIT = 0
+	,@DateFormat INT = 126
+	,@ListOnly BIT = 0
+	)
 AS
- 
 BEGIN
+	SET NOCOUNT ON
+
+	IF OBJECT_ID('tempdb..#DatabaseList') IS NOT NULL
+		DROP TABLE #DatabaseList
+
+	CREATE TABLE #DatabaseList (name NVARCHAR(4000))
+
+	IF OBJECT_ID('tempdb..#DatabasesFinal') IS NOT NULL
+		DROP TABLE #DatabasesFinal
+
+	IF @Timestamp = 1
+	BEGIN
+		SET @Suffix += '_' + CONVERT(VARCHAR, GETDATE(), @DateFormat)
+	END
+
+	--we need to strip out certain characters from the file name that tend to occur in dates6
+	SET @Suffix = REPLACE(@Suffix, ':', '')
+	SET @Suffix = REPLACE(@Suffix, '\', '')
+	SET @Suffix = REPLACE(@Suffix, '/', '')
+
+	--select the database list into a temp table so that we can work with it
+	INSERT INTO #DatabaseList
+	SELECT value
+	FROM STRING_SPLIT(@DatabaseList, ',')
+
+	--get list of databases, including those covered by any wildcards
+	SELECT QUOTENAME(name) AS name
+	INTO #DatabasesFinal
+	FROM sys.databases databases
+	WHERE EXISTS (
+			SELECT name
+			FROM #DatabaseList
+			WHERE databases.name LIKE #DatabaseList.name
+			)
+
+	IF @ListOnly = 1 --if @listonly set then only print the affected databases
+		SELECT name
+		FROM #DatabasesFinal
+	ELSE
+	BEGIN
+		DECLARE @Databases VARCHAR(128)
+
+		------------------------------------------------------------------------------------------------------
+		--Loop through each database creating snapshots
+		DECLARE databases_curr CURSOR
+		FOR
+		SELECT name
+		FROM #DatabasesFinal
+
+		OPEN databases_curr
+
+		FETCH NEXT
+		FROM databases_curr
+		INTO @Databases
+
+		WHILE @@FETCH_STATUS = 0
+		BEGIN
+			--create snapshots
+			DECLARE @SQL VARCHAR(MAX)
+
+			SET @SQL = 'USE ' + @Databases + 'DECLARE @DatabaseName VARCHAR(128)
+				DECLARE @SnapshotName VARCHAR(128)
+				SET @DatabaseName = DB_NAME()
+				SET @SnapshotName = DB_NAME() + ''_' + @Suffix + 
+				''' 
  
-SET NOCOUNT ON
+				--table variable to hold file list
+				DECLARE @DatabaseFiles TABLE (id INT identity(1,1),name VARCHAR(128), physical_name VARCHAR(400), ss_file_name VARCHAR(4000)) 
  
-IF OBJECT_ID('tempdb..#DatabaseList') IS NOT NULL
-    DROP TABLE #DatabaseList
+				--populate table variable with file information
+				INSERT INTO @DatabaseFiles (name, physical_name, ss_file_name)
+				SELECT name, physical_name, REVERSE(SUBSTRING(REVERSE(Physical_name),CHARINDEX(''\'', REVERSE(physical_name),0),LEN(physical_name)))
+				FROM sys.master_files
+				WHERE type != 1 AND database_id = DB_ID()
  
-CREATE TABLE #DatabaseList (name NVARCHAR(4000))
+				--begin building snapshot script
+				DECLARE @SnapshotScript VARCHAR(1000)
+				SET @SnapshotScript = ''CREATE DATABASE '' + QUOTENAME(@SnapshotName) + '' ON '' 
  
-IF OBJECT_ID('tempdb..#DatabasesFinal') IS NOT NULL
-    DROP TABLE #DatabasesFinal
+				--loop through datafile table variable
+				DECLARE @LoopCounter INT = 0 
  
---set compatibility mode
-DECLARE @compatibility BIT
+				DECLARE @FileCount INT
+				SELECT @FileCount = COUNT(*)
+				FROM @DatabaseFiles 
  
---set compatibility to 1 if server version includes STRING_SPLIT
-SELECT  @compatibility = CASE
-            WHEN SERVERPROPERTY ('productversion') >= '13.0.4001.0' AND Compatibility_Level >= 130 THEN 1
-            ELSE 0
-        END
-FROM sys.databases
-WHERE name = DB_NAME()
+				WHILE @LoopCounter < @FileCount
+				BEGIN
+					SET @LoopCounter = @LoopCounter + 1
+
+					IF ''' + @FilePath + 
+				''' = ''''
+					BEGIN
+						SELECT @SnapshotScript = @SnapshotScript + ''(NAME = '' + QUOTENAME(name) + '', FILENAME = '''''' + ss_file_name + @SnapshotName + ''.ss''''),''
+						FROM @DatabaseFiles
+						WHERE id = @LoopCounter
+					END 
+					ELSE
+					BEGIN
+						SELECT @SnapshotScript = @SnapshotScript + ''(NAME = '' + QUOTENAME(name) + '', FILENAME = ''''' + @FilePath + ''' + @SnapshotName + ''.ss''''),''
+						FROM @DatabaseFiles
+						WHERE id = @LoopCounter
+					END
+				END 
  
---select the database list into a temp table so that we can work with it
-IF @compatibility = 1 --if compatibility = 1 then use STRING_SPLIT otherwise use fn_SplitString
-    INSERT INTO #DatabaseList
-    SELECT value
-    FROM STRING_SPLIT(@DatabaseList,',')
-ELSE
-    INSERT INTO #DatabaseList
-    SELECT StringElement AS name
-    FROM master..fn_SplitString(@DatabaseList,',')
+				--loop will have added an unwanted comma at the end of the script, delete this comma
+				SET @SnapshotScript = LEFT(@snapshotscript, LEN(@snapshotscript) -1) 
  
---get list of databases, including those covered by any wildcards
-SELECT QUOTENAME(name) AS name
-INTO #DatabasesFinal
-FROM sys.databases databases
-WHERE EXISTS
-        (SELECT name
-        FROM #DatabaseList
-        WHERE databases.name LIKE #DatabaseList.name)   
+				--add AS SNAPSHOT to script
+				SET @SnapshotScript = @SnapshotScript + '' AS SNAPSHOT OF ['' + @DatabaseName + '']'' 
  
-IF @ListOnly = 1 --if @listonly set then only print the affected databases
-SELECT name
-FROM #DatabasesFinal
-ELSE
-BEGIN
- 
-    DECLARE @Databases VARCHAR(128)
- 
-    ------------------------------------------------------------------------------------------------------
-    --Loop through each database creating snapshots
- 
-    DECLARE databases_curr CURSOR
-    FOR SELECT name
-        FROM #DatabasesFinal
- 
-    OPEN databases_curr
- 
-    FETCH NEXT FROM databases_curr
-    INTO @Databases
- 
-    WHILE @@FETCH_STATUS = 0
-    BEGIN
- 
-        --create snapshots
- 
-        EXEC ('USE ' + @Databases +
-            'DECLARE @DatabaseName VARCHAR(128)
-            DECLARE @SnapshotName VARCHAR(128)
-            SET @DatabaseName = DB_NAME()
-            SET @SnapshotName = DB_NAME() + ''_snapshot'' 
- 
-            --table variable to hold file list
-            DECLARE @DatabaseFiles TABLE (id INT identity(1,1),name VARCHAR(128), physical_name VARCHAR(400)) 
- 
-            --populate table variable with file information
-            INSERT INTO @DatabaseFiles (name, physical_name)
-            SELECT name, physical_name
-            FROM sys.database_files
-            WHERE type != 1 
- 
-            --begin building snapshot script
-            DECLARE @SnapshotScript VARCHAR(1000)
-            SET @SnapshotScript = ''CREATE DATABASE '' + QUOTENAME(@SnapshotName) + '' ON '' 
- 
-            --loop through datafile table variable
-            DECLARE @LoopCounter INT = 0 
- 
-            DECLARE @FileCount INT
-            SELECT @FileCount = COUNT(*)
-            FROM @DatabaseFiles 
- 
-            WHILE @LoopCounter < @FileCount
-            BEGIN
-            SET @LoopCounter = @LoopCounter + 1
-            SELECT @SnapshotScript = @SnapshotScript + ''(NAME = '' + QUOTENAME(name) + '', FILENAME = '''''' + physical_name + ''.ss''''),''
-            FROM @DatabaseFiles
-            WHERE id = @LoopCounter
-            END 
- 
-            --loop will have added an unwanted comma at the end of the script, delete this comma
-            SET @SnapshotScript = LEFT(@SnapshotScript, LEN(@SnapshotScript) -1) 
- 
-            --add AS SNAPSHOT to script
-            SET @SnapshotScript = @SnapshotScript + '' AS SNAPSHOT OF ['' + @DatabaseName + '']'' 
- 
-            --Generate the snapshot
-            PRINT ''Creating Snapshot for ' + @Databases + '''
-            EXEC (@SnapshotScript)')
- 
-        FETCH NEXT FROM databases_curr
-        INTO @Databases
-    END
- 
-    CLOSE databases_curr
-    DEALLOCATE databases_curr
-END
+				--Generate the snapshot
+				PRINT ''Creating Snapshot for ' + @Databases + '''
+				--PRINT @SnapshotScript
+				EXEC (@SnapshotScript)'
+
+			EXEC (@SQL)
+
+			FETCH NEXT
+			FROM databases_curr
+			INTO @Databases
+		END
+
+		CLOSE databases_curr
+
+		DEALLOCATE databases_curr
+	END
 END
