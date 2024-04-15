@@ -1,6 +1,6 @@
 --Undercover Catalogue
 --David Fowler
---Version 0.4.0 - 25 November 2019
+--Version 0.5.0 - 21 September 2022
 --Module: Databases
 --Script: Get
 
@@ -29,5 +29,6 @@ JOIN	(SELECT database_id, (SUM(CAST (size AS BIGINT)) * 8)/1024 AS DatabaseSizeM
 			), 1, 2, '') AS FilePaths
 		FROM sys.master_files files1
 		GROUP BY database_id) files ON files.database_id = databases.database_id
+WHERE databases.source_database_id IS NULL
 END
 

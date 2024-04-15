@@ -5,7 +5,6 @@ Update 0.2.0 - 28/01/2019
 Update 0.2.1 - 14/02/2019
 Update 0.3.0 - 27/08/2019
 Update 0.4.0 - 23/12/2019
-Update 0.5.0 - 09/06/2020
 
 MIT License
 ------------
@@ -26,13 +25,14 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #>
 
 #configuration variables, change these to suit your setup
-$ConfigServer = "<central server>"
+$ConfigServer = "<servername>"
 $SQLUndercoverDatabase = "SQLUndercover"
 
-$ScriptVersion = "0.5.0"
+$ScriptVersion = "0.4.0"
 
 #import dbatools
-#Import-Module dbatools
+Import-Module dbatools
+
 Clear-Host
 
 ####################     Get configuration parameters from catalogue.configPoSH   #######################################
@@ -74,20 +74,13 @@ Write-Host "|                                  cKkl,                            
 Write-Host "|                                  ;c.                                      |" -ForegroundColor White -BackgroundColor Black                                                                      
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "|                           Undercover Catalogue                            |" -ForegroundColor White -BackgroundColor Black
-Write-Host "|                              version 0.5.0                                |" -ForegroundColor White -BackgroundColor Black
-Write-Host "|                          ©2020 sqlundercover.com                          |" -ForegroundColor White -BackgroundColor Black
+Write-Host "|                              version 0.4.0                                |" -ForegroundColor White -BackgroundColor Black
+Write-Host "|                          ©2019 sqlundercover.com                          |" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "=============================================================================" -ForegroundColor White -BackgroundColor Black
 Write-Host "getting configuration parameters..." -ForegroundColor Yellow
 
-#$Config = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT ParameterName, ParameterValue FROM Catalogue.ConfigPoSH" -As DataSet
-
-$ConfigConn = New-Object system.data.SqlClient.SqlConnection("Data Source=$ConfigServer;Initial Catalog=$SQLUndercoverDatabase; Integrated Security=SSPI")
-$Config = New-Object System.Data.DataSet
-$ConfigQuery = 'SELECT ParameterName, ParameterValue FROM Catalogue.ConfigPoSH'
-$ConfigDataAdapter = New-Object System.Data.SqlClient.SqlDataAdapter ($ConfigQuery, $ConfigConn)
-$ConfigDataAdapter.Fill($Config)
-
+$Config = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT ParameterName, ParameterValue FROM Catalogue.ConfigPoSH" -As DataSet
 
 $dbatoolsRequiredVersion = $Config.Tables[0].Select("ParameterName = 'DBAToolsRequirement'").ItemArray[1].ToString()
 $CatalogueVersion = $Config.Tables[0].Select("ParameterName = 'CatalogueVersion'").ItemArray[1].ToString()
@@ -105,12 +98,12 @@ Write-Host "SQL Undercover Database:" $SQLUndercoverDatabase -ForegroundColor Gr
 
 ####################     Check dbatools is installed and at supported version    ########################################
 
-<#$module =Get-Module dbatools
+$module =Get-Module dbatools
 
 If ($module.Version -lt $dbatoolsRequiredVersion) {Throw "Your either don't have dbatools installed or your installed module doesn't meet the required version.  Check out dbatools.io for full details."}
 ELSE
 {Write-Host "dbatools, installed version: "$module.Version ", required version: "$dbatoolsRequiredVersion -ForegroundColor Green}
-#>
+
 ###################    auto discover SQL instances     ##################################################################
 
 If ($AutoDiscoverInstances -eq "1")
@@ -141,8 +134,7 @@ If ($AutoDiscoverInstances -eq "1")
                         VALUES('" + $SQLServer.ItemArray[0].ToString() + "\" + $SQLServer.ItemArray[1].ToString() + "',0)"
     }
 
-    Invoke-Sqlcmd -ServerInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $InsertCmd
-
+    Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $InsertCmd
     }
 }
 Else
@@ -177,7 +169,7 @@ if ($AutoUpdate -eq 1)
                     Write-Host "Installing update $($UpdateDetails[1])" -ForegroundColor Yellow
                     $UpdateStmt = Invoke-WebRequest "$InstallLocation$($UpdateDetails[2])"
 
-                    Invoke-Sqlcmd -ServerInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateStmt 
+                    Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateStmt 
                     Start-Sleep -s 10
                 }
             }
@@ -210,19 +202,13 @@ else
 
 #Update Execution Audit
 Write-Host "Updating Execution Audit" -ForegroundColor Yellow
-#Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "INSERT INTO Catalogue.ExecutionLog(ExecutionDate) VALUES(GETDATE())"
-Invoke-Sqlcmd -ServerInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "INSERT INTO Catalogue.ExecutionLog(ExecutionDate) VALUES(GETDATE())"
+Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "INSERT INTO Catalogue.ExecutionLog(ExecutionDate) VALUES(GETDATE())"
+
 
 ####################    update catalogue     ##########################################################################
 
-
 #get all instances
-$Instances = New-Object System.Data.DataSet
-$ConfigDataAdapter.SelectCommand = "SELECT [ServerName] FROM Catalogue.ConfigInstances WHERE Active = 1"
-$ConfigDataAdapter.SelectCommand.Connection = $ConfigConn
-$ConfigDataAdapter.Fill($Instances)
-
-#$Instances = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT [ServerName] FROM Catalogue.ConfigInstances WHERE Active = 1" -As DataSet
+$Instances = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "SELECT [ServerName] FROM Catalogue.ConfigInstances WHERE Active = 1" -As DataSet
 
 
 #for every instance in the ConfigInstances table
@@ -232,16 +218,8 @@ ForEach ($instance in $Instances.Tables[0].Rows)
     {
         Write-Host "Interrogating Instance: "$instance.ItemArray[0].ToString() "..." -ForegroundColor Yellow
 
-        #set up remote instance connection
-        $RemoteConn = New-Object system.data.SqlClient.SqlConnection("Data Source=$($instance.ItemArray[0].ToString()); Integrated Security=SSPI")
-
-
         #get all active modules
-        $Modules = New-Object System.Data.DataSet
-        $ConfigDataAdapter.SelectCommand = "EXEC Catalogue.GetModuleDetails '$($instance.ItemArray[0].ToString())'"
-        $ConfigDataAdapter.SelectCommand.Connection = $ConfigConn
-        $ConfigDataAdapter.Fill($Modules)
-        #$Modules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "EXEC Catalogue.GetModuleDetails '$($instance.ItemArray[0].ToString())'" -As DataSet
+        $Modules = Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "EXEC Catalogue.GetModuleDetails '$($instance.ItemArray[0].ToString())'" -As DataSet
        
         #for every active module in the ConfigModules table
         ForEach ($row in $Modules.Tables[0].Rows)
@@ -266,8 +244,7 @@ ForEach ($instance in $Instances.Tables[0].Rows)
                         elseif ($AutoUpdate -eq 1)
                         {
                             Write-Host "Local definition will be automatically updated to match online definition" -ForegroundColor Yellow
-                            Invoke-Sqlcmd -ServerInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "UPDATE [Catalogue].[ConfigModulesDefinitions] SET GetDefinition = '$($GetModuleCode  -replace "'", "''")' WHERE ModuleID = $($row.ItemArray[10].ToString())"
-                            #Invoke-DbaQuery  -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "UPDATE [Catalogue].[ConfigModulesDefinitions] SET GetDefinition = '$($GetModuleCode  -replace "'", "''")' WHERE ModuleID = $($row.ItemArray[10].ToString())"
+                            Invoke-DbaQuery  -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "UPDATE [Catalogue].[ConfigModulesDefinitions] SET GetDefinition = '$($GetModuleCode  -replace "'", "''")' WHERE ModuleID = $($row.ItemArray[10].ToString())"
                             Write-Host "Module Definition Updated" -ForegroundColor Green
                         }
                     }
@@ -293,8 +270,7 @@ ForEach ($instance in $Instances.Tables[0].Rows)
                         elseif ($AutoUpdate -eq 1)
                         {
                             Write-Host "Local definition will be automatically updated to match online definition" -ForegroundColor Yellow
-                            #Invoke-DbaQuery  -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "UPDATE [Catalogue].[ConfigModulesDefinitions] SET UpdateDefinition = '$($UpdateModuleCode  -replace "'", "''")' WHERE ModuleID = $($row.ItemArray[10].ToString())"
-                            Invoke-Sqlcmd -ServerInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "UPDATE [Catalogue].[ConfigModulesDefinitions] SET UpdateDefinition = '$($UpdateModuleCode  -replace "'", "''")' WHERE ModuleID = $($row.ItemArray[10].ToString())" 
+                            Invoke-DbaQuery  -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "UPDATE [Catalogue].[ConfigModulesDefinitions] SET UpdateDefinition = '$($UpdateModuleCode  -replace "'", "''")' WHERE ModuleID = $($row.ItemArray[10].ToString())"
                             Write-Host "Module Definition Updated" -ForegroundColor Green
                         }
                     }
@@ -313,32 +289,14 @@ ForEach ($instance in $Instances.Tables[0].Rows)
             }
 
             $StageTableName = $row.ItemArray[3].ToString()
+
             #process module
             #Run the get procedure against remote instance
-
-            $ModuleData = New-Object System.Data.DataSet
-            $ModuleQuery = $GetModuleCode
-            $ModuleDataAdapter = New-Object System.Data.SqlClient.SqlDataAdapter ($ModuleQuery, $RemoteConn)
-            $ModuleDataAdapter.Fill($ModuleData)
-            #$DataSet = Invoke-DbaQuery -SQLInstance $instance.ItemArray[0].ToString() -Query $GetModuleCode -As DataSet
-            
+            $DataSet = Invoke-DbaQuery -SQLInstance $instance.ItemArray[0].ToString() -Query $GetModuleCode -As DataSet
             #insert data from get procedure into staging table on central server
-            #Write-DbaDataTable -SqlInstance $ConfigServer -InputObject $DataSet.Tables[0] -Database $SQLUndercoverDatabase -Schema "Catalogue" -Table $StageTableName -Truncate -confirm:$false
-            $ModuleBulkCopy = New-Object System.Data.SqlClient.SqlBulkCopy($ConfigConn)
-            $ModuleBulkCopy.DestinationTableName = "Catalogue.$StageTableName"
-
-            if ($ConfigConn.State -eq "Closed")
-            {
-                $ConfigConn.Open()
-            }
-
-            Invoke-Sqlcmd -ServerInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "TRUNCATE TABLE Catalogue.$StageTableName"
-            $ModuleBulkCopy.WriteToServer($ModuleData.Tables[0])
-            $ConfigConn.Close()
-
+            Write-DbaDataTable -SqlInstance $ConfigServer -InputObject $DataSet.Tables[0] -Database $SQLUndercoverDatabase -Schema "Catalogue" -Table $StageTableName -Truncate -confirm:$false
             #run the update procedure on the central server
-            Invoke-Sqlcmd -ServerInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateModuleCode
-
+            Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateModuleCode
         }
     }
     catch
@@ -373,7 +331,7 @@ ForEach ($instance in $Instances.Tables[0].Rows)
 
 #Update Execution Audit
 Write-Host "Updating Execution Audit" -ForegroundColor Yellow
-Invoke-Sqlcmd -ServerInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "UPDATE Catalogue.ExecutionLog SET CompletedSuccessfully = 1 FROM Catalogue.ExecutionLog WHERE ID = (SELECT MAX(ID) FROM Catalogue.ExecutionLog)"
+Invoke-DbaQuery -SQLInstance $ConfigServer -Database $SQLUndercoverDatabase -Query "UPDATE Catalogue.ExecutionLog SET CompletedSuccessfully = 1 FROM Catalogue.ExecutionLog WHERE ID = (SELECT MAX(ID) FROM Catalogue.ExecutionLog)"
 
 
 Write-Host "Interrogation Completed" -ForegroundColor Green
