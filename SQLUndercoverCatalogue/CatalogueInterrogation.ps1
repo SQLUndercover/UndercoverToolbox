@@ -7,6 +7,7 @@ Update 0.3.0 - 27/08/2019
 Update 0.4.0 - 23/12/2019
 Update 0.4.4 BETA - 09/06/2020
 Update 0.4.4  - 15/04/2024
+Update 0.4.5 - 21/07/2024
 
 MIT License
 ------------
@@ -27,10 +28,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #>
 
 #configuration variables, change these to suit your setup
-$ConfigServer = "<central server>"
+$ConfigServer = "SQL2019A"
 $SQLUndercoverDatabase = "SQLUndercover"
 
 $ScriptVersion = "0.4.4"
+
 
 #import dbatools
 #Import-Module dbatools
@@ -159,7 +161,7 @@ if ($AutoUpdate -eq 1)
 {
     Write-Host "Auto Update: Enabled" -ForegroundColor Yellow
 
-    $Manifest = Invoke-WebRequest "$($InstallLocation)Manifest.csv"
+    $Manifest = Invoke-WebRequest "$($InstallLocation)Manifest.csv" -UseBasicParsing
     $ManifestArray = $Manifest.Content.Split([Environment]::NewLine)
 
     #check for main version updates
@@ -176,7 +178,7 @@ if ($AutoUpdate -eq 1)
                 if ($UpdateDetails[1] -gt $CatalogueVersion) #if update is for a later version than currently installed then run it in
                 {
                     Write-Host "Installing update $($UpdateDetails[1])" -ForegroundColor Yellow
-                    $UpdateStmt = Invoke-WebRequest "$InstallLocation$($UpdateDetails[2])"
+                    $UpdateStmt = Invoke-WebRequest "$InstallLocation$($UpdateDetails[2])" -UseBasicParsing
 
                     Invoke-Sqlcmd -ServerInstance $ConfigServer -Database $SQLUndercoverDatabase -Query $UpdateStmt 
                     Start-Sleep -s 10
@@ -254,7 +256,7 @@ ForEach ($instance in $Instances.Tables[0].Rows)
             {
                 try
                 {
-                    $GetModuleCode = Invoke-WebRequest $row.ItemArray[7];
+                    $GetModuleCode = Invoke-WebRequest $row.ItemArray[7] -UseBasicParsing;
 
                     #check for differences between git and local definitions
                     if ($($GetModuleCode -replace "`n|`r") -ne $($row.ItemArray[5].ToString() -replace "`n|`r"))
@@ -281,7 +283,7 @@ ForEach ($instance in $Instances.Tables[0].Rows)
 
                 try
                 {
-                    $UpdateModuleCode = Invoke-WebRequest $row.ItemArray[8];
+                    $UpdateModuleCode = Invoke-WebRequest $row.ItemArray[8] -UseBasicParsing;
 
                     #check for differences between git and local definitions
                     if ($($UpdateModuleCode -replace "`n|`r") -ne $($row.ItemArray[6].ToString() -replace "`n|`r"))
