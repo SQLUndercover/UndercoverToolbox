@@ -1873,5 +1873,4 @@ FROM #Services
 		'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/GetServicesEnhanced.sql',
 		'https://raw.githubusercontent.com/SQLUndercover/UndercoverToolbox/master/SQLUndercoverCatalogue/ModuleDefinitions/UpdateServicesEnhanced.sql')
 
-GO
 
